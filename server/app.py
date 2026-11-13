@@ -76,6 +76,8 @@ async def logout():
     """清除凭据与会话"""
     cred_store.clear_credentials()
     client.update_credentials("", "")
+    client.is_logged_in = False
+    client.student_name = ""
     client.session.cookies.clear()
     return {"success": True, "message": "已清除本地凭据与会话"}
 
