@@ -1,0 +1,5 @@
+- insert:
+    - id: scu-urp
+      name: '@local/scu-urp'
+      config:
+        serviceUrl: 'http://127.0.0.1:48080'

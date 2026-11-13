@@ -1,0 +1,257 @@
+/* SCU URP Assistant - 侧边栏抽屉与组件样式 */
+
+:root {
+  --scu-red: #c01920;
+  --scu-red-hover: #a0141a;
+  --scu-bg-card: rgba(255, 255, 255, 0.05);
+  --scu-border: rgba(255, 255, 255, 0.1);
+  --scu-text-main: #ffffff;
+  --scu-text-sub: #9ca3af;
+  --scu-accent: #3b82f6;
+  --scu-green: #10b981;
+}
+
+.scu-drawer-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 420px;
+  background: #18181b;
+  color: var(--scu-text-main);
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  border-right: 1px solid var(--scu-border);
+}
+
+/* Header */
+.scu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #1f1f23;
+  border-bottom: 1px solid var(--scu-border);
+}
+
+.scu-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scu-badge {
+  background: var(--scu-red);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.scu-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.scu-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--scu-text-sub);
+}
+
+.scu-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.scu-dot.online {
+  background: var(--scu-green);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+/* Tab Navigation */
+.scu-nav-tabs {
+  display: flex;
+  background: #141417;
+  border-bottom: 1px solid var(--scu-border);
+}
+
+.scu-tab-btn {
+  flex: 1;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--scu-text-sub);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.scu-tab-btn:hover {
+  color: var(--scu-text-main);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.scu-tab-btn.active {
+  color: var(--scu-red);
+  border-bottom-color: var(--scu-red);
+  font-weight: 600;
+}
+
+/* Content Area */
+.scu-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+/* Cards & Lists */
+.scu-card {
+  background: #202024;
+  border: 1px solid var(--scu-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.scu-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.scu-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.scu-course-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--scu-text-main);
+}
+
+.scu-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--scu-text-sub);
+  margin-top: 4px;
+}
+
+.scu-tag {
+  background: rgba(192, 25, 32, 0.15);
+  color: #f87171;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* Summary Grid for Grades */
+.scu-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.scu-stat-box {
+  background: linear-gradient(135deg, #27272a, #1f1f23);
+  border: 1px solid var(--scu-border);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.scu-stat-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--scu-red);
+}
+
+.scu-stat-label {
+  font-size: 11px;
+  color: var(--scu-text-sub);
+  margin-top: 4px;
+}
+
+/* Form */
+.scu-form-group {
+  margin-bottom: 14px;
+}
+
+.scu-form-label {
+  display: block;
+  font-size: 12px;
+  color: var(--scu-text-sub);
+  margin-bottom: 6px;
+}
+
+.scu-input {
+  width: 100%;
+  background: #141417;
+  border: 1px solid var(--scu-border);
+  color: var(--scu-text-main);
+  padding: 9px 12px;
+  border-radius: 6px;
+  box-sizing: border-box;
+  font-size: 13px;
+  outline: none;
+}
+
+.scu-input:focus {
+  border-color: var(--scu-red);
+}
+
+.scu-primary-btn {
+  width: 100%;
+  background: var(--scu-red);
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.scu-primary-btn:hover {
+  background: var(--scu-red-hover);
+}
+
+.scu-btn-secondary {
+  background: #27272a;
+  color: var(--scu-text-main);
+  border: 1px solid var(--scu-border);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.scu-btn-secondary:hover {
+  background: #3f3f46;
+}
+
+.scu-empty {
+  text-align: center;
+  padding: 30px 10px;
+  color: var(--scu-text-sub);
+  font-size: 13px;
+}
