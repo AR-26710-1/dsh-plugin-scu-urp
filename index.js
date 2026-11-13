@@ -1,7 +1,14 @@
 /**
  * DeepSeek Harness - 四川大学教务系统 (URP) Host 插件
  * 遵循 dsh-plugin-guide.md 规范
+ * 支持自动托管启动本地 Python 桥接服务
  */
+
+import { spawn } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export const inject = ['tools']
 
@@ -13,12 +20,59 @@ export const Config = {
       description: '本地 Python URP 适配服务的 HTTP 地址',
       default: 'http://127.0.0.1:48080',
     },
+    autoStartServer: {
+      type: 'boolean',
+      description: '是否在插件加载时自动在后台拉起 Python 适配服务',
+      default: true,
+    },
   },
   additionalProperties: false,
 }
 
 export function apply(ctx, config) {
   const serviceUrl = config?.serviceUrl || 'http://127.0.0.1:48080'
+  const autoStart = config?.autoStartServer !== false
+
+  // 0. 自动托管：如果后台服务未运行，则静默自动拉起 Python 后端进程
+  if (autoStart) {
+    let serverProcess = null
+
+    ctx.effect(() => {
+      async function ensureBackendRunning() {
+        try {
+          const res = await fetch(`${serviceUrl}/api/status`, { signal: AbortSignal.timeout(1000) })
+          if (res.ok) return // 已经在线，无需重复启动
+        } catch (_) {}
+
+        const serverScript = path.resolve(__dirname, 'server', 'app.py')
+        try {
+          serverProcess = spawn('python', [serverScript], {
+            cwd: path.resolve(__dirname, 'server'),
+            detached: false,
+            stdio: 'ignore',
+            windowsHide: true,
+          })
+          serverProcess.on('error', (err) => {
+            console.warn('[SCU-URP] 自动启动 Python 后端服务失败:', err.message)
+          })
+        } catch (e) {
+          console.warn('[SCU-URP] 启动子进程异常:', e.message)
+        }
+      }
+
+      ensureBackendRunning()
+
+      // 插件卸载/退出时自动回收子进程
+      return () => {
+        if (serverProcess) {
+          try {
+            serverProcess.kill()
+          } catch (_) {}
+          serverProcess = null
+        }
+      }
+    })
+  }
 
   // 1. 注册课表查询工具
   ctx.effect(() => ctx.tools.register({
