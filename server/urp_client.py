@@ -91,19 +91,19 @@ class SCUUrpClient:
                 return cookie.value
         return ""
 
-    def login(self, max_retries: int = 3) -> Tuple[bool, str]:
+    def login(self, max_retries: int = 5) -> Tuple[bool, str]:
         """
-        执行教务系统登录流程，带验证码重试
+        执行教务系统登录流程，带会话修复、字符清洗与自动重试
         """
         if not self.username or not self.password:
             return False, "学号或密码为空"
 
         for attempt in range(1, max_retries + 1):
             try:
-                # 每次登录重试前清空旧会话 Cookie，防止积累不同 Path 的同名 JSESSIONID
+                # 每次登录尝试前清空旧会话，确保干净的环境
                 self.session.cookies.clear()
 
-                # 1. 获取登录页并抽取 token 与 hidden 字段
+                # 1. 访问登录页面
                 login_page_resp = self.session.get(f"{self.BASE_URL}/login", headers=self.headers, timeout=12)
                 html = login_page_resp.text
 
@@ -118,34 +118,45 @@ class SCUUrpClient:
                     if name_m and val_m:
                         hidden_inputs[name_m.group(1)] = val_m.group(1)
 
-                # 2. 动态提取真实的验证码图片地址 (教务处真实标签为 id="captchaImg" src="/img/captcha.jpg")
-                captcha_src_match = re.search(r'<img[^>]+id=[\'"]captchaImg[\'"][^>]*src=[\'"]([^\'"]+)[\'"]', html, re.I)
-                if not captcha_src_match:
-                    captcha_src_match = re.search(r'<img[^>]+src=[\'"]([^\'"]*captcha[^\'"]*)[\'"]', html, re.I)
+                # 2. 获取验证码图片，并清洗噪点确保 4 位有效字母数字
+                captcha_code = ""
+                captcha_attempts = 0
+                while len(captcha_code) != 4 and captcha_attempts < 3:
+                    captcha_attempts += 1
+                    timestamp = int(time.time() * 1000)
+                    captcha_url = f"{self.BASE_URL}/img/captcha.jpg?_={timestamp}"
+                    captcha_resp = self.session.get(captcha_url, timeout=12)
 
-                captcha_path = captcha_src_match.group(1) if captcha_src_match else "/img/captcha.jpg"
-                if not captcha_path.startswith("http"):
-                    captcha_path = f"{self.BASE_URL}{captcha_path if captcha_path.startswith('/') else '/' + captcha_path}"
+                    if self.ocr is None:
+                        return False, "未安装或无法加载 ddddocr 识别引擎"
 
-                timestamp = int(time.time() * 1000)
-                delimiter = "&" if "?" in captcha_path else "?"
-                captcha_url = f"{captcha_path}{delimiter}_={timestamp}"
+                    # 修复 Cookie 作用域与 Secure 标记：
+                    # 教务处下发 /img/captcha.jpg 时将 JSESSIONID 的 Path 设为了 /img，且带了 Secure 标记。
+                    # 在 HTTP 环境下 requests 会拒绝向 /j_spring_security_check 携带它，导致服务端找不到验证码 Session！
+                    jsessionid = None
+                    for c in list(self.session.cookies):
+                        if c.name == "JSESSIONID":
+                            jsessionid = c.value
+                            break
 
-                captcha_resp = self.session.get(captcha_url, timeout=12)
+                    if jsessionid:
+                        self.session.cookies.set("JSESSIONID", jsessionid, domain="zhjw.scu.edu.cn", path="/")
 
-                if self.ocr is None:
-                    return False, "未安装或无法加载 ddddocr 识别引擎"
+                    raw_code = self.ocr.classification(captcha_resp.content)
+                    # 过滤可能识别出的噪点标点符号（如 '+', '-', '.'）和中文乱码，保留 4 位字母数字
+                    clean_code = re.sub(r"[^a-zA-Z0-9]", "", raw_code)
+                    if len(clean_code) == 4:
+                        captcha_code = clean_code
+                        break
+                    elif len(clean_code) > 4:
+                        # 若仅因首尾噪点多出，取前 4 位
+                        captcha_code = clean_code[:4]
+                        break
 
-                # 验证返回内容是否确实为图像
-                if not captcha_resp.content.startswith(b"\xff\xd8") and not captcha_resp.content.startswith(b"\x89PNG"):
-                    if attempt < max_retries:
-                        time.sleep(0.5)
-                        continue
-                    return False, "教务系统返回的验证码数据无效"
+                if not captcha_code:
+                    continue
 
-                captcha_code = self.ocr.classification(captcha_resp.content).strip()
-
-                # 3. 提交登录表单 (使用教务处真实加盐双 MD5: hex_md5(hex_md5(pwd, 'v6'), token)*...)
+                # 3. 构造请求载荷与头部
                 encrypted_pwd = self.encrypt_password(self.password, token_value)
                 payload = {
                     "j_username": self.username,
@@ -155,16 +166,22 @@ class SCUUrpClient:
                     **hidden_inputs,
                 }
 
+                # 确保请求头携带正确的 Referer 与 Cookie
+                post_headers = {
+                    **self.headers,
+                    "Referer": f"{self.BASE_URL}/login",
+                }
+
                 login_resp = self.session.post(
                     f"{self.BASE_URL}/j_spring_security_check",
                     data=payload,
-                    headers=self.headers,
+                    headers=post_headers,
                     allow_redirects=True,
                     timeout=15,
                 )
 
                 resp_text = login_resp.text
-                if "退出系统" in resp_text or "/student/" in login_resp.url:
+                if "退出系统" in resp_text or "/student/" in login_resp.url or "top_img" in resp_text:
                     self.is_logged_in = True
                     # 尝试从主界面抽取学生姓名
                     name_match = re.search(r'class="userName"[^>]*>([^<]+)<', resp_text)
@@ -174,6 +191,7 @@ class SCUUrpClient:
 
                 if "验证码错误" in resp_text or "验证码" in resp_text:
                     if attempt < max_retries:
+                        time.sleep(0.3)
                         continue
                     return False, "验证码识别错误，重试超限"
 
@@ -181,9 +199,12 @@ class SCUUrpClient:
                     return False, "用户名或密码错误，请检查学号与密码"
 
                 if "token校验失败" in resp_text:
+                    time.sleep(0.3)
                     continue
 
             except Exception as e:
+                if attempt >= max_retries:
+                    return False, f"登录网络异常: {str(e)}"
                 if attempt >= max_retries:
                     return False, f"登录网络异常: {str(e)}"
 
