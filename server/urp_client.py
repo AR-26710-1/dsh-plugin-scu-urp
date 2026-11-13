@@ -58,10 +58,26 @@ class SCUUrpClient:
         return self._ocr_instance
 
     @staticmethod
-    def encrypt_password(password: str) -> str:
-        """教务处双重 MD5 加密逻辑"""
-        first = hashlib.md5(password.encode("utf-8")).hexdigest()
-        return hashlib.md5(first.encode("utf-8")).hexdigest()
+    def _md5_hex(s: str) -> str:
+        return hashlib.md5(s.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def _hex_md5(cls, string: str, ver: str = "") -> str:
+        """还原教务处前端 /js/md5/md5.min.js 的 hex_md5 加盐算法"""
+        if ver:
+            salt = "Urp602019" if ver == "v6" else ver
+            string = f"{string}{{{salt}}}"
+        return cls._md5_hex(string)
+
+    @classmethod
+    def encrypt_password(cls, password: str, token_value: str = "") -> str:
+        """
+        四川大学综合教务系统官方前端真实加密逻辑 (源自 /js/login/login.js encodePass)
+        pass = hex_md5(hex_md5(pwd, 'v6'), token) + '*' + hex_md5(hex_md5(pwd, ''), token)
+        """
+        p1 = cls._hex_md5(cls._hex_md5(password, "v6"), token_value)
+        p2 = cls._hex_md5(cls._hex_md5(password, ""), token_value)
+        return f"{p1}*{p2}"
 
     def update_credentials(self, username: str, password: str):
         self.username = username
@@ -102,20 +118,38 @@ class SCUUrpClient:
                     if name_m and val_m:
                         hidden_inputs[name_m.group(1)] = val_m.group(1)
 
-                # 2. 获取验证码图片 (使用标准毫秒时间戳作为防缓存参数，不读可能冲突的 cookie)
+                # 2. 动态提取真实的验证码图片地址 (教务处真实标签为 id="captchaImg" src="/img/captcha.jpg")
+                captcha_src_match = re.search(r'<img[^>]+id=[\'"]captchaImg[\'"][^>]*src=[\'"]([^\'"]+)[\'"]', html, re.I)
+                if not captcha_src_match:
+                    captcha_src_match = re.search(r'<img[^>]+src=[\'"]([^\'"]*captcha[^\'"]*)[\'"]', html, re.I)
+
+                captcha_path = captcha_src_match.group(1) if captcha_src_match else "/img/captcha.jpg"
+                if not captcha_path.startswith("http"):
+                    captcha_path = f"{self.BASE_URL}{captcha_path if captcha_path.startswith('/') else '/' + captcha_path}"
+
                 timestamp = int(time.time() * 1000)
-                captcha_url = f"{self.BASE_URL}/captcha/generate?_={timestamp}"
+                delimiter = "&" if "?" in captcha_path else "?"
+                captcha_url = f"{captcha_path}{delimiter}_={timestamp}"
+
                 captcha_resp = self.session.get(captcha_url, timeout=12)
 
                 if self.ocr is None:
                     return False, "未安装或无法加载 ddddocr 识别引擎"
 
+                # 验证返回内容是否确实为图像
+                if not captcha_resp.content.startswith(b"\xff\xd8") and not captcha_resp.content.startswith(b"\x89PNG"):
+                    if attempt < max_retries:
+                        time.sleep(0.5)
+                        continue
+                    return False, "教务系统返回的验证码数据无效"
+
                 captcha_code = self.ocr.classification(captcha_resp.content).strip()
 
-                # 3. 提交登录表单
+                # 3. 提交登录表单 (使用教务处真实加盐双 MD5: hex_md5(hex_md5(pwd, 'v6'), token)*...)
+                encrypted_pwd = self.encrypt_password(self.password, token_value)
                 payload = {
                     "j_username": self.username,
-                    "j_password": self.encrypt_password(self.password),
+                    "j_password": encrypted_pwd,
                     "j_captcha": captcha_code,
                     "tokenValue": token_value,
                     **hidden_inputs,
