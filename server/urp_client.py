@@ -11,6 +11,7 @@
 import io
 import re
 import sys
+import time
 import hashlib
 import datetime
 from typing import Dict, Any, List, Optional, Tuple
@@ -67,6 +68,13 @@ class SCUUrpClient:
         self.password = password
         self.is_logged_in = False
 
+    def _get_cookie_safe(self, name: str) -> str:
+        """安全读取 Cookie，避免 requests 抛出 CookieConflictError"""
+        for cookie in self.session.cookies:
+            if cookie.name == name:
+                return cookie.value
+        return ""
+
     def login(self, max_retries: int = 3) -> Tuple[bool, str]:
         """
         执行教务系统登录流程，带验证码重试
@@ -76,6 +84,9 @@ class SCUUrpClient:
 
         for attempt in range(1, max_retries + 1):
             try:
+                # 每次登录重试前清空旧会话 Cookie，防止积累不同 Path 的同名 JSESSIONID
+                self.session.cookies.clear()
+
                 # 1. 获取登录页并抽取 token 与 hidden 字段
                 login_page_resp = self.session.get(f"{self.BASE_URL}/login", headers=self.headers, timeout=12)
                 html = login_page_resp.text
@@ -91,8 +102,9 @@ class SCUUrpClient:
                     if name_m and val_m:
                         hidden_inputs[name_m.group(1)] = val_m.group(1)
 
-                # 2. 获取验证码图片
-                captcha_url = f"{self.BASE_URL}/captcha/generate?_={self.session.cookies.get('JSESSIONID', '')}"
+                # 2. 获取验证码图片 (使用标准毫秒时间戳作为防缓存参数，不读可能冲突的 cookie)
+                timestamp = int(time.time() * 1000)
+                captcha_url = f"{self.BASE_URL}/captcha/generate?_={timestamp}"
                 captcha_resp = self.session.get(captcha_url, timeout=12)
 
                 if self.ocr is None:
