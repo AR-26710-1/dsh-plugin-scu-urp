@@ -46,7 +46,8 @@ export function apply(ctx, config) {
 
         const serverScript = path.resolve(__dirname, 'server', 'app.py')
         try {
-          serverProcess = spawn('python', [serverScript], {
+          const pyBin = process.platform === 'win32' ? 'py' : 'python3'
+          serverProcess = spawn(pyBin, [serverScript], {
             cwd: path.resolve(__dirname, 'server'),
             detached: false,
             stdio: 'ignore',
