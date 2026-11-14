@@ -1535,53 +1535,45 @@ window.__ModuleLoader__.load({
             )
           ),
 
-          // 第三行：具体时间点与节次筛选区 (既有第几节，又有精准时间点)
+          // 第三行：具体时间点与节次图形化筛选区 (4大时段 + 12小节精确双行胶囊)
           h('div', { style: { paddingTop: '12px' } },
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' } },
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
                 h(ClockIcon, { size: 14 }),
                 h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '自习时间点与节次筛选:'),
-                h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                h('span', {
+                  style: {
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#2563eb',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(37, 99, 235, 0.08)',
+                  },
+                },
                   selectedSession > 0
                     ? `已选 ${currentTimetable[selectedSession - 1]?.label}`
                     : (selectedTimeSlot === 'morning' ? `已选 上午全段 (第1~4节 · ${currentTimetable[0]?.start}-${currentTimetable[3]?.end})` : (selectedTimeSlot === 'afternoon' ? `已选 下午全段 (第5~9节 · ${currentTimetable[4]?.start}-${currentTimetable[8]?.end})` : (selectedTimeSlot === 'evening' ? `已选 晚间全段 (第10~12节 · ${currentTimetable[9]?.start}-${currentTimetable[11]?.end})` : `已选 全天时段 (第1~12节 · ${currentTimetable[0]?.start}-${currentTimetable[11]?.end})`)))
-                ),
-                h('span', { style: { fontSize: '11px', padding: '1px 6px', borderRadius: '4px', background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.1))', color: 'var(--dsw-alias-text-sub, #71717a)' } },
-                  campus === '03' ? '江安作息 · 08:15起' : '望江/华西作息 · 08:00起'
                 )
               ),
-              // 下拉 Select 备用快捷切换 (包含每一节与具体时间)
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
-                h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '快捷菜单:'),
-                h('select', {
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.1))', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                  campus === '03' ? '江安作息 · 08:15起' : '望江/华西作息 · 08:00起'
+                ),
+                (selectedSession > 0 || selectedTimeSlot !== 'all') && h('button', {
                   style: {
-                    ...S.input,
-                    width: 'auto',
-                    marginBottom: 0,
-                    padding: '3px 8px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
+                    ...S.btnSecondary,
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    borderRadius: '4px',
+                    color: 'var(--dsw-alias-text-sub, #71717a)',
                   },
-                  value: selectedSession > 0 ? selectedSession.toString() : selectedTimeSlot,
-                  onChange: (e) => {
-                    const v = e.target.value
-                    if (['all', 'morning', 'afternoon', 'evening'].includes(v)) {
-                      setSelectedSession(0)
-                      setSelectedTimeSlot(v)
-                    } else {
-                      setSelectedSession(parseInt(v))
-                      setSelectedTimeSlot('')
-                    }
+                  onClick: () => {
+                    setSelectedSession(0)
+                    setSelectedTimeSlot('all')
                   },
-                },
-                  h('option', { value: 'all' }, `全天时段 (第1~12节 · ${currentTimetable[0]?.start}-${currentTimetable[11]?.end})`),
-                  h('option', { value: 'morning' }, `上午大段 (第1~4节 · ${currentTimetable[0]?.start}-${currentTimetable[3]?.end})`),
-                  h('option', { value: 'afternoon' }, `下午大段 (第5~9节 · ${currentTimetable[4]?.start}-${currentTimetable[8]?.end})`),
-                  h('option', { value: 'evening' }, `晚间大段 (第10~12节 · ${currentTimetable[9]?.start}-${currentTimetable[11]?.end})`),
-                  currentTimetable.map(t =>
-                    h('option', { key: t.session, value: t.session.toString() }, `${t.label} · ${t.period}`)
-                  )
-                )
+                  title: '恢复查看全天 1~12 节教室情况',
+                }, '重置为全天')
               )
             ),
 
