@@ -192,6 +192,11 @@ window.__ModuleLoader__.load({
     const TrashIcon = createSvgIcon(['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'])
     const PlusIcon = createSvgIcon([], [], [{ x1: 12, y1: 5, x2: 12, y2: 19 }, { x1: 5, y1: 12, x2: 19, y2: 12 }])
     const Edit3Icon = createSvgIcon(['M12 20h9', 'M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z'])
+    const CompassIcon = createSvgIcon(['M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm4.24 6.76l-1.48 4.24a1 1 0 0 1-.52.52l-4.24 1.48a.25.25 0 0 1-.32-.32l1.48-4.24a1 1 0 0 1 .52-.52l4.24-1.48a.25.25 0 0 1 .32.32z'])
+    const SlidersIcon = createSvgIcon([], [], [{ x1: 4, y1: 21, x2: 4, y2: 14 }, { x1: 4, y1: 10, x2: 4, y2: 3 }, { x1: 12, y1: 21, x2: 12, y2: 12 }, { x1: 12, y1: 8, x2: 12, y2: 3 }, { x1: 20, y1: 21, x2: 20, y2: 16 }, { x1: 20, y1: 12, x2: 20, y2: 3 }, { x1: 1, y1: 14, x2: 7, y2: 14 }, { x1: 9, y1: 8, x2: 15, y2: 8 }, { x1: 17, y1: 16, x2: 23, y2: 16 }])
+    const TrendingUpIcon = createSvgIcon(['M23 6l-9.5 9.5-5-5L1 18'], [], [{ x1: 17, y1: 6, x2: 23, y2: 6 }, { x1: 23, y1: 6, x2: 23, y2: 12 }])
+    const AwardIcon = createSvgIcon(['M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'M8.21 13.89L7 23l5-3 5 3-1.21-9.12'])
+    const BookOpenIcon = createSvgIcon(['M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z', 'M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'])
 
     // ================== 本地极速秒开缓存管理器 (Stale-While-Revalidate) ==================
     const SCU_CACHE = {
@@ -2480,7 +2485,829 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ================== 子页面 4：凭据与设置（含稳定退出） ==================
+    // ================== 子页面 5：培养方案全景大纲与未来均分/GPA预测模拟器 ==================
+    function StudyPlanView({ onRequireLogin }) {
+      const [loading, setLoading] = useState(true)
+      const [error, setError] = useState('')
+      const [data, setData] = useState(null)
+      const [cacheNotice, setCacheNotice] = useState('')
+
+      // 模拟分数字典: { [courseId]: number }
+      const [simScores, setSimScores] = useState({})
+      // 开启重修刷分模拟的已修课程 ID 列表
+      const [retakeCourseIds, setRetakeCourseIds] = useState([])
+      // 勾选参与模拟的方案待修读课程 ID 列表
+      const [activePendingIds, setActivePendingIds] = useState([])
+
+      // 自定义自选课程追加模拟
+      const [customCourses, setCustomCourses] = useState([])
+      const [showCustomModal, setShowCustomModal] = useState(false)
+      const [newCustomName, setNewCustomName] = useState('')
+      const [newCustomCredit, setNewCustomCredit] = useState(3.0)
+      const [newCustomIsReq, setNewCustomIsReq] = useState(true)
+      const [newCustomScore, setNewCustomScore] = useState(85.0)
+
+      // 筛选条件
+      const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'PENDING'
+      const [propertyFilter, setPropertyFilter] = useState('ALL') // 'ALL' | 'REQUIRED' | 'ELECTIVE'
+      const [searchKw, setSearchKw] = useState('')
+
+      const fetchStudyPlan = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true)
+        setError('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/program/scheme`)
+          if (resp.status === 401) return onRequireLogin()
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}))
+            setError(err.detail || '获取培养方案数据失败')
+            return
+          }
+          const d = await resp.json()
+          setData(d)
+          SCU_CACHE.set('studyPlan', d)
+          setCacheNotice('')
+
+          // 初始化在读课程默认模拟分为 85
+          setSimScores(prev => {
+            const next = { ...prev }
+            ;(d.inProgressCourses || []).forEach(c => {
+              if (next[c.id] === undefined) next[c.id] = c.score || 85.0
+            })
+            ;(d.pendingCourses || []).forEach(c => {
+              if (next[c.id] === undefined) next[c.id] = c.score || 85.0
+            })
+            return next
+          })
+        } catch (e) {
+          const cached = SCU_CACHE.get('studyPlan')
+          if (cached && cached.data) {
+            setData(cached.data)
+            setCacheNotice(`离线快照 · ${cached.updatedAt}`)
+          } else {
+            setError(`网络异常: ${e.message}`)
+          }
+        } finally {
+          setLoading(false)
+        }
+      }, [onRequireLogin])
+
+      useEffect(() => {
+        const cached = SCU_CACHE.get('studyPlan')
+        if (cached && cached.data) {
+          setData(cached.data)
+          setLoading(false)
+          setCacheNotice(`已载入快照 (${cached.updatedAt})`)
+          fetchStudyPlan(true)
+        } else {
+          fetchStudyPlan(false)
+        }
+      }, [fetchStudyPlan])
+
+      // 川大官方标准成绩折算 GPA
+      const getGpa = (score) => {
+        if (score >= 95) return 4.0
+        if (score >= 90) return 3.8
+        if (score >= 85) return 3.6
+        if (score >= 80) return 3.2
+        if (score >= 75) return 2.7
+        if (score >= 70) return 2.2
+        if (score >= 65) return 1.7
+        if (score >= 60) return 1.0
+        return 0.0
+      }
+
+      // 实时计算模拟指标 (What-If Simulation Engine)
+      let simTotalCredit = 0.0
+      let simTotalWeightedScore = 0.0
+      let simTotalWeightedGpa = 0.0
+
+      let simReqCredit = 0.0
+      let simReqWeightedScore = 0.0
+      let simReqWeightedGpa = 0.0
+
+      if (data) {
+        // 1. 已完成历史课程
+        (data.completedCourses || []).forEach(c => {
+          const isRetake = retakeCourseIds.includes(c.id)
+          const score = isRetake ? (simScores[c.id] ?? c.score) : c.score
+          const gpa = getGpa(score)
+          simTotalCredit += c.credit
+          simTotalWeightedScore += score * c.credit
+          simTotalWeightedGpa += gpa * c.credit
+          if (c.isRequired) {
+            simReqCredit += c.credit
+            simReqWeightedScore += score * c.credit
+            simReqWeightedGpa += gpa * c.credit
+          }
+        })
+
+        // 2. 本学期进行中在读课程 (默认全部参与模拟)
+        (data.inProgressCourses || []).forEach(c => {
+          const score = simScores[c.id] ?? 85.0
+          const gpa = getGpa(score)
+          simTotalCredit += c.credit
+          simTotalWeightedScore += score * c.credit
+          simTotalWeightedGpa += gpa * c.credit
+          if (c.isRequired) {
+            simReqCredit += c.credit
+            simReqWeightedScore += score * c.credit
+            simReqWeightedGpa += gpa * c.credit
+          }
+        })
+
+        // 3. 勾选参与模拟的方案待修课程
+        (data.pendingCourses || []).forEach(c => {
+          if (activePendingIds.includes(c.id)) {
+            const score = simScores[c.id] ?? 85.0
+            const gpa = getGpa(score)
+            simTotalCredit += c.credit
+            simTotalWeightedScore += score * c.credit
+            simTotalWeightedGpa += gpa * c.credit
+            if (c.isRequired) {
+              simReqCredit += c.credit
+              simReqWeightedScore += score * c.credit
+              simReqWeightedGpa += gpa * c.credit
+            }
+          }
+        })
+
+        // 4. 自选追加课程
+        customCourses.forEach(c => {
+          const score = c.score || 85.0
+          const gpa = getGpa(score)
+          simTotalCredit += c.credit
+          simTotalWeightedScore += score * c.credit
+          simTotalWeightedGpa += gpa * c.credit
+          if (c.isRequired) {
+            simReqCredit += c.credit
+            simReqWeightedScore += score * c.credit
+            simReqWeightedGpa += gpa * c.credit
+          }
+        })
+      }
+
+      const simOverallAvg = simTotalCredit > 0 ? (simTotalWeightedScore / simTotalCredit).toFixed(2) : '0.00'
+      const simReqAvg = simReqCredit > 0 ? (simReqWeightedScore / simReqCredit).toFixed(2) : '0.00'
+      const simOverallGpa = simTotalCredit > 0 ? (simTotalWeightedGpa / simTotalCredit).toFixed(2) : '0.00'
+      const simReqGpa = simReqCredit > 0 ? (simReqWeightedGpa / simReqCredit).toFixed(2) : '0.00'
+
+      const baseStats = data?.baseStats || {}
+      const deltaOverallScore = data ? (parseFloat(simOverallAvg) - (baseStats.overallAvgScore || 0)).toFixed(2) : '0.00'
+      const deltaReqScore = data ? (parseFloat(simReqAvg) - (baseStats.requiredAvgScore || 0)).toFixed(2) : '0.00'
+      const deltaOverallGpa = data ? (parseFloat(simOverallGpa) - (baseStats.overallGpa || 0)).toFixed(2) : '0.00'
+      const deltaReqGpa = data ? (parseFloat(simReqGpa) - (baseStats.requiredGpa || 0)).toFixed(2) : '0.00'
+
+      // 批量预设在读与待修课程模拟成绩
+      const handleBatchPreset = (presetScore) => {
+        setSimScores(prev => {
+          const next = { ...prev }
+          ;(data?.inProgressCourses || []).forEach(c => {
+            next[c.id] = presetScore
+          })
+          ;(data?.pendingCourses || []).forEach(c => {
+            if (activePendingIds.includes(c.id)) next[c.id] = presetScore
+          })
+          return next
+        })
+      }
+
+      // 重置模拟器
+      const handleResetSim = () => {
+        const next = {}
+        ;(data?.inProgressCourses || []).forEach(c => {
+          next[c.id] = 85.0
+        })
+        setSimScores(next)
+        setRetakeCourseIds([])
+        setActivePendingIds([])
+        setCustomCourses([])
+      }
+
+      // 添加自选课程
+      const handleAddCustomCourse = () => {
+        if (!newCustomName.trim()) return
+        const item = {
+          id: `custom-${Date.now()}`,
+          name: newCustomName.trim(),
+          credit: Number(newCustomCredit) || 2.0,
+          isRequired: newCustomIsReq,
+          property: newCustomIsReq ? '必修' : '选修',
+          score: Number(newCustomScore) || 85.0,
+          status: 'CUSTOM_SIM',
+        }
+        setCustomCourses([...customCourses, item])
+        setNewCustomName('')
+        setShowCustomModal(false)
+      }
+
+      // 聚合所有课程清单并进行筛选
+      const allDisplayCourses = []
+      if (data) {
+        // 进行中课程
+        (data.inProgressCourses || []).forEach(c => {
+          allDisplayCourses.push({ ...c, currentSimScore: simScores[c.id] ?? 85.0 })
+        })
+        // 方案待修课程
+        (data.pendingCourses || []).forEach(c => {
+          allDisplayCourses.push({
+            ...c,
+            currentSimScore: simScores[c.id] ?? 85.0,
+            isIncludedInSim: activePendingIds.includes(c.id),
+          })
+        })
+        // 自选追加课程
+        customCourses.forEach(c => {
+          allDisplayCourses.push({
+            ...c,
+            currentSimScore: c.score,
+            isCustom: true,
+          })
+        })
+        // 已完成课程
+        (data.completedCourses || []).forEach(c => {
+          allDisplayCourses.push({
+            ...c,
+            currentSimScore: simScores[c.id] ?? c.score,
+            isRetake: retakeCourseIds.includes(c.id),
+          })
+        })
+      }
+
+      const filteredCourses = allDisplayCourses.filter(c => {
+        if (statusFilter === 'IN_PROGRESS' && c.status !== 'IN_PROGRESS') return false
+        if (statusFilter === 'COMPLETED' && c.status !== 'COMPLETED') return false
+        if (statusFilter === 'PENDING' && c.status !== 'PENDING') return false
+        if (propertyFilter === 'REQUIRED' && !c.isRequired) return false
+        if (propertyFilter === 'ELECTIVE' && c.isRequired) return false
+        if (searchKw && !c.name.toLowerCase().includes(searchKw.toLowerCase().trim())) return false
+        return true
+      })
+
+      // 学分进度计算
+      const completedCreditNum = data?.completedCredits || 0
+      const inProgressCreditNum = data?.inProgressCredits || 0
+      const reqTotalCreditNum = data?.requiredTotalCredits || 165.0
+      const currentSimTotalEarnedCredit = completedCreditNum + inProgressCreditNum + customCourses.reduce((acc, c) => acc + c.credit, 0)
+      const creditProgressPct = reqTotalCreditNum > 0 ? Math.min(100, Math.round((currentSimTotalEarnedCredit / reqTotalCreditNum) * 100)) : 0
+
+      return h('div', null,
+        // 1. 顶部方案标题与状态横幅
+        h('div', {
+          style: {
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            borderRadius: '10px',
+            padding: '14px 18px',
+            marginBottom: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px',
+          },
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+            h(CompassIcon, { size: 20 }),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '15px', fontWeight: 700 } }, data?.programName || '四川大学培养方案'),
+                data && h('span', { style: S.badge }, `${data.college} · ${data.grade}`),
+                cacheNotice && h('span', {
+                  style: {
+                    fontSize: '11px',
+                    color: 'var(--dsw-alias-text-sub, #71717a)',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.12))',
+                  },
+                }, cacheNotice)
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '3px' } },
+                `毕业要求总学分: ${reqTotalCreditNum} 学分 · 已修完成: ${completedCreditNum} 学分 · 当前在读: ${inProgressCreditNum} 学分`
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', gap: '8px' } },
+            h('button', {
+              style: { ...S.btnSecondary, display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px' },
+              onClick: () => setShowCustomModal(true),
+            },
+              h(PlusIcon, { size: 12 }),
+              '自选课程追加模拟'
+            ),
+            h('button', {
+              style: { ...S.btnSecondary, display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px' },
+              onClick: fetchStudyPlan,
+            },
+              h(RefreshIcon, { size: 12 }),
+              '刷新数据'
+            )
+          )
+        ),
+
+        // 2. 模拟器核心 KPI 概览看板 (高频动态联动)
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' } },
+          // 卡片 1: 模拟未来总均分
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center', borderTop: '3px solid #2563eb' } },
+            h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: '6px' } },
+              h('span', { style: { fontSize: '26px', fontWeight: 700, color: '#2563eb' } }, simOverallAvg),
+              h('span', {
+                style: {
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  background: parseFloat(deltaOverallScore) >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  color: parseFloat(deltaOverallScore) >= 0 ? '#059669' : '#ef4444',
+                },
+              }, `${parseFloat(deltaOverallScore) >= 0 ? '+' : ''}${deltaOverallScore}`)
+            ),
+            h('div', { style: { fontSize: '12px', fontWeight: 600, marginTop: '4px' } }, '未来预期总加权均分'),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+              `已修基准: ${baseStats.overallAvgScore || 0} 分 (GPA: ${simOverallGpa})`
+            )
+          ),
+
+          // 卡片 2: 模拟保研必修均分
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center', borderTop: '3px solid #10b981' } },
+            h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: '6px' } },
+              h('span', { style: { fontSize: '26px', fontWeight: 700, color: '#059669' } }, simReqAvg),
+              h('span', {
+                style: {
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  background: parseFloat(deltaReqScore) >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  color: parseFloat(deltaReqScore) >= 0 ? '#059669' : '#ef4444',
+                },
+              }, `${parseFloat(deltaReqScore) >= 0 ? '+' : ''}${deltaReqScore}`)
+            ),
+            h('div', { style: { fontSize: '12px', fontWeight: 600, marginTop: '4px' } }, '未来保研必修均分'),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+              `已修基准: ${baseStats.requiredAvgScore || 0} 分 (GPA: ${simReqGpa})`
+            )
+          ),
+
+          // 卡片 3: 模拟对应加权绩点 (GPA)
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center', borderTop: '3px solid #8b5cf6' } },
+            h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: '6px' } },
+              h('span', { style: { fontSize: '26px', fontWeight: 700, color: '#7c3aed' } }, simOverallGpa),
+              h('span', {
+                style: {
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  background: parseFloat(deltaOverallGpa) >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  color: parseFloat(deltaOverallGpa) >= 0 ? '#059669' : '#ef4444',
+                },
+              }, `${parseFloat(deltaOverallGpa) >= 0 ? '+' : ''}${deltaOverallGpa}`)
+            ),
+            h('div', { style: { fontSize: '12px', fontWeight: 600, marginTop: '4px' } }, '预期综合加权 GPA'),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+              `必修保研 GPA: ${simReqGpa}`
+            )
+          ),
+
+          // 卡片 4: 培养方案毕业学分完成进度
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center', borderTop: '3px solid #f59e0b' } },
+            h('div', { style: { fontSize: '22px', fontWeight: 700, color: '#d97706' } }, `${currentSimTotalEarnedCredit} / ${reqTotalCreditNum} 分`),
+            h('div', { style: { fontSize: '12px', fontWeight: 600, marginTop: '4px' } }, `方案进度: ${creditProgressPct}%`),
+            // 细长进度条
+            h('div', {
+              style: {
+                width: '100%',
+                height: '6px',
+                borderRadius: '3px',
+                background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.15))',
+                overflow: 'hidden',
+                marginTop: '6px',
+              },
+            },
+              h('div', {
+                style: {
+                  width: `${creditProgressPct}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #f59e0b, #10b981)',
+                  borderRadius: '3px',
+                  transition: 'width 0.3s ease',
+                },
+              })
+            )
+          )
+        ),
+
+        // 3. 模拟器全局快捷操控与预设栏
+        h('div', {
+          style: {
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            borderRadius: '10px',
+            padding: '12px 16px',
+            marginBottom: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px',
+          },
+        },
+          // 快捷批量预设按钮组
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 } },
+              h(SlidersIcon, { size: 13 }),
+              h('span', null, '在读课程一键预设:')
+            ),
+            [80, 85, 90, 95].map(sc =>
+              h('button', {
+                key: sc,
+                style: { ...S.btnSecondary, padding: '3px 10px', fontSize: '11px', borderRadius: '4px' },
+                onClick: () => handleBatchPreset(sc),
+              }, `全按${sc}分`)
+            ),
+            h('button', {
+              style: { ...S.btnSecondary, padding: '3px 10px', fontSize: '11px', borderRadius: '4px', color: 'var(--dsw-alias-text-sub, #71717a)' },
+              onClick: handleResetSim,
+            }, '恢复默认')
+          ),
+
+          // 快速搜索输入框
+          h('div', { style: { position: 'relative', width: '220px' } },
+            h('input', {
+              type: 'text',
+              placeholder: '搜索课程名称，如量子力学、高数...',
+              style: { ...S.input, marginBottom: 0, padding: '5px 10px 5px 28px', fontSize: '12px' },
+              value: searchKw,
+              onChange: (e) => setSearchKw(e.target.value),
+            }),
+            h('span', { style: { position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, pointerEvents: 'none' } },
+              h(SearchIcon, { size: 12 })
+            )
+          )
+        ),
+
+        // 4. 状态分类 Filter 切换栏
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' } },
+          // 状态筛选
+          h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+            [
+              { key: 'ALL', label: `全部课程 (${allDisplayCourses.length})` },
+              { key: 'IN_PROGRESS', label: `在读修读中 (${(data?.inProgressCourses || []).length + customCourses.length})` },
+              { key: 'COMPLETED', label: `已修已完成 (${(data?.completedCourses || []).length})` },
+              { key: 'PENDING', label: `方案待修读 (${(data?.pendingCourses || []).length})` },
+            ].map(f =>
+              h('button', {
+                key: f.key,
+                style: {
+                  ...S.btnSecondary,
+                  padding: '4px 12px',
+                  borderRadius: '16px',
+                  background: statusFilter === f.key ? 'var(--dsw-alias-text, #18181b)' : 'transparent',
+                  color: statusFilter === f.key ? 'var(--dsw-alias-bg, #ffffff)' : 'inherit',
+                  borderColor: statusFilter === f.key ? 'transparent' : 'var(--dsw-alias-border, rgba(125,125,125,0.15))',
+                  fontWeight: statusFilter === f.key ? 600 : 400,
+                  fontSize: '11px',
+                },
+                onClick: () => setStatusFilter(f.key),
+              }, f.label)
+            )
+          ),
+
+          // 必修 / 选修性质切换
+          h('div', {
+            style: {
+              display: 'flex',
+              background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
+              borderRadius: '6px',
+              padding: '2px',
+            },
+          },
+            [
+              { key: 'ALL', label: '全部性质' },
+              { key: 'REQUIRED', label: '仅必修 (保研)' },
+              { key: 'ELECTIVE', label: '仅选修' },
+            ].map(p =>
+              h('button', {
+                key: p.key,
+                style: {
+                  ...S.btnSecondary,
+                  border: 'none',
+                  padding: '3px 10px',
+                  fontSize: '11px',
+                  background: propertyFilter === p.key ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
+                  fontWeight: propertyFilter === p.key ? 600 : 400,
+                  boxShadow: propertyFilter === p.key ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                },
+                onClick: () => setPropertyFilter(p.key),
+              }, p.label)
+            )
+          )
+        ),
+
+        // 加载与错误状态提示
+        loading && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '正在同步学生培养方案大纲与学业基准数据...'),
+        error && h('div', { style: { padding: '16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px' } }, error),
+
+        // 5. 课程列表与分数滑动调节面板
+        !loading && !error && filteredCourses.length === 0 && h('div', {
+          style: { textAlign: 'center', padding: '40px', color: 'var(--dsw-alias-text-sub, #71717a)' },
+        }, '未匹配到符合条件的课程'),
+
+        !loading && !error && filteredCourses.length > 0 && h('div', {
+          style: { display: 'flex', flexDirection: 'column', gap: '8px' },
+        },
+          filteredCourses.map(c => {
+            const isCompleted = c.status === 'COMPLETED'
+            const isInProgress = c.status === 'IN_PROGRESS' || c.status === 'CUSTOM_SIM'
+            const isPending = c.status === 'PENDING'
+            const currentScore = Number(c.currentSimScore) || 85.0
+            const currentScoreGpa = getGpa(currentScore)
+
+            return h('div', {
+              key: c.id,
+              style: {
+                ...S.card,
+                marginBottom: 0,
+                padding: '12px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px',
+                borderLeft: isInProgress ? '4px solid #3b82f6' : (isCompleted ? '4px solid #10b981' : '4px solid rgba(125,125,125,0.3)'),
+                background: isInProgress ? 'var(--dsw-alias-bg-hover, rgba(59, 130, 246, 0.03))' : 'inherit',
+              },
+            },
+              // 左侧：课程名、状态徽章、学分与性质
+              h('div', { style: { flex: '1 1 260px' } },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+                  h('span', { style: { fontSize: '14px', fontWeight: 600 } }, c.name),
+                  h('span', {
+                    style: {
+                      fontSize: '10px',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      fontWeight: 600,
+                      background: isInProgress ? 'rgba(59, 130, 246, 0.12)' : (isCompleted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(125, 125, 125, 0.12)'),
+                      color: isInProgress ? '#2563eb' : (isCompleted ? '#059669' : 'var(--dsw-alias-text-sub, #71717a)'),
+                    },
+                  },
+                    isInProgress ? '在读修读中' : (isCompleted ? '已修已出分' : '方案待修读')
+                  ),
+                  c.isRequired && h('span', {
+                    style: { fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontWeight: 600 },
+                  }, '必修 (计入保研)'),
+                  !c.isRequired && h('span', {
+                    style: { fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(125, 125, 125, 0.1)', color: 'var(--dsw-alias-text-sub, #71717a)' },
+                  }, '选修')
+                ),
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+                  `课程学分: ${c.credit} 学分 · ${c.category || c.term || '综合培养体系'}`
+                )
+              ),
+
+              // 右侧：分数控制区 (在读和待修展示数字框与滑块；已完成展示历史成绩与重修勾选)
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 } },
+                // 1. 在读课程 / 自选课程：实时滑动条与数字输入
+                isInProgress && h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                  h('div', { style: { textAlign: 'right' } },
+                    h('div', { style: { fontSize: '11px', color: '#2563eb', fontWeight: 600 } },
+                      `折算绩点: ${currentScoreGpa}`
+                    ),
+                    h('div', { style: { fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '拖动或打字模拟')
+                  ),
+                  // 滑块 Slider
+                  h('input', {
+                    type: 'range',
+                    min: 60,
+                    max: 100,
+                    step: 1,
+                    value: currentScore,
+                    style: { width: '100px', cursor: 'pointer' },
+                    onChange: (e) => {
+                      const v = Number(e.target.value)
+                      setSimScores({ ...simScores, [c.id]: v })
+                    },
+                  }),
+                  // 数字输入框 Input
+                  h('input', {
+                    type: 'number',
+                    min: 0,
+                    max: 100,
+                    value: currentScore,
+                    style: {
+                      ...S.input,
+                      width: '64px',
+                      marginBottom: 0,
+                      padding: '4px 6px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      color: '#2563eb',
+                      border: '1px solid #2563eb',
+                    },
+                    onChange: (e) => {
+                      const v = Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                      setSimScores({ ...simScores, [c.id]: v })
+                    },
+                  }),
+                  h('span', { style: { fontSize: '12px', fontWeight: 600 } }, '分')
+                ),
+
+                // 2. 方案待修读课程：可选“加入均分模拟”
+                isPending && h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                  h('button', {
+                    style: {
+                      ...S.btnSecondary,
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      background: c.isIncludedInSim ? '#2563eb' : 'transparent',
+                      color: c.isIncludedInSim ? '#ffffff' : 'inherit',
+                      borderColor: c.isIncludedInSim ? 'transparent' : 'var(--dsw-alias-border, rgba(125,125,125,0.2))',
+                    },
+                    onClick: () => {
+                      if (c.isIncludedInSim) {
+                        setActivePendingIds(activePendingIds.filter(id => id !== c.id))
+                      } else {
+                        setActivePendingIds([...activePendingIds, c.id])
+                      }
+                    },
+                  }, c.isIncludedInSim ? '✓ 正在模拟中' : '+ 加入模拟测算'),
+
+                  c.isIncludedInSim && h('input', {
+                    type: 'number',
+                    min: 0,
+                    max: 100,
+                    value: currentScore,
+                    style: {
+                      ...S.input,
+                      width: '60px',
+                      marginBottom: 0,
+                      padding: '3px 6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                      borderColor: '#2563eb',
+                    },
+                    onChange: (e) => {
+                      const v = Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                      setSimScores({ ...simScores, [c.id]: v })
+                    },
+                  })
+                ),
+
+                // 3. 已完成出分课程：展示历史原分与重修刷分勾选
+                isCompleted && h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                  h('div', { style: { textAlign: 'right' } },
+                    h('div', { style: { fontSize: '14px', fontWeight: 700 } }, `${c.score} 分`),
+                    h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `${c.gradeLevel} · GPA ${c.gpa}`)
+                  ),
+                  // 模拟重修开关
+                  h('label', { style: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('input', {
+                      type: 'checkbox',
+                      checked: c.isRetake,
+                      onChange: (e) => {
+                        if (e.target.checked) {
+                          setRetakeCourseIds([...retakeCourseIds, c.id])
+                        } else {
+                          setRetakeCourseIds(retakeCourseIds.filter(id => id !== c.id))
+                        }
+                      },
+                    }),
+                    '假设刷分'
+                  ),
+                  c.isRetake && h('input', {
+                    type: 'number',
+                    min: 0,
+                    max: 100,
+                    value: currentScore,
+                    placeholder: '重修分',
+                    style: {
+                      ...S.input,
+                      width: '60px',
+                      marginBottom: 0,
+                      padding: '3px 6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                      borderColor: '#10b981',
+                      color: '#059669',
+                    },
+                    onChange: (e) => {
+                      const v = Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                      setSimScores({ ...simScores, [c.id]: v })
+                    },
+                  })
+                )
+              )
+            )
+          })
+        ),
+
+        // 6. 追加自选模拟课程弹窗 Modal
+        showCustomModal && h('div', {
+          style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            backdropFilter: 'blur(3px)',
+          },
+          onClick: () => setShowCustomModal(false),
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))',
+              color: 'var(--dsw-alias-text, inherit)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '440px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+              h('span', { style: { fontSize: '16px', fontWeight: 700 } }, '追加自选课程模拟测算'),
+              h('button', {
+                style: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)' },
+                onClick: () => setShowCustomModal(false),
+              }, '✕')
+            ),
+
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+              h('div', null,
+                h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' } }, '课程名称:'),
+                h('input', {
+                  type: 'text',
+                  placeholder: '如：数据结构与算法、科研实践...',
+                  style: S.input,
+                  value: newCustomName,
+                  onChange: (e) => setNewCustomName(e.target.value),
+                })
+              ),
+              h('div', { style: { display: 'flex', gap: '12px' } },
+                h('div', { style: { flex: 1 } },
+                  h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' } }, '学分数:'),
+                  h('input', {
+                    type: 'number',
+                    step: 0.5,
+                    style: S.input,
+                    value: newCustomCredit,
+                    onChange: (e) => setNewCustomCredit(e.target.value),
+                  })
+                ),
+                h('div', { style: { flex: 1 } },
+                  h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' } }, '预期模拟分数:'),
+                  h('input', {
+                    type: 'number',
+                    min: 0,
+                    max: 100,
+                    style: S.input,
+                    value: newCustomScore,
+                    onChange: (e) => setNewCustomScore(e.target.value),
+                  })
+                )
+              ),
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('input', {
+                  type: 'checkbox',
+                  id: 'customIsReq',
+                  checked: newCustomIsReq,
+                  onChange: (e) => setNewCustomIsReq(e.target.checked),
+                }),
+                h('label', { htmlFor: 'customIsReq', style: { fontSize: '12px', cursor: 'pointer' } }, '属于必修课程（计入保研必修均分统计）')
+              )
+            ),
+
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' } },
+              h('button', {
+                style: { ...S.btnSecondary, padding: '7px 16px' },
+                onClick: () => setShowCustomModal(false),
+              }, '取消'),
+              h('button', {
+                style: { ...S.btnPrimary, padding: '7px 18px' },
+                onClick: handleAddCustomCourse,
+              }, '确认加入模拟')
+            )
+          )
+        )
+      )
+    }
+
+    // ================== 子页面 6：凭据与设置（含稳定退出） ==================
     function SettingsView({ onLoginSuccess, onLogoutSuccess, isLoggedIn, studentName, hasCreds }) {
       const [username, setUsername] = useState('')
       const [password, setPassword] = useState('')
@@ -2654,7 +3481,7 @@ window.__ModuleLoader__.load({
                 h(ScuIcon, { size: 24 }),
                 h('h1', { style: S.title }, '四川大学教务系统 (URP)')
               ),
-              h('div', { style: S.subTitle }, '全自动登录 · 课表日程 · 全量成绩与 GPA 统计 · 考试安排 · 空闲自习室')
+              h('div', { style: S.subTitle }, '全自动登录 · 课表日程 · 全量成绩与 GPA 统计 · 培养方案与均分测算 · 考试安排 · 空闲自习室')
             ),
             h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
               h('div', { style: { display: 'flex', alignItems: 'center', fontSize: '13px' } },
@@ -2688,6 +3515,13 @@ window.__ModuleLoader__.load({
             },
               h(ChartIcon, { size: 14, style: { marginRight: '6px' } }),
               '成绩与绩点'
+            ),
+            h('button', {
+              style: S.tabBtn(activeTab === 'studyPlan'),
+              onClick: () => setActiveTab('studyPlan'),
+            },
+              h(CompassIcon, { size: 14, style: { marginRight: '6px' } }),
+              '培养方案&均分测算'
             ),
             h('button', {
               style: S.tabBtn(activeTab === 'exams'),
@@ -2732,6 +3566,7 @@ window.__ModuleLoader__.load({
               : h(React.Fragment, null,
                   activeTab === 'schedule' && h(ScheduleView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'grades' && h(GradesView, { onRequireLogin: () => setActiveTab('settings') }),
+                  activeTab === 'studyPlan' && h(StudyPlanView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'exams' && h(ExamsView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'classrooms' && h(ClassroomsView, { onRequireLogin: () => setActiveTab('settings') })
                 )

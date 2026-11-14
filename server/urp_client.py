@@ -880,3 +880,207 @@ class SCUUrpClient:
             "timetable": timetable,
             "classrooms": classroom_items,
         }
+
+    @staticmethod
+    def score_to_gpa(score: float) -> float:
+        """四川大学官方本科标准分数折算 GPA 模型"""
+        if score >= 95:
+            return 4.0
+        elif score >= 90:
+            return 3.8
+        elif score >= 85:
+            return 3.6
+        elif score >= 80:
+            return 3.2
+        elif score >= 75:
+            return 2.7
+        elif score >= 70:
+            return 2.2
+        elif score >= 65:
+            return 1.7
+        elif score >= 60:
+            return 1.0
+        return 0.0
+
+    def get_study_plan(self) -> Dict[str, Any]:
+        """
+        获取学生个人培养方案完成度全景与均分测算模型数据
+        支持查看已完成课程、在读课程与方案待修课程，提供基准总均分与保研必修均分
+        """
+        # 1. 获取已完成课程（历史成绩单）
+        grades_res = self.get_grades()
+        all_grades = grades_res.get("grades", [])
+
+        total_weighted_score = 0.0
+        total_credit = 0.0
+        req_weighted_score = 0.0
+        req_credit = 0.0
+
+        completed_courses = []
+        completed_names = set()
+
+        for g in all_grades:
+            name = g.get("name", "").strip()
+            completed_names.add(name)
+            credit = float(g.get("credit", 0.0))
+            is_req = bool(g.get("isRequired"))
+
+            # 解析分数值
+            try:
+                score_val = float(g.get("rawScore") or g.get("score") or 0)
+            except Exception:
+                score_val = 75.0
+
+            total_weighted_score += score_val * credit
+            total_credit += credit
+            if is_req:
+                req_weighted_score += score_val * credit
+                req_credit += credit
+
+            gpa_val = float(g.get("gpa") or self.score_to_gpa(score_val))
+
+            completed_courses.append({
+                "id": f"comp-{len(completed_courses)}",
+                "name": name,
+                "credit": credit,
+                "score": score_val,
+                "gradeLevel": g.get("gradeLevel", ""),
+                "property": g.get("property", "必修" if is_req else "选修"),
+                "isRequired": is_req,
+                "status": "COMPLETED",
+                "term": g.get("term", ""),
+                "gpa": gpa_val,
+            })
+
+        base_overall_avg = round(total_weighted_score / total_credit, 2) if total_credit > 0 else 0.0
+        base_req_avg = round(req_weighted_score / req_credit, 2) if req_credit > 0 else 0.0
+        base_overall_gpa = round(sum(c["gpa"] * c["credit"] for c in completed_courses) / total_credit, 2) if total_credit > 0 else 0.0
+        base_req_gpa = round(sum(c["gpa"] * c["credit"] for c in completed_courses if c["isRequired"]) / req_credit, 2) if req_credit > 0 else 0.0
+
+        # 2. 获取当前进行中修读课程（课表）
+        in_progress_courses = []
+        try:
+            sched_res = self.get_schedule()
+            curr_courses = sched_res.get("courses", [])
+            for c in curr_courses:
+                c_name = c.get("name", "").strip()
+                if c_name not in completed_names:
+                    credit = float(c.get("credit", 2.0))
+                    prop = c.get("property", "必修")
+                    is_req = ("必修" in prop)
+                    in_progress_courses.append({
+                        "id": f"prog-{len(in_progress_courses)}",
+                        "name": c_name,
+                        "credit": credit,
+                        "score": 85.0,  # 默认预测模拟分
+                        "gradeLevel": "B+",
+                        "property": prop,
+                        "isRequired": is_req,
+                        "status": "IN_PROGRESS",
+                        "term": "当前在读学期",
+                        "gpa": self.score_to_gpa(85.0),
+                    })
+        except Exception:
+            pass
+
+        # 3. 提取方案大纲与待修读课程
+        college = "物理学院"
+        major = "物理学（强基计划）"
+        grade_year = self.username[:4] if len(self.username) >= 4 else "2024"
+        program_name = f"{major}培养方案"
+        required_total_credit = 165.0
+
+        pending_courses = []
+        try:
+            # 尝试从周课表页面正则提取真实学院和专业
+            schedule_page = self.request("GET", "/student/personalSenate/giveLessonInfo/thisSemesterSchedule/weekLySchedule").text
+            col_m = re.search(r'学院[：:]\s*([^\s<]+)', schedule_page)
+            maj_m = re.search(r'专业[：:]\s*([^\s<]+)', schedule_page)
+            if col_m:
+                college = col_m.group(1).strip()
+            if maj_m:
+                major = maj_m.group(1).strip()
+
+            # 查询方案库
+            resp_load = self.session.post(
+                f"{self.BASE_URL}/student/comprehensiveQuery/search/trainProgram/load",
+                data={"pageNum": 1, "pageSize": 500, "nj": grade_year},
+                headers=self.headers,
+                timeout=8
+            ).json()
+
+            records = resp_load.get("data", {}).get("records", [])
+            matched_fajhh = ""
+            for rec in records:
+                famc = rec.get("FAMC", "")
+                zym = rec.get("ZYM", "")
+                if major in famc or major in zym:
+                    matched_fajhh = rec.get("FAJHH")
+                    program_name = famc
+                    break
+
+            if matched_fajhh:
+                resp_detail = self.session.post(
+                    f"{self.BASE_URL}/student/comprehensiveQuery/search/trainProgram/detail",
+                    data={"fajhh": matched_fajhh, "lx": "1"},
+                    headers=self.headers,
+                    timeout=8
+                ).json()
+
+                jh = resp_detail.get("jhFajhb", {})
+                required_total_credit = float(jh.get("yqzxf", 165.0))
+                tree = resp_detail.get("treeList", [])
+
+                category_map = {}
+                for node in tree:
+                    p_id = node.get("pId")
+                    n_id = node.get("id")
+                    raw_name = re.sub(r'<[^>]+>', '', node.get("name", "")).strip()
+                    if p_id == -1 or p_id == "-1":
+                        category_map[n_id] = raw_name
+                    elif node.get("urlPath") and "@" in node.get("urlPath"):
+                        c_name = re.sub(r'\s*(必修|选修|限选|任选).*$', '', raw_name).strip()
+                        # 若既没有修过，也不在当前课表，则视为待修读课程
+                        if c_name not in completed_names and not any(p["name"] == c_name for p in in_progress_courses):
+                            is_req = "必修" in raw_name
+                            cat = category_map.get(p_id, "专业课程")
+                            pending_courses.append({
+                                "id": f"pend-{len(pending_courses)}",
+                                "name": c_name,
+                                "credit": 3.0,  # 默认3学分
+                                "score": 85.0,  # 默认预测模拟分
+                                "gradeLevel": "待修",
+                                "property": "必修" if is_req else "选修",
+                                "isRequired": is_req,
+                                "category": cat,
+                                "status": "PENDING",
+                                "term": "后续学期",
+                                "gpa": self.score_to_gpa(85.0),
+                            })
+        except Exception:
+            pass
+
+        in_progress_credits = sum(c["credit"] for c in in_progress_courses)
+
+        return {
+            "programName": program_name,
+            "college": college,
+            "major": major,
+            "grade": f"{grade_year}级",
+            "requiredTotalCredits": required_total_credit,
+            "completedCredits": total_credit,
+            "inProgressCredits": in_progress_credits,
+            "pendingCredits": max(0.0, round(required_total_credit - total_credit - in_progress_credits, 1)),
+            "baseStats": {
+                "overallAvgScore": base_overall_avg,
+                "overallGpa": base_overall_gpa,
+                "requiredAvgScore": base_req_avg,
+                "requiredGpa": base_req_gpa,
+                "totalCredit": total_credit,
+                "requiredCredit": req_credit,
+                "totalCourses": len(completed_courses),
+            },
+            "completedCourses": completed_courses,
+            "inProgressCourses": in_progress_courses,
+            "pendingCourses": pending_courses,
+        }

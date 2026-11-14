@@ -7,8 +7,8 @@
 ## 1. 项目概览
 
 本项目是专为 **DeepSeek Harness (DSH)** 打造的四川大学综合教务系统（URP）深度集成插件，具备两大核心能力：
-1. **左侧二级抽屉可视化看板 (Client UI)**：以无干扰、现代化的侧边抽屉面板呈现，集成了课表、作业待办、成绩分析、考试日程、空闲自习室五大核心模块，采用极简莫兰迪色系与单色镂空简笔画 SVG 图标，亮暗主题自适应。
-2. **对话式 Agent 智能工具链 (Cordis Tools)**：向大语言模型开放 4 大核心工具（查课表、查成绩、查考场、查自习室），学生在主对话窗口输入自然语言，AI 即可精准检索并给出建议。
+1. **左侧二级抽屉可视化看板 (Client UI)**：以无干扰、现代化的侧边抽屉面板呈现，集成了课表、作业待办、成绩分析、培养方案大纲与均分测算模拟器、考试日程、空闲自习室六大核心模块，采用极简莫兰迪色系与单色镂空简笔画 SVG 图标，亮暗主题自适应。
+2. **对话式 Agent 智能工具链 (Cordis Tools)**：向大语言模型开放 5 大核心工具（查课表、查成绩、查考场、查自习室、查培养方案与学业进展），学生在主对话窗口输入自然语言，AI 即可精准检索并给出建议。
 
 ---
 
@@ -19,17 +19,19 @@ flowchart TD
     subgraph DSH["DeepSeek Harness (宿主环境)"]
         subgraph FrontEnd["前端界面 (client.js)"]
             Drawer["侧边二级抽屉主容器 (App)"]
-            Nav["顶部导航 Tab (课表/成绩/考试/自习室/设置)"]
+            Nav["顶部导航 Tab (课表/成绩/培养方案/考试/自习室/设置)"]
             
             TabSchedule["子页面 1: 课表与作业待办看板"]
             TabGrades["子页面 2: 成绩绩点与保研分析"]
-            TabExams["子页面 3: 考试倒计时与考场指引"]
-            TabRooms["子页面 4: 空闲教室与考研自习室"]
-            TabSettings["子页面 5: 账号凭据与保活设置"]
+            TabPlan["子页面 3: 培养方案全景与均分测算模拟器"]
+            TabExams["子页面 4: 考试倒计时与考场指引"]
+            TabRooms["子页面 5: 空闲教室与考研自习室"]
+            TabSettings["子页面 6: 账号凭据与保活设置"]
             
             Drawer --> Nav
             Nav --> TabSchedule
             Nav --> TabGrades
+            Nav --> TabPlan
             Nav --> TabExams
             Nav --> TabRooms
             Nav --> TabSettings
@@ -40,6 +42,7 @@ flowchart TD
             TabSchedule <--> Cache
             TabSchedule <--> TodoStore
             TabGrades <--> Cache
+            TabPlan <--> Cache
             TabExams <--> Cache
             TabRooms <--> Cache
         end
@@ -47,8 +50,9 @@ flowchart TD
         subgraph AgentTools["Agent 智能工具通道 (index.js)"]
             T1["scu_get_schedule (课表查询)"]
             T2["scu_get_grades (成绩与绩点分析)"]
-            T3["scu_get_exams (考试日程查询)"]
-            T4["scu_get_free_classrooms (空闲教室与自习室)"]
+            T3["scu_get_study_plan (培养方案与均分测算)"]
+            T4["scu_get_exams (考试日程查询)"]
+            T5["scu_get_free_classrooms (空闲教室与自习室)"]
         end
     end
 
@@ -86,7 +90,7 @@ flowchart TD
 
 ```text
 d:\antigravaty\scu教务处/
-├── index.js                     # 插件顶层入口：向 DSH 注册侧边栏 Slot、图标以及 4 大 Agent Tools
+├── index.js                     # 插件顶层入口：向 DSH 注册侧边栏 Slot、图标以及 5 大 Agent Tools
 ├── client.js                    # 前端一体化单文件组件：全量 React UI、SVG 图标、秒开缓存与自习室矩阵
 ├── icon.svg                     # 侧边栏常驻四川大学单色镂空矢量图标
 ├── package.json                 # 插件元信息与 Cordis 规范配置
@@ -98,7 +102,7 @@ d:\antigravaty\scu教务处/
 │
 ├── server/                      # 本地 Python 桥接服务目录 (监听 127.0.0.1:48080)
 │   ├── app.py                   # FastAPI 后端服务入口（含 CORS、心跳保活、待办持久化、各项 API）
-│   ├── urp_client.py            # URP 核心协议类：自动验证码 OCR、MD5动态哈希、课表/成绩/自习室抓取
+│   ├── urp_client.py            # URP 核心协议类：自动验证码 OCR、MD5动态哈希、课表/成绩/自习室/培养方案抓取
 │   ├── crypto_store.py          # 本地凭据安全存储引擎（基于 Fernet 硬件加盐对称加密）
 │   ├── calendar_exporter.py     # RFC 5545 标准 iCalendar (.ics) 日历文件生成器
 │   ├── requirements.txt         # Python 运行依赖项声明
@@ -141,11 +145,28 @@ d:\antigravaty\scu教务处/
 - **保研口径切换**：一键在“全部成绩”与“必修成绩（保研标准）”之间无缝切换，实时重新计算加权平均分与加权 GPA。
 - **成绩单 Excel/CSV 导出**：支持一键下载标准 CSV 格式成绩单，方便个人备份与学业规划。
 
-### 4.4 考试日程倒计时 (`ExamsView`)
+### 4.4 培养方案全景大纲与未来均分/GPA预测模拟器 (`StudyPlanView`)
+- **川大官方培养方案大纲对齐**：
+  - 自动逆向加载教务处官方培养方案树与课程属性；
+  - 清晰标注专业方向、毕业要求总学分（如强基计划 165.0 学分）与当前学分完成度百分比动态进度条。
+- **三态课程全景梳理**：
+  - **已修已出分课程 (🟢)**：展示历史出分、等级与基准 GPA；支持勾选“假设刷分”模拟重修对均分的提升幅度。
+  - **在读修读中课程 (🟡)**：展示当前学期选课与学分属性；默认纳入模拟模型，提供微型滑块（Slider）拖拽或数字输入框实时调分。
+  - **方案待修读课程 (⚪)**：展示大三、大四待修课程；支持一键“+ 加入模拟测算”并输入预期分。
+- **双轨均分与 GPA 实时测算联动模型 (What-If Engine)**：
+  - **未来预期总加权均分**：$$\frac{\sum (\text{学分}_i \times \text{分数}_i)}{\sum \text{学分}_i}$$
+  - **未来保研必修均分**：$$\frac{\sum_{\text{必修}} (\text{学分}_i \times \text{分数}_i)}{\sum_{\text{必修}} \text{学分}_i}$$
+  - **加权 GPA**：基于四川大学官方分段映射（95分=4.0, 90分=3.8, 85分=3.6, 80分=3.2...）实时加权。
+  - **$\pm\Delta$ 变动徽章**：实时呈现相比历史已出分基准的拉动或拉低幅度（如 `+0.42` / `-0.18`）。
+- **批量预设与自选追加**：
+  - 提供“全按80分 / 85分 / 90分 / 95分”快捷批量预设与一键恢复默认；
+  - 支持追加自定义选修/科研课程模拟。
+
+### 4.5 考试日程倒计时 (`ExamsView`)
 - 自动提取期末与阶段性考试日程，计算倒计时天数；
 - 标注考场校区、教学楼、考室号与个人具体座位号。
 
-### 4.5 空闲教室与考研自习室 (`ClassroomsView`)
+### 4.6 空闲教室与考研自习室 (`ClassroomsView`)
 - **双校区官方教学作息自适应**：
   - 望江/华西校区：第 1 节 08:00 开始，下午 14:00 开始，晚上 19:30 开始；
   - 江安校区：第 1 节 08:15 开始，下午 13:50 开始，晚上 19:20 开始；
@@ -156,12 +177,12 @@ d:\antigravaty\scu教务处/
   - 快速过滤：全天空闲教室、所选时段空闲、空调研讨配置；
   - 1~12 节全天占用矩阵条与点击查看详情弹窗，展示连续空闲节数。
 
-### 4.6 性能与保活引擎 (方案 A 落地)
+### 4.7 性能与保活引擎 (方案 A 落地)
 - **教务 Session 自动心跳探针 (`_heartbeat_loop`)**：
   - 后端每 10 分钟发送一次轻量教务探针；
   - 若教务处 Session 超时，使用本地安全凭证自动重新握手，保持登录状态永久在线。
 - **前端极速秒开缓存 (`SCU_CACHE / Stale-While-Revalidate`)**：
-  - 课表、成绩、考试数据首次加载后存入快照；
+  - 课表、成绩、培养方案、考试数据首次加载后存入快照；
   - 再次打开面板时 **0 毫秒首屏瞬开**，后台静默拉取最新数据无缝更新；
   - 离线或教务网维护时优雅降级显示快照，附带更新时间注脚。
 
@@ -176,6 +197,7 @@ d:\antigravaty\scu教务处/
 | `/api/logout` | POST | 清除本地保存的凭据与教务 Session | 返回 `{ success, message }` |
 | `/api/schedule` | GET | 获取当前学期全量课表与教学周分布 | 返回 `{ semesterId, totalCourses, courses: [...] }` |
 | `/api/grades` | GET | 获取全量成绩、各学期统计与加权 GPA | 返回 `{ grades, terms, termStats, totalCredits, gpa }` |
+| `/api/program/scheme` | GET | 获取官方培养方案、学分完成度与待修课程 | 返回 `{ programName, requiredTotalCredits, completedCourses, inProgressCourses, pendingCourses, baseStats }` |
 | `/api/exams` | GET | 获取已排定的期末/阶段考试日程 | 返回 `{ exams: [...] }` |
 | `/api/schedule/export-ics` | GET | 导出全学期课表为 RFC 5545 .ics 日历 | Query: `startMonday`, `alarmMinutes`, `campus` |
 | `/api/grades/export-csv` | GET | 导出成绩单为 CSV/Excel 文件 | Query: `onlyRequired`, `download` |
@@ -188,7 +210,7 @@ d:\antigravaty\scu教务处/
 
 ## 6. 对话 Agent Tools 清单 (Cordis 注册)
 
-向 DeepSeek Harness 主对话注册了 4 个自然语言可调用的工具：
+向 DeepSeek Harness 主对话注册了 5 个自然语言可调用的工具：
 
 1. `scu_get_schedule`:
    - 描述：查询四川大学当前学期课程表或今日日程。
@@ -196,17 +218,12 @@ d:\antigravaty\scu教务处/
 2. `scu_get_grades`:
    - 描述：查询课程成绩、各学期加权平均分及综合 GPA。
    - 参数：`term` (学期), `onlyRequired` (是否仅统计保研必修课)。
-3. `scu_get_exams`:
+3. `scu_get_study_plan`:
+   - 描述：查询学生当前专业培养方案执行进度、毕业要求总学分、已修学分、在读课程与待修课程大纲。
+   - 参数：无。
+4. `scu_get_exams`:
    - 描述：查询期末与阶段性考试安排、考试时间、校区、考场与座位号。
-4. `scu_get_free_classrooms`:
-   - 描述：查询空闲教室与考研自习室排期、1~12节占用矩阵、座位数及空调配置。
-   - 参数：`campus` (江安/望江/华西), `building` (楼栋名称), `date` (查询日期), `session` (第几节), `timeSlot` (时段)。
-
----
-
-## 7. 视觉与设计规范
-
-- **单色镂空简笔画规范**：完全摒弃任何彩色 Emoji，界面与工具提示统一采用单色镂空矢量 SVG 图标（Feather 规范），笔画规整，高质感。
-- **主题双轨自适应**：
-  - 自动读取 DSH 宿主 CSS 变量（`--dsw-alias-text`, `--dsw-alias-bg`, `--dsw-alias-border` 等）；
-  - 莫兰迪低饱和度课表配色，在深色和浅色模式下均具备极佳对比度与阅读舒适感。
+   - 参数：无。
+5. `scu_get_free_classrooms`:
+   - 描述：查询四川大学望江、江安、华西校区空闲自习教室与考研教室。
+   - 参数：`campus` (校区), `building` (教学楼), `date` (日期), `timeSlot` (时段 1~12)。

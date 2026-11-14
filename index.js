@@ -436,4 +436,52 @@ export function apply(ctx, config) {
       }
     },
   }))
+
+  // 6. 注册培养方案与学分进度查询工具
+  ctx.tools.register(agentScope({
+    name: 'scu_get_study_plan',
+    description: '查询四川大学培养方案与学业进度、毕业要求总学分完成度、已修课程、在读课程及保研必修/总加权平均分。',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(_args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询培养方案失败: ${value.error}` }]
+        }
+        const d = value.data
+        const bs = d.baseStats || {}
+        const pct = d.requiredTotalCredits > 0 ? Math.round(((d.completedCredits + d.inProgressCredits) / d.requiredTotalCredits) * 100) : 0
+        return [{
+          type: 'text',
+          text: `**川大培养方案与学业规划 (${d.major} · ${d.grade})**:\n• 方案名称: **${d.programName}** (${d.college})\n• 学分完成进度: 已修 **${d.completedCredits}** + 在读 **${d.inProgressCredits}** / 要求总学分 **${d.requiredTotalCredits}** 学分 (${pct}%)\n• 当前基准学分加权均分: 总均分 **${bs.overallAvgScore}** 分 (GPA: ${bs.overallGpa}) / 必修均分 **${bs.requiredAvgScore}** 分 (GPA: ${bs.requiredGpa})\n• 方案课程状态: 已完成 **${(d.completedCourses || []).length}** 门 / 在读 **${(d.inProgressCourses || []).length}** 门 / 方案待修 **${(d.pendingCourses || []).length}** 门\n\n提示: 可在插件左侧看板【培养方案与均分模拟】专区中滑动修改在读与待修课程成绩，实时测算未来总均分与保研均分走势。`,
+        }]
+      },
+    },
+    async execute() {
+      try {
+        const resp = await fetch(`${serviceUrl}/api/program/scheme`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地教务后端: ${e.message}` }
+      }
+    },
+  }))
 }

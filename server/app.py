@@ -311,5 +311,16 @@ async def save_todos_api(payload: dict = Body(...)):
     return {"success": True, "todos": todos}
 
 
+# ================== 培养方案与均分测算模拟 API ==================
+@app.get("/api/program/scheme")
+async def get_program_scheme_api():
+    """获取培养方案全景大纲与未来加权均分/GPA预测模拟数据"""
+    ensure_authenticated()
+    try:
+        return client.get_study_plan()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取培养方案数据失败: {str(e)}")
+
+
 if __name__ == "__main__":
     uvicorn.run("app:app", host="127.0.0.1", port=48080, reload=False)
