@@ -3346,7 +3346,7 @@ window.__ModuleLoader__.load({
     // ================== 子页面 6：凭据与设置（含微信/微川大扫码登录与稳定退出） ==================
     function SettingsView({ onLoginSuccess, onLogoutSuccess, isLoggedIn, studentName, hasCreds }) {
       // 登录模式: 'qrcode' (扫码登录) | 'password' (学号密码)
-      const [authMode, setAuthMode] = useState('qrcode')
+      const [authMode, setAuthMode] = useState('password')
 
       // 学号密码登录状态
       const [username, setUsername] = useState('')
@@ -3523,6 +3523,28 @@ window.__ModuleLoader__.load({
                 padding: '7px 12px',
                 borderRadius: '6px',
                 fontSize: '12px',
+                fontWeight: authMode === 'password' ? 600 : 400,
+                background: authMode === 'password' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
+                color: authMode === 'password' ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
+                boxShadow: authMode === 'password' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              },
+              onClick: () => setAuthMode('password'),
+            },
+              h(UserIcon, { size: 14 }),
+              '学号密码账号登录 (推荐 · 长期保活)'
+            ),
+            h('button', {
+              style: {
+                flex: 1,
+                border: 'none',
+                padding: '7px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
                 fontWeight: authMode === 'qrcode' ? 600 : 400,
                 background: authMode === 'qrcode' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
                 color: authMode === 'qrcode' ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
@@ -3539,29 +3561,7 @@ window.__ModuleLoader__.load({
               },
             },
               h(QrCodeIcon, { size: 14 }),
-              '微信 / 微川大扫码登录 (推荐)'
-            ),
-            h('button', {
-              style: {
-                flex: 1,
-                border: 'none',
-                padding: '7px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: authMode === 'password' ? 600 : 400,
-                background: authMode === 'password' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
-                color: authMode === 'password' ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
-                boxShadow: authMode === 'password' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-              },
-              onClick: () => setAuthMode('password'),
-            },
-              h(UserIcon, { size: 14 }),
-              '学号密码账号登录'
+              '智慧川大移动端 APP 扫码'
             )
           ),
 
@@ -3660,8 +3660,18 @@ window.__ModuleLoader__.load({
                 marginBottom: '6px',
               },
             }, qrMsg || '请使用微信或微川大扫描二维码授权登录'),
-            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px' } },
-              '通过四川大学竹云 IDaaS 官方平台安全认证'
+            h('div', {
+              style: {
+                fontSize: '11px',
+                color: '#d97706',
+                background: 'rgba(245, 158, 11, 0.1)',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                marginBottom: '14px',
+                lineHeight: 1.5,
+              },
+            },
+              '注意：本二维码为川大竹云 IDaaS 移动端专属密文协议，请使用【智慧川大移动端 APP】内扫一扫；普通微信“扫一扫”无法识别（会弹出 authKey 字典）。日常使用强烈推荐使用左侧“学号密码账号登录”，免扫码且永久保活！'
             ),
             h('button', {
               type: 'button',
