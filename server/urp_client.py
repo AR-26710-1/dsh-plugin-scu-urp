@@ -278,30 +278,47 @@ class SCUUrpClient:
         ).json()
 
         courses = []
-        date_list = data.get("dateList", [])
+        date_list = data.get("dateList") or []
         for item in date_list:
-            sub_list = item.get("selectCourseList", [])
+            if not isinstance(item, dict):
+                continue
+            sub_list = item.get("selectCourseList") or []
             for c in sub_list:
+                if not isinstance(c, dict):
+                    continue
                 time_places = []
-                for tp in c.get("timeAndPlaceList", []):
-                    raw_bitmap = tp.get("classWeek", "")
+                tp_list = c.get("timeAndPlaceList") or []
+                for tp in tp_list:
+                    if not isinstance(tp, dict):
+                        continue
+                    raw_bitmap = tp.get("classWeek") or ""
                     time_places.append({
                         "day": tp.get("classDay"),  # 1-7
                         "startSession": tp.get("classSessions"),  # 起始节
-                        "continuingSessions": tp.get("continuingSession", 2),
-                        "building": tp.get("teachingBuildingName", ""),
-                        "classroom": tp.get("classroomName", ""),
+                        "continuingSessions": tp.get("continuingSession", 2) or 2,
+                        "building": tp.get("teachingBuildingName") or "",
+                        "classroom": tp.get("classroomName") or "",
+                        "campus": tp.get("campusName") or "",
+                        "weekDescription": tp.get("weekDescription") or "",
                         "rawWeeks": raw_bitmap,
-                        "weeks": self.parse_class_weeks(raw_bitmap),
+                        "weeks": self.parse_class_weeks(raw_bitmap) if raw_bitmap else [],
                     })
 
+                cid = c.get("id") or {}
+                if isinstance(cid, dict):
+                    c_num = cid.get("coureNumber") or ""
+                    c_seq = cid.get("coureSequenceNumber") or ""
+                else:
+                    c_num = ""
+                    c_seq = ""
+
                 courses.append({
-                    "name": c.get("courseName", ""),
-                    "courseNumber": c.get("courseNumber", ""),
-                    "unitNumber": c.get("unitNumber", ""),
-                    "property": c.get("coursePropertiesName", ""),
-                    "teacher": c.get("attendClassTeacher", ""),
-                    "credit": float(c.get("unitCredit", 0.0) or 0.0),
+                    "name": c.get("courseName") or "",
+                    "courseNumber": c_num,
+                    "unitNumber": c_seq,
+                    "property": c.get("coursePropertiesName") or "",
+                    "teacher": (c.get("attendClassTeacher") or "").rstrip("*"),
+                    "credit": float(c.get("unit") or 0.0),
                     "schedules": time_places,
                 })
 
@@ -349,8 +366,23 @@ class SCUUrpClient:
             raise RuntimeError("未能从成绩页面获取动态安全 Token")
         token = token_match.group(1)
 
-        raw_data = self.request("GET", f"/student/integratedQuery/scoreQuery/{token}/allTermScores/data").json()
-        raw_list = raw_data.get("list", []) if isinstance(raw_data, dict) else (raw_data if isinstance(raw_data, list) else [])
+        raw_data = self.request(
+            "POST",
+            f"/student/integratedQuery/scoreQuery/{token}/allTermScores/data",
+            data={"pageNum": 1, "pageSize": 1000},
+        ).json()
+
+        raw_list = []
+        if isinstance(raw_data, dict):
+            list_field = raw_data.get("list")
+            if isinstance(list_field, dict):
+                raw_list = list_field.get("records") or []
+            elif isinstance(list_field, list):
+                raw_list = list_field
+            else:
+                raw_list = raw_data.get("records") or []
+        elif isinstance(raw_data, list):
+            raw_list = raw_data
 
         formatted_grades = []
         total_credit = 0.0
@@ -360,13 +392,24 @@ class SCUUrpClient:
         terms = set()
 
         for g in raw_list:
-            kcm = g.get("KCM", "")
-            kch = g.get("KCH", "")
-            credit = float(g.get("XF") or 0.0)
+            if not isinstance(g, dict):
+                continue
+            kcm = g.get("KCM") or ""
+            kch = g.get("KCH") or ""
+            kxh = g.get("KXH") or ""
+            try:
+                credit = float(g.get("XF") or 0.0)
+            except (ValueError, TypeError):
+                credit = 0.0
+
             score = str(g.get("KCCJ") or "")
-            djm = g.get("DJM", "") or ""
-            term = g.get("ZXJXJHM", "")
-            prop = g.get("KCXZMC", "")
+            djm = g.get("DJM") or ""
+            term = g.get("ZXJXJHM") or ""
+            prop = g.get("KCSXMC") or ""
+            unpass_reason = g.get("WTGYYSM") or ""
+
+            # 若录入方式为等级制 (002)，优先展示等级名称
+            display_score = djm if g.get("CJLRFSDM") == "002" and djm else (score or djm)
 
             if term:
                 terms.add(term)
@@ -375,13 +418,15 @@ class SCUUrpClient:
 
             formatted_grades.append({
                 "name": kcm,
-                "code": kch,
+                "code": f"{kch}_{kxh}" if kxh else kch,
                 "term": term,
                 "credit": credit,
-                "score": score,
+                "score": display_score,
+                "rawScore": score,
                 "gradeLevel": djm,
                 "property": prop,
                 "gpa": gpa,
+                "unpassReason": unpass_reason,
             })
 
             if credit > 0:
@@ -391,7 +436,7 @@ class SCUUrpClient:
                     num_score = float(score)
                     weighted_score_sum += num_score * credit
                     score_credit_sum += credit
-                except ValueError:
+                except (ValueError, TypeError):
                     pass
 
         avg_gpa = round(weighted_gpa_sum / total_credit, 2) if total_credit > 0 else 0.0
@@ -416,21 +461,26 @@ class SCUUrpClient:
         resp = self.request("GET", url)
         data = resp.json()
 
-        if isinstance(data, dict) and data.get("status") == "203":
-            return {"totalExams": 0, "exams": [], "message": "当前区间暂无已排定的考试安排"}
+        raw_list = []
+        if isinstance(data, dict):
+            raw_list = data.get("list") or []
+        elif isinstance(data, list):
+            raw_list = data
 
-        exam_list = data if isinstance(data, list) else data.get("list", [])
         results = []
-        for e in exam_list:
+        for e in raw_list:
+            if not isinstance(e, dict):
+                continue
             results.append({
-                "courseName": e.get("kcm", "") or e.get("title", ""),
-                "examTime": e.get("kssj", "") or f"{e.get('start', '')} ~ {e.get('end', '')}",
-                "location": e.get("ksdd", "") or e.get("place", ""),
-                "seatNumber": e.get("zwh", ""),
-                "status": e.get("status", ""),
+                "courseName": e.get("kcm") or e.get("title") or "",
+                "examTime": e.get("kssj") or (f"{e.get('start', '')} ~ {e.get('end', '')}" if e.get("start") else ""),
+                "location": e.get("ksdd") or e.get("place") or "",
+                "seatNumber": e.get("zwh") or "",
+                "status": e.get("status") or "",
             })
 
         return {
             "totalExams": len(results),
             "exams": results,
+            "message": "当前区间暂无已排定的考试安排" if not results else "获取成功",
         }

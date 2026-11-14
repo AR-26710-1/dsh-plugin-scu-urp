@@ -231,26 +231,38 @@ window.__ModuleLoader__.load({
             h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '10px' } },
               `👨‍🏫 授课教师: ${c.teacher || '待公布'}`
             ),
-            c.schedules?.map((s, sIdx) =>
-              h('div', {
-                key: sIdx,
-                style: {
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
-                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
-                  marginTop: '6px',
-                  fontSize: '12px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                },
-              },
-                h('span', { style: { fontWeight: 500 } }, `${dayNames[s.day]} 第 ${s.startSession}~${s.startSession + s.continuingSessions - 1} 节`),
-                h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }, `📍 ${s.building} ${s.classroom}`),
-                h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, s.weeks?.length ? `${s.weeks[0]}~${s.weeks[s.weeks.length - 1]}周` : '全周')
-              )
-            )
+            c.schedules && c.schedules.length > 0
+              ? c.schedules.map((s, sIdx) =>
+                  h('div', {
+                    key: sIdx,
+                    style: {
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
+                      border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      marginTop: '6px',
+                      fontSize: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    },
+                  },
+                    h('span', { style: { fontWeight: 500 } }, `${dayNames[s.day]} 第 ${s.startSession}~${s.startSession + s.continuingSessions - 1} 节`),
+                    h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }, `📍 ${s.building} ${s.classroom}`),
+                    h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, s.weeks?.length ? `${s.weeks[0]}~${s.weeks[s.weeks.length - 1]}周` : '全周')
+                  )
+                )
+              : h('div', {
+                  style: {
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+                    border: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                    marginTop: '6px',
+                    fontSize: '12px',
+                    color: 'var(--dsw-alias-text-sub, #71717a)',
+                  },
+                }, '💻 暂无固定排课地点或自主修读')
           )
         )
       )
@@ -338,7 +350,7 @@ window.__ModuleLoader__.load({
 
         !loading && !error && filtered.map((g, i) => {
           const num = parseFloat(g.score)
-          const pass = !isNaN(num) ? num >= 60 : ['A', 'B', 'C', 'D', '优秀', '良好', '中等', '及格'].includes(g.gradeLevel)
+          const pass = !isNaN(num) ? num >= 60 : ['A', 'B', 'C', 'D', '优秀', '良好', '中等', '及格', '合格', '通过'].includes(g.gradeLevel)
           return h('div', { key: i, style: S.card },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
               h('div', null,
