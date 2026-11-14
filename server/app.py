@@ -2,26 +2,19 @@
 DeepSeek Harness - 四川大学教务系统 (URP) 本地适配器服务
 运行于本地 127.0.0.1:48080，桥接 DeepSeek Harness 插件与教务处
 """
+import asyncio
+import os
+import json
+from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, HTTPException, Body, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from crypto_store import CredentialStore
 from urp_client import SCUUrpClient
 from calendar_exporter import generate_ics
-
-app = FastAPI(title="SCU URP Harness Bridge", version="1.0.0")
-
-# 启用 CORS 允许 Harness 客户端或 Webview 跨域访问
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 cred_store = CredentialStore()
 client = SCUUrpClient()
@@ -30,6 +23,31 @@ client = SCUUrpClient()
 initial_creds = cred_store.load_credentials()
 if initial_creds:
     client.update_credentials(initial_creds.get("username", ""), initial_creds.get("password", ""))
+
+
+async def _heartbeat_loop():
+    """后台轻量心跳探针，每 10 分钟检测并保活教务处 Session"""
+    while True:
+        try:
+            await asyncio.sleep(600)
+            creds = cred_store.load_credentials()
+            if creds and creds.get("username"):
+                client.keep_alive()
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动后台保活循环
+    task = asyncio.create_task(_heartbeat_loop())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="SCU URP Harness Bridge", version="1.0.0", lifespan=lifespan)
 
 
 class LoginRequest(BaseModel):
@@ -248,6 +266,40 @@ async def get_free_classrooms_api(
         return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取空闲自习室信息失败: {str(e)}")
+
+
+# ================== 课程随堂备忘与作业待办 API ==================
+TODOS_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "todos.json")
+
+def _load_todos() -> List[Dict[str, Any]]:
+    try:
+        if os.path.exists(TODOS_FILE):
+            with open(TODOS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+def _save_todos(todos: List[Dict[str, Any]]) -> bool:
+    try:
+        os.makedirs(os.path.dirname(TODOS_FILE), exist_ok=True)
+        with open(TODOS_FILE, "w", encoding="utf-8") as f:
+            json.dump(todos, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+@app.get("/api/todos")
+async def get_todos_api():
+    """获取所有课程随堂备忘录与作业待办"""
+    return {"todos": _load_todos()}
+
+@app.post("/api/todos")
+async def save_todos_api(payload: dict = Body(...)):
+    """保存或更新课程随堂备忘录与作业待办"""
+    todos = payload.get("todos", [])
+    _save_todos(todos)
+    return {"success": True, "todos": todos}
 
 
 if __name__ == "__main__":

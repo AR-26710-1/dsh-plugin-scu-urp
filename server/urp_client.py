@@ -250,6 +250,25 @@ class SCUUrpClient:
         resp.raise_for_status()
         return resp
 
+    def keep_alive(self) -> bool:
+        """
+        轻量级教务系统会话保活探针
+        定时向教务系统发送极低开销的心跳检测，并在 Session 失效时静默自动重连
+        """
+        if not self.username or not self.password:
+            return False
+        try:
+            test_url = f"{self.BASE_URL}/student/personalSenate/giveLessonInfo/thisSemesterSchedule/weekLySchedule"
+            resp = self.session.get(test_url, headers=self.headers, timeout=8)
+            if "/login" in resp.url or resp.status_code in (302, 401) or "登录" in resp.text[:400]:
+                self.is_logged_in = False
+                ok, _ = self.login()
+                return ok
+            self.is_logged_in = True
+            return True
+        except Exception:
+            return False
+
     @staticmethod
     def parse_class_weeks(class_week_bitmap: str) -> List[int]:
         """

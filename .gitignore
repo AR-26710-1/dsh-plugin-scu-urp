@@ -42,3 +42,6 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local user data
+data/

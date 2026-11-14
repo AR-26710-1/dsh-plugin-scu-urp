@@ -187,6 +187,63 @@ window.__ModuleLoader__.load({
     const UsersIcon = createSvgIcon(['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'], [{ cx: 9, cy: 7, r: 4 }])
     const SnowflakeIcon = createSvgIcon([], [], [{ x1: 12, y1: 2, x2: 12, y2: 22 }, { x1: 2, y1: 12, x2: 22, y2: 12 }, { x1: 4.93, y1: 4.93, x2: 19.07, y2: 19.07 }, { x1: 19.07, y1: 4.93, x2: 4.93, y2: 19.07 }])
     const SearchIcon = createSvgIcon(['M21 21l-4.35-4.35'], [{ cx: 11, cy: 11, r: 8 }])
+    const CheckSquareIcon = createSvgIcon(['M9 11l3 3L22 4', 'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'])
+    const SquareIcon = createSvgIcon([], [], [], [{ x: 3, y: 3, w: 18, h: 18, rx: 2 }])
+    const TrashIcon = createSvgIcon(['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'])
+    const PlusIcon = createSvgIcon([], [], [{ x1: 12, y1: 5, x2: 12, y2: 19 }, { x1: 5, y1: 12, x2: 19, y2: 12 }])
+    const Edit3Icon = createSvgIcon(['M12 20h9', 'M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z'])
+
+    // ================== 本地极速秒开缓存管理器 (Stale-While-Revalidate) ==================
+    const SCU_CACHE = {
+      get(key) {
+        try {
+          const raw = localStorage.getItem(`scu_cache_${key}`)
+          return raw ? JSON.parse(raw) : null
+        } catch {
+          return null
+        }
+      },
+      set(key, data) {
+        try {
+          localStorage.setItem(`scu_cache_${key}`, JSON.stringify({
+            data,
+            timestamp: Date.now(),
+            updatedAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          }))
+        } catch {}
+      },
+    }
+
+    // ================== 课程随堂备忘与作业待办数据管理器 ==================
+    const SCU_TODO_STORE = {
+      async load() {
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/todos`)
+          if (resp.ok) {
+            const d = await resp.json()
+            const todos = d.todos || []
+            localStorage.setItem('scu_course_todos', JSON.stringify(todos))
+            return todos
+          }
+        } catch {}
+        try {
+          const local = localStorage.getItem('scu_course_todos')
+          return local ? JSON.parse(local) : []
+        } catch {
+          return []
+        }
+      },
+      async save(todos) {
+        try {
+          localStorage.setItem('scu_course_todos', JSON.stringify(todos))
+          await fetch(`${SERVICE_URL}/api/todos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ todos }),
+          })
+        } catch {}
+      },
+    }
 
     // ================== 课表莫兰迪色系 (遵循 DSH 极简风格，亮暗自适应) ==================
     const COURSE_PALETTES = [
@@ -263,12 +320,22 @@ window.__ModuleLoader__.load({
       const [exportStartDate, setExportStartDate] = useState('2026-08-31') // 第一周周一日期
       const [exportAlarm, setExportAlarm] = useState(15) // 提醒分钟
       const [exportDownloaded, setExportDownloaded] = useState(false)
+      const [cacheNotice, setCacheNotice] = useState('')
+
+      // 方案 D：随堂备忘与作业待办状态
+      const [todos, setTodos] = useState([])
+      const [showTodoDrawer, setShowTodoDrawer] = useState(false)
+      const [modalTodoInput, setModalTodoInput] = useState('')
+      const [drawerFilter, setDrawerFilter] = useState('ALL') // 'ALL' | 'UNCOMPLETED' | 'COMPLETED'
+      const [drawerCourseSelect, setDrawerCourseSelect] = useState('')
+      const [drawerTodoText, setDrawerTodoText] = useState('')
 
       const todayDay = new Date().getDay() || 7 // 1~7 (周一为1, 周日为7)
       const dayNames = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
-      const fetchSchedule = useCallback(async () => {
-        setLoading(true)
+      // 方案 A：秒开快照与异步增量更新
+      const fetchSchedule = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true)
         setError('')
         try {
           const resp = await fetch(`${SERVICE_URL}/api/schedule`)
@@ -280,16 +347,64 @@ window.__ModuleLoader__.load({
           }
           const d = await resp.json()
           setCourses(d.courses || [])
+          SCU_CACHE.set('schedule', d)
+          setCacheNotice('')
         } catch (e) {
-          setError(`网络异常: ${e.message}`)
+          const cached = SCU_CACHE.get('schedule')
+          if (cached && cached.data && Array.isArray(cached.data.courses)) {
+            setCourses(cached.data.courses)
+            setCacheNotice(`离线快照 · ${cached.updatedAt}`)
+          } else {
+            setError(`网络异常: ${e.message}`)
+          }
         } finally {
           setLoading(false)
         }
       }, [onRequireLogin])
 
       useEffect(() => {
-        fetchSchedule()
+        // 优先载入秒开快照
+        const cached = SCU_CACHE.get('schedule')
+        if (cached && cached.data && Array.isArray(cached.data.courses)) {
+          setCourses(cached.data.courses)
+          setLoading(false)
+          setCacheNotice(`已载入快照 (${cached.updatedAt})`)
+          fetchSchedule(true)
+        } else {
+          fetchSchedule(false)
+        }
+        // 载入持久化作业待办清单
+        SCU_TODO_STORE.load().then(t => setTodos(t))
       }, [fetchSchedule])
+
+      // 方案 D：待办增删改
+      const handleAddTodo = async (courseName, text) => {
+        if (!text || !text.trim() || !courseName) return
+        const item = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          courseName: courseName.trim(),
+          title: text.trim(),
+          completed: false,
+          createdAt: Date.now(),
+        }
+        const updated = [item, ...todos]
+        setTodos(updated)
+        await SCU_TODO_STORE.save(updated)
+      }
+
+      const handleToggleTodo = async (id) => {
+        const updated = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t)
+        setTodos(updated)
+        await SCU_TODO_STORE.save(updated)
+      }
+
+      const handleDeleteTodo = async (id) => {
+        const updated = todos.filter(t => t.id !== id)
+        setTodos(updated)
+        await SCU_TODO_STORE.save(updated)
+      }
+
+      const uncompletedTotal = todos.filter(t => !t.completed).length
 
       // 提取有固定排课的时段块与未排课/线上课程
       const scheduledItems = []
@@ -325,8 +440,19 @@ window.__ModuleLoader__.load({
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
             h(CalendarIcon, { size: 20 }),
             h('div', null,
-              h('div', { style: { fontSize: '13px', fontWeight: 600 } },
-                `今天是 ${dayNames[todayDay]} · 今日共 ${todayCourses.length} 门排课`
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '13px', fontWeight: 600 } },
+                  `今天是 ${dayNames[todayDay]} · 今日共 ${todayCourses.length} 门排课`
+                ),
+                cacheNotice && h('span', {
+                  style: {
+                    fontSize: '11px',
+                    color: 'var(--dsw-alias-text-sub, #71717a)',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.12))',
+                  },
+                }, cacheNotice)
               ),
               h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' } },
                 todayCourses.length > 0
@@ -398,6 +524,31 @@ window.__ModuleLoader__.load({
                 h(ListIcon, { size: 13 }),
                 '日程列表'
               )
+            ),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                position: 'relative',
+              },
+              onClick: () => setShowTodoDrawer(true),
+            },
+              h(CheckSquareIcon, { size: 13 }),
+              '作业待办',
+              uncompletedTotal > 0 && h('span', {
+                style: {
+                  fontSize: '10px',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  padding: '1px 5px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  marginLeft: '2px',
+                },
+              }, uncompletedTotal)
             ),
             h('button', {
               style: {
@@ -546,11 +697,12 @@ window.__ModuleLoader__.load({
                 const palette = getCoursePalette(c.name)
                 // 检查选中的周次是否包含该课程
                 const isSelectedWeekMatch = selectedWeek === 'ALL' || (s.weeks && s.weeks.includes(selectedWeek))
+                const uncompletedCourseTodos = todos.filter(t => t.courseName === c.name && !t.completed)
 
                 return h('div', {
                   key: `course-card-${idx}`,
                   onClick: () => setActiveModalItem(item),
-                  title: `${c.name} · 点击查看详情`,
+                  title: `${c.name} · 点击查看详情与随堂待办`,
                   style: {
                     gridColumn: s.day + 1,
                     gridRow: `${s.startSession + 1} / span ${s.continuingSessions}`,
@@ -574,17 +726,39 @@ window.__ModuleLoader__.load({
                   h('div', null,
                     h('div', {
                       style: {
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        lineHeight: 1.3,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: '4px',
                         marginBottom: '4px',
-                        display: '-webkit-box',
-                        WebkitLineClamp: s.continuingSessions >= 3 ? 3 : 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        color: 'var(--dsw-alias-text, inherit)',
                       },
-                    }, c.name),
+                    },
+                      h('div', {
+                        style: {
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          lineHeight: 1.3,
+                          display: '-webkit-box',
+                          WebkitLineClamp: s.continuingSessions >= 3 ? 3 : 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          color: 'var(--dsw-alias-text, inherit)',
+                        },
+                      }, c.name),
+                      uncompletedCourseTodos.length > 0 && h('span', {
+                        style: {
+                          fontSize: '9px',
+                          padding: '1px 4px',
+                          borderRadius: '3px',
+                          background: 'rgba(239, 68, 68, 0.18)',
+                          color: '#ef4444',
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          lineHeight: 1.1,
+                        },
+                        title: `有 ${uncompletedCourseTodos.length} 条未完成作业`,
+                      }, `${uncompletedCourseTodos.length}待办`)
+                    ),
                     (s.classroom || s.building) && h('div', {
                       style: {
                         fontSize: '11px',
@@ -664,6 +838,7 @@ window.__ModuleLoader__.load({
                     const c = item.course
                     const s = item.schedule
                     const palette = getCoursePalette(c.name)
+                    const uncompletedCourseTodos = todos.filter(t => t.courseName === c.name && !t.completed)
                     return h('div', {
                       key: iIdx,
                       onClick: () => setActiveModalItem(item),
@@ -680,7 +855,17 @@ window.__ModuleLoader__.load({
                       h('div', null,
                         h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
                           h('span', { style: { fontSize: '14px', fontWeight: 600 } }, c.name),
-                          h('span', { style: S.badge }, `${c.property || '课程'} · ${c.credit}学分`)
+                          h('span', { style: S.badge }, `${c.property || '课程'} · ${c.credit}学分`),
+                          uncompletedCourseTodos.length > 0 && h('span', {
+                            style: {
+                              fontSize: '10px',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              color: '#ef4444',
+                              fontWeight: 600,
+                            },
+                          }, `${uncompletedCourseTodos.length} 待办`)
                         ),
                         h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' } },
                           h(UserIcon, { size: 12 }),
@@ -849,11 +1034,274 @@ window.__ModuleLoader__.load({
               )
             ),
 
+            // 方案 D：随堂备忘与作业清单 (Course Notes & Homework Todos)
+            (() => {
+              const modalCourseTodos = todos.filter(t => t.courseName === activeModalItem.course.name)
+              return h('div', {
+                style: {
+                  marginTop: '16px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.12))',
+                },
+              },
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' } },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                    h(Edit3Icon, { size: 14 }),
+                    h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '随堂备忘与作业待办:'),
+                    h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `(${modalCourseTodos.length} 条)`)
+                  ),
+                  h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '勾选即完成')
+                ),
+                // 新增待办输入行
+                h('div', { style: { display: 'flex', gap: '6px', marginBottom: '10px' } },
+                  h('input', {
+                    type: 'text',
+                    placeholder: '输入作业或备忘，如：第8周交实验报告...',
+                    style: { ...S.input, marginBottom: 0, padding: '5px 10px', fontSize: '12px', flex: 1 },
+                    value: modalTodoInput,
+                    onChange: (e) => setModalTodoInput(e.target.value),
+                    onKeyDown: (e) => {
+                      if (e.key === 'Enter') {
+                        handleAddTodo(activeModalItem.course.name, modalTodoInput)
+                        setModalTodoInput('')
+                      }
+                    },
+                  }),
+                  h('button', {
+                    style: { ...S.btnPrimary, padding: '5px 12px', fontSize: '12px', whiteSpace: 'nowrap' },
+                    onClick: () => {
+                      handleAddTodo(activeModalItem.course.name, modalTodoInput)
+                      setModalTodoInput('')
+                    },
+                  }, '添加')
+                ),
+                // 待办事项列表
+                modalCourseTodos.length === 0 ? h('div', {
+                  style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', padding: '10px', textAlign: 'center', background: 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.03))', borderRadius: '6px' },
+                }, '暂无该课程待办，可以在上方添加作业或复习笔记') : h('div', {
+                  style: { display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' },
+                },
+                  modalCourseTodos.map(todo =>
+                    h('div', {
+                      key: todo.id,
+                      style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        background: todo.completed ? 'transparent' : 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.05))',
+                        border: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.08))',
+                      },
+                    },
+                      h('div', {
+                        style: { display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer' },
+                        onClick: () => handleToggleTodo(todo.id),
+                      },
+                        todo.completed ? h(CheckSquareIcon, { size: 14, style: { color: '#10b981' } }) : h(SquareIcon, { size: 14, style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }),
+                        h('span', {
+                          style: {
+                            fontSize: '12px',
+                            textDecoration: todo.completed ? 'line-through' : 'none',
+                            color: todo.completed ? 'var(--dsw-alias-text-sub, #a1a1aa)' : 'inherit',
+                          },
+                        }, todo.title)
+                      ),
+                      h('button', {
+                        style: { background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)', padding: '2px', display: 'flex', alignItems: 'center' },
+                        onClick: () => handleDeleteTodo(todo.id),
+                        title: '删除该条备忘',
+                      }, h(TrashIcon, { size: 13 }))
+                    )
+                  )
+                )
+              )
+            })(),
+
             h('div', { style: { marginTop: '20px', textAlign: 'right' } },
               h('button', {
                 style: { ...S.btnPrimary, padding: '7px 18px', fontSize: '12px' },
                 onClick: () => setActiveModalItem(null),
               }, '关闭')
+            )
+          )
+        ),
+
+        // 7. 方案 D：全学期课程随堂备忘与作业待办清单 Modal
+        showTodoDrawer && h('div', {
+          style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            backdropFilter: 'blur(3px)',
+          },
+          onClick: () => setShowTodoDrawer(false),
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))',
+              color: 'var(--dsw-alias-text, inherit)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            // 标题栏
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h(CheckSquareIcon, { size: 18 }),
+                h('span', { style: { fontSize: '18px', fontWeight: 700 } }, '课程随堂备忘与作业清单'),
+                h('span', { style: S.badge }, `待完成 ${uncompletedTotal} 项 / 共 ${todos.length} 项`)
+              ),
+              h('button', {
+                style: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)' },
+                onClick: () => setShowTodoDrawer(false),
+              }, '✕')
+            ),
+
+            // 快捷添加待办区域
+            h('div', {
+              style: {
+                background: 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.04))',
+                border: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.1))',
+                borderRadius: '8px',
+                padding: '12px',
+                marginBottom: '16px',
+              },
+            },
+              h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '8px' } }, '为课程添加新待办 / 作业:'),
+              h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+                h('select', {
+                  style: { ...S.input, width: '150px', marginBottom: 0, padding: '5px 8px', fontSize: '12px' },
+                  value: drawerCourseSelect || (courses[0]?.name || ''),
+                  onChange: (e) => setDrawerCourseSelect(e.target.value),
+                },
+                  courses.map(c => h('option', { key: c.name, value: c.name }, c.name))
+                ),
+                h('input', {
+                  type: 'text',
+                  placeholder: '输入作业或随堂笔记（如：周五前交实验报告）...',
+                  style: { ...S.input, flex: 1, minWidth: '180px', marginBottom: 0, padding: '5px 10px', fontSize: '12px' },
+                  value: drawerTodoText,
+                  onChange: (e) => setDrawerTodoText(e.target.value),
+                  onKeyDown: (e) => {
+                    if (e.key === 'Enter') {
+                      const cName = drawerCourseSelect || courses[0]?.name
+                      if (cName && drawerTodoText) {
+                        handleAddTodo(cName, drawerTodoText)
+                        setDrawerTodoText('')
+                      }
+                    }
+                  },
+                }),
+                h('button', {
+                  style: { ...S.btnPrimary, padding: '5px 14px', fontSize: '12px' },
+                  onClick: () => {
+                    const cName = drawerCourseSelect || courses[0]?.name
+                    if (cName && drawerTodoText) {
+                      handleAddTodo(cName, drawerTodoText)
+                      setDrawerTodoText('')
+                    }
+                  },
+                }, '添加')
+              )
+            ),
+
+            // 状态筛选 Tab (全部 / 待完成 / 已完成)
+            h('div', { style: { display: 'flex', gap: '6px', marginBottom: '12px' } },
+              [
+                { key: 'ALL', label: `全部 (${todos.length})` },
+                { key: 'UNCOMPLETED', label: `待完成 (${uncompletedTotal})` },
+                { key: 'COMPLETED', label: `已完成 (${todos.length - uncompletedTotal})` },
+              ].map(f =>
+                h('button', {
+                  key: f.key,
+                  style: {
+                    ...S.btnSecondary,
+                    padding: '3px 10px',
+                    fontSize: '11px',
+                    borderRadius: '12px',
+                    background: drawerFilter === f.key ? 'var(--dsw-alias-text, #18181b)' : 'transparent',
+                    color: drawerFilter === f.key ? 'var(--dsw-alias-bg, #ffffff)' : 'inherit',
+                    borderColor: drawerFilter === f.key ? 'transparent' : 'var(--dsw-alias-border, rgba(125,125,125,0.15))',
+                    fontWeight: drawerFilter === f.key ? 600 : 400,
+                  },
+                  onClick: () => setDrawerFilter(f.key),
+                }, f.label)
+              )
+            ),
+
+            // 待办清单滚动区域
+            h('div', { style: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '120px' } },
+              todos
+                .filter(t => drawerFilter === 'ALL' || (drawerFilter === 'UNCOMPLETED' ? !t.completed : t.completed))
+                .length === 0
+                ? h('div', {
+                    style: { textAlign: 'center', padding: '36px', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '12px' },
+                  }, '暂无对应状态的待办事项')
+                : todos
+                    .filter(t => drawerFilter === 'ALL' || (drawerFilter === 'UNCOMPLETED' ? !t.completed : t.completed))
+                    .map(todo =>
+                      h('div', {
+                        key: todo.id,
+                        style: {
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          background: todo.completed ? 'transparent' : 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.04))',
+                          border: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.1))',
+                        },
+                      },
+                        h('div', {
+                          style: { display: 'flex', alignItems: 'center', gap: '10px', flex: 1, cursor: 'pointer' },
+                          onClick: () => handleToggleTodo(todo.id),
+                        },
+                          todo.completed ? h(CheckSquareIcon, { size: 16, style: { color: '#10b981' } }) : h(SquareIcon, { size: 16, style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }),
+                          h('div', null,
+                            h('div', {
+                              style: {
+                                fontSize: '13px',
+                                textDecoration: todo.completed ? 'line-through' : 'none',
+                                color: todo.completed ? 'var(--dsw-alias-text-sub, #a1a1aa)' : 'inherit',
+                                fontWeight: todo.completed ? 400 : 500,
+                              },
+                            }, todo.title),
+                            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                              `课程: 《${todo.courseName}》`
+                            )
+                          )
+                        ),
+                        h('button', {
+                          style: { background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)', padding: '4px' },
+                          onClick: () => handleDeleteTodo(todo.id),
+                          title: '删除该条作业待办',
+                        }, h(TrashIcon, { size: 14 }))
+                      )
+                    )
+            ),
+
+            h('div', { style: { marginTop: '16px', textAlign: 'right' } },
+              h('button', {
+                style: { ...S.btnPrimary, padding: '7px 20px', fontSize: '12px' },
+                onClick: () => setShowTodoDrawer(false),
+              }, '完成')
             )
           )
         ),
@@ -1006,9 +1454,10 @@ window.__ModuleLoader__.load({
       const [data, setData] = useState({ grades: [], terms: [], termStats: [] })
       const [selectedTerm, setSelectedTerm] = useState('ALL')
       const [scope, setScope] = useState('ALL') // 'ALL' | 'REQUIRED' (保研必修)
+      const [cacheNotice, setCacheNotice] = useState('')
 
-      const fetchGrades = useCallback(async () => {
-        setLoading(true)
+      const fetchGrades = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true)
         setError('')
         try {
           const resp = await fetch(`${SERVICE_URL}/api/grades`)
@@ -1020,15 +1469,31 @@ window.__ModuleLoader__.load({
           }
           const d = await resp.json()
           setData(d)
+          SCU_CACHE.set('grades', d)
+          setCacheNotice('')
         } catch (e) {
-          setError(`网络异常: ${e.message}`)
+          const cached = SCU_CACHE.get('grades')
+          if (cached && cached.data) {
+            setData(cached.data)
+            setCacheNotice(`离线快照 · ${cached.updatedAt}`)
+          } else {
+            setError(`网络异常: ${e.message}`)
+          }
         } finally {
           setLoading(false)
         }
       }, [onRequireLogin])
 
       useEffect(() => {
-        fetchGrades()
+        const cached = SCU_CACHE.get('grades')
+        if (cached && cached.data && Array.isArray(cached.data.grades)) {
+          setData(cached.data)
+          setLoading(false)
+          setCacheNotice(`已载入快照 (${cached.updatedAt})`)
+          fetchGrades(true)
+        } else {
+          fetchGrades(false)
+        }
       }, [fetchGrades])
 
       const allGrades = data.grades || []
@@ -1095,6 +1560,15 @@ window.__ModuleLoader__.load({
             )
           ),
           h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+            cacheNotice && h('span', {
+              style: {
+                fontSize: '11px',
+                color: 'var(--dsw-alias-text-sub, #71717a)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.12))',
+              },
+            }, cacheNotice),
             // 导出 Excel/CSV
             h('button', {
               style: {
@@ -1263,9 +1737,10 @@ window.__ModuleLoader__.load({
       const [loading, setLoading] = useState(true)
       const [error, setError] = useState('')
       const [exams, setExams] = useState([])
+      const [cacheNotice, setCacheNotice] = useState('')
 
-      const fetchExams = useCallback(async () => {
-        setLoading(true)
+      const fetchExams = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true)
         setError('')
         try {
           const resp = await fetch(`${SERVICE_URL}/api/exams`)
@@ -1277,20 +1752,47 @@ window.__ModuleLoader__.load({
           }
           const d = await resp.json()
           setExams(d.exams || [])
+          SCU_CACHE.set('exams', d)
+          setCacheNotice('')
         } catch (e) {
-          setError(`网络异常: ${e.message}`)
+          const cached = SCU_CACHE.get('exams')
+          if (cached && cached.data && Array.isArray(cached.data.exams)) {
+            setExams(cached.data.exams)
+            setCacheNotice(`离线快照 · ${cached.updatedAt}`)
+          } else {
+            setError(`网络异常: ${e.message}`)
+          }
         } finally {
           setLoading(false)
         }
       }, [onRequireLogin])
 
       useEffect(() => {
-        fetchExams()
+        const cached = SCU_CACHE.get('exams')
+        if (cached && cached.data && Array.isArray(cached.data.exams)) {
+          setExams(cached.data.exams)
+          setLoading(false)
+          setCacheNotice(`已载入快照 (${cached.updatedAt})`)
+          fetchExams(true)
+        } else {
+          fetchExams(false)
+        }
       }, [fetchExams])
 
       return h('div', null,
         h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
-          h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `已排定考试 (${exams.length})`),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `已排定考试 (${exams.length})`),
+            cacheNotice && h('span', {
+              style: {
+                fontSize: '11px',
+                color: 'var(--dsw-alias-text-sub, #71717a)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.12))',
+              },
+            }, cacheNotice)
+          ),
           h('button', {
             style: {
               ...S.btnSecondary,
