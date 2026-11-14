@@ -27,7 +27,7 @@ window.__ModuleLoader__.load({
         fontFamily: 'inherit',
       },
       container: {
-        maxWidth: '960px',
+        maxWidth: '1160px',
         margin: '0 auto',
       },
       header: {
@@ -154,13 +154,55 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ================== 子页面 1：课表 ==================
+    // ================== 课表莫兰迪色系 (遵循 DSH 极简风格，亮暗自适应) ==================
+    const COURSE_PALETTES = [
+      { bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.32)', text: '#2563eb', darkText: '#60a5fa' },
+      { bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.32)', text: '#059669', darkText: '#34d399' },
+      { bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.32)', text: '#7c3aed', darkText: '#a78bfa' },
+      { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.32)', text: '#d97706', darkText: '#fbbf24' },
+      { bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.32)', text: '#db2777', darkText: '#f472b6' },
+      { bg: 'rgba(14, 165, 233, 0.12)', border: 'rgba(14, 165, 233, 0.32)', text: '#0284c7', darkText: '#38bdf8' },
+      { bg: 'rgba(20, 184, 166, 0.12)', border: 'rgba(20, 184, 166, 0.32)', text: '#0d9488', darkText: '#2dd4bf' },
+      { bg: 'rgba(99, 102, 241, 0.12)', border: 'rgba(99, 102, 241, 0.32)', text: '#4f46e5', darkText: '#818cf8' },
+      { bg: 'rgba(234, 88, 12, 0.12)', border: 'rgba(234, 88, 12, 0.32)', text: '#ea580c', darkText: '#fb923c' },
+      { bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.32)', text: '#9333ea', darkText: '#c084fc' },
+    ]
+
+    function getCoursePalette(name) {
+      let hash = 0
+      for (let i = 0; i < (name || '').length; i++) {
+        hash = (hash << 5) - hash + name.charCodeAt(i)
+        hash |= 0
+      }
+      return COURSE_PALETTES[Math.abs(hash) % COURSE_PALETTES.length]
+    }
+
+    // 四川大学标准 12 节次参考时刻表
+    const SCU_TIMETABLE = [
+      { session: 1, time: '08:15', end: '09:00', period: '上午' },
+      { session: 2, time: '09:05', end: '09:50', period: '上午' },
+      { session: 3, time: '10:10', end: '10:55', period: '上午' },
+      { session: 4, time: '11:00', end: '11:45', period: '上午' },
+      { session: 5, time: '13:50', end: '14:35', period: '下午' },
+      { session: 6, time: '14:40', end: '15:25', period: '下午' },
+      { session: 7, time: '15:45', end: '16:30', period: '下午' },
+      { session: 8, time: '16:35', end: '17:20', period: '下午' },
+      { session: 9, time: '18:30', end: '19:15', period: '晚间' },
+      { session: 10, time: '19:20', end: '20:05', period: '晚间' },
+      { session: 11, time: '20:15', end: '21:00', period: '晚间' },
+      { session: 12, time: '21:05', end: '21:50', period: '晚间' },
+    ]
+
+    // ================== 子页面 1：高颜值自适应课表 ==================
     function ScheduleView({ onRequireLogin }) {
       const [loading, setLoading] = useState(true)
       const [error, setError] = useState('')
       const [courses, setCourses] = useState([])
-      const [filterToday, setFilterToday] = useState(false)
-      const todayDay = new Date().getDay() || 7
+      const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
+      const [selectedWeek, setSelectedWeek] = useState('ALL') // 'ALL' | 1~20
+      const [activeModalItem, setActiveModalItem] = useState(null) // 详情弹窗数据
+
+      const todayDay = new Date().getDay() || 7 // 1~7 (周一为1, 周日为7)
       const dayNames = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
       const fetchSchedule = useCallback(async () => {
@@ -187,82 +229,503 @@ window.__ModuleLoader__.load({
         fetchSchedule()
       }, [fetchSchedule])
 
-      const list = filterToday
-        ? courses.filter(c => c.schedules?.some(s => s.day === todayDay))
-        : courses
+      // 提取有固定排课的时段块与未排课/线上课程
+      const scheduledItems = []
+      const onlineCourses = []
+
+      courses.forEach(c => {
+        if (!c.schedules || c.schedules.length === 0) {
+          onlineCourses.push(c)
+        } else {
+          c.schedules.forEach(s => {
+            scheduledItems.push({ course: c, schedule: s })
+          })
+        }
+      })
+
+      // 今日课程统计
+      const todayCourses = scheduledItems.filter(item => item.schedule.day === todayDay)
 
       return h('div', null,
-        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
-          h('div', { style: { display: 'flex', gap: '8px' } },
-            h('button', {
-              style: {
-                ...S.btnSecondary,
-                background: !filterToday ? 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.15))' : 'transparent',
-                fontWeight: !filterToday ? 600 : 500,
-              },
-              onClick: () => setFilterToday(false),
-            }, `本学期全部课程 (${courses.length})`),
-            h('button', {
-              style: {
-                ...S.btnSecondary,
-                background: filterToday ? 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.15))' : 'transparent',
-                fontWeight: filterToday ? 600 : 500,
-              },
-              onClick: () => setFilterToday(true),
-            }, `今日日程 (${dayNames[todayDay]})`)
+        // 1. 今日状态横幅
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            borderRadius: '10px',
+            padding: '12px 18px',
+            marginBottom: '16px',
+          },
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+            h('span', { style: { fontSize: '18px' } }, '🗓️'),
+            h('div', null,
+              h('div', { style: { fontSize: '13px', fontWeight: 600 } },
+                `今天是 ${dayNames[todayDay]} · 今日共 ${todayCourses.length} 门排课`
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                todayCourses.length > 0
+                  ? `今日首节课程: 《${todayCourses[0].course.name}》 第 ${todayCourses[0].schedule.startSession} 节 · 📍 ${todayCourses[0].schedule.classroom || todayCourses[0].schedule.building || '待定'}`
+                  : '今日暂无现场面授课程，适合自主研学或预习复习 ☕️'
+              )
+            )
           ),
-          h('button', { style: S.btnSecondary, onClick: fetchSchedule }, '刷新课表 🔄')
+          h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+            // 周次筛选下拉
+            h('select', {
+              style: {
+                ...S.btnSecondary,
+                padding: '6px 10px',
+                outline: 'none',
+              },
+              value: selectedWeek,
+              onChange: (e) => setSelectedWeek(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value)),
+            },
+              h('option', { value: 'ALL' }, '全学期课表 (全部周次)'),
+              Array.from({ length: 20 }, (_, i) => i + 1).map(w =>
+                h('option', { key: w, value: w }, `第 ${w} 教学周`)
+              )
+            ),
+            // 视图切换按钮 (网格 / 清单)
+            h('div', {
+              style: {
+                display: 'flex',
+                background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
+                borderRadius: '6px',
+                padding: '2px',
+              },
+            },
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  border: 'none',
+                  padding: '5px 12px',
+                  background: viewMode === 'grid' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
+                  fontWeight: viewMode === 'grid' ? 600 : 400,
+                  boxShadow: viewMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                },
+                onClick: () => setViewMode('grid'),
+              }, '📅 周网格'),
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  border: 'none',
+                  padding: '5px 12px',
+                  background: viewMode === 'list' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
+                  fontWeight: viewMode === 'list' ? 600 : 400,
+                  boxShadow: viewMode === 'list' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                },
+                onClick: () => setViewMode('list'),
+              }, '📋 日程列表')
+            ),
+            h('button', { style: S.btnSecondary, onClick: fetchSchedule }, '刷新 🔄')
+          )
         ),
 
-        loading && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '正在从四川大学综合教务处同步最新课表...'),
-        error && h('div', { style: { padding: '16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px' } }, error),
+        // 加载与错误提示
+        loading && h('div', { style: { textAlign: 'center', padding: '64px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '正在从四川大学综合教务处同步最新课表...'),
+        error && h('div', { style: { padding: '16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px', marginBottom: '16px' } }, error),
 
-        !loading && !error && list.length === 0 && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '14px' } }, '当前没有排定的课程'),
+        !loading && !error && courses.length === 0 && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '14px' } }, '教务系统未返回本学期排课数据'),
 
-        !loading && !error && list.map((c, i) =>
-          h('div', { key: i, style: S.card },
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' } },
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                h('span', { style: { fontSize: '15px', fontWeight: 600 } }, c.name),
-                h('span', { style: S.badge }, `${c.property || '课程'} · ${c.credit}学分`)
-              ),
-              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `${c.courseNumber}-${c.unitNumber}`)
-            ),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '10px' } },
-              `👨‍🏫 授课教师: ${c.teacher || '待公布'}`
-            ),
-            c.schedules && c.schedules.length > 0
-              ? c.schedules.map((s, sIdx) =>
-                  h('div', {
-                    key: sIdx,
+        // 2. 网格视图 (Timetable Grid)
+        !loading && !error && courses.length > 0 && viewMode === 'grid' && h('div', null,
+          h('div', {
+            style: {
+              overflowX: 'auto',
+              background: 'var(--dsw-alias-bg-card, rgba(125, 125, 125, 0.02))',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+            },
+          },
+            h('div', {
+              style: {
+                minWidth: '780px',
+                display: 'grid',
+                gridTemplateColumns: '64px repeat(7, minmax(100px, 1fr))',
+                gridTemplateRows: '38px repeat(12, 54px)',
+                gap: '6px',
+                position: 'relative',
+              },
+            },
+              // 表头：左上角时间标志
+              h('div', {
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '11px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                  fontWeight: 500,
+                },
+              }, '节次 / 星期'),
+
+              // 表头：周一至周日 7 天
+              [1, 2, 3, 4, 5, 6, 7].map(day => {
+                const isToday = day === todayDay
+                return h('div', {
+                  key: `header-${day}`,
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: isToday ? 700 : 500,
+                    background: isToday ? 'var(--dsw-alias-bg-hover, rgba(59, 130, 246, 0.12))' : 'transparent',
+                    color: isToday ? '#2563eb' : 'var(--dsw-alias-text, inherit)',
+                    border: isToday ? '1px solid rgba(59, 130, 246, 0.25)' : 'none',
+                    gap: '4px',
+                  },
+                },
+                  h('span', null, dayNames[day]),
+                  isToday && h('span', {
                     style: {
-                      padding: '8px 12px',
+                      fontSize: '10px',
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                    },
+                  }, '今天')
+                )
+              }),
+
+              // 左侧 12 节次行标
+              SCU_TIMETABLE.map(t =>
+                h('div', {
+                  key: `session-${t.session}`,
+                  style: {
+                    gridColumn: 1,
+                    gridRow: t.session + 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    padding: '2px',
+                  },
+                },
+                  h('span', { style: { fontWeight: 600, fontSize: '12px' } }, t.session),
+                  h('span', { style: { fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)', transform: 'scale(0.9)' } }, t.time)
+                )
+              ),
+
+              // 7 列 x 12 行底网格背景槽 (用于视觉对齐与留白)
+              [1, 2, 3, 4, 5, 6, 7].map(day =>
+                SCU_TIMETABLE.map(t =>
+                  h('div', {
+                    key: `slot-${day}-${t.session}`,
+                    style: {
+                      gridColumn: day + 1,
+                      gridRow: t.session + 1,
                       borderRadius: '6px',
-                      background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
-                      border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
-                      marginTop: '6px',
-                      fontSize: '12px',
+                      background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.02))',
+                      border: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.07))',
+                      boxSizing: 'border-box',
+                    },
+                  })
+                )
+              ),
+
+              // 课程卡片定位渲染
+              scheduledItems.map((item, idx) => {
+                const s = item.schedule
+                const c = item.course
+                const palette = getCoursePalette(c.name)
+                // 检查选中的周次是否包含该课程
+                const isSelectedWeekMatch = selectedWeek === 'ALL' || (s.weeks && s.weeks.includes(selectedWeek))
+
+                return h('div', {
+                  key: `course-card-${idx}`,
+                  onClick: () => setActiveModalItem(item),
+                  title: `${c.name} · 点击查看详情`,
+                  style: {
+                    gridColumn: s.day + 1,
+                    gridRow: `${s.startSession + 1} / span ${s.continuingSessions}`,
+                    zIndex: 2,
+                    borderRadius: '8px',
+                    padding: '8px 9px',
+                    background: palette.bg,
+                    border: `1px solid ${palette.border}`,
+                    borderLeft: `3px solid ${palette.text}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    transition: 'all 0.15s ease',
+                    opacity: isSelectedWeekMatch ? 1 : 0.28,
+                    filter: isSelectedWeekMatch ? 'none' : 'grayscale(0.7)',
+                    boxSizing: 'border-box',
+                  },
+                },
+                  h('div', null,
+                    h('div', {
+                      style: {
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        lineHeight: 1.3,
+                        marginBottom: '4px',
+                        display: '-webkit-box',
+                        WebkitLineClamp: s.continuingSessions >= 3 ? 3 : 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        color: 'var(--dsw-alias-text, inherit)',
+                      },
+                    }, c.name),
+                    (s.classroom || s.building) && h('div', {
+                      style: {
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: palette.text,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      },
+                    }, `📍 ${s.classroom || s.building}`)
+                  ),
+                  h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center',
+                      marginTop: '4px',
                     },
                   },
-                    h('span', { style: { fontWeight: 500 } }, `${dayNames[s.day]} 第 ${s.startSession}~${s.startSession + s.continuingSessions - 1} 节`),
-                    h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }, `📍 ${s.building} ${s.classroom}`),
-                    h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, s.weeks?.length ? `${s.weeks[0]}~${s.weeks[s.weeks.length - 1]}周` : '全周')
+                    h('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '65%' } }, c.teacher || ''),
+                    h('span', null, s.weeks?.length ? `${s.weeks[0]}-${s.weeks[s.weeks.length - 1]}周` : '全周')
                   )
                 )
-              : h('div', {
+              })
+            )
+          )
+        ),
+
+        // 3. 清单列表视图 (List Mode)
+        !loading && !error && courses.length > 0 && viewMode === 'list' && h('div', null,
+          [1, 2, 3, 4, 5, 6, 7].map(day => {
+            const dayItems = scheduledItems.filter(it => it.schedule.day === day)
+            dayItems.sort((a, b) => a.schedule.startSession - b.schedule.startSession)
+            const isToday = day === todayDay
+
+            return h('div', { key: `day-group-${day}`, style: { marginBottom: '16px' } },
+              h('div', {
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                },
+              },
+                h('span', {
                   style: {
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
-                    border: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
-                    marginTop: '6px',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: isToday ? '#2563eb' : 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.12))',
+                    color: isToday ? '#ffffff' : 'inherit',
                     fontSize: '12px',
-                    color: 'var(--dsw-alias-text-sub, #71717a)',
                   },
-                }, '💻 暂无固定排课地点或自主修读')
+                }, dayNames[day]),
+                h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `(${dayItems.length} 门课程)`)
+              ),
+
+              dayItems.length === 0
+                ? h('div', {
+                    style: {
+                      padding: '12px',
+                      borderRadius: '8px',
+                      background: 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.03))',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      fontSize: '12px',
+                    },
+                  }, '当天无课程安排')
+                : dayItems.map((item, iIdx) => {
+                    const c = item.course
+                    const s = item.schedule
+                    const palette = getCoursePalette(c.name)
+                    return h('div', {
+                      key: iIdx,
+                      onClick: () => setActiveModalItem(item),
+                      style: {
+                        ...S.card,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px 16px',
+                        borderLeft: `4px solid ${palette.text}`,
+                      },
+                    },
+                      h('div', null,
+                        h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                          h('span', { style: { fontSize: '14px', fontWeight: 600 } }, c.name),
+                          h('span', { style: S.badge }, `${c.property || '课程'} · ${c.credit}学分`)
+                        ),
+                        h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+                          `👨‍🏫 ${c.teacher || '待公布'}  ·  📍 ${s.building} ${s.classroom}  ·  第 ${s.weeks?.length ? `${s.weeks[0]}~${s.weeks[s.weeks.length - 1]}周` : '全学期'}`
+                        )
+                      ),
+                      h('div', { style: { textAlign: 'right' } },
+                        h('div', { style: { fontSize: '13px', fontWeight: 600, color: palette.text } },
+                          `第 ${s.startSession}~${s.startSession + s.continuingSessions - 1} 节`
+                        ),
+                        h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                          `${SCU_TIMETABLE[s.startSession - 1]?.time || ''} 开始`
+                        )
+                      )
+                    )
+                  })
+            )
+          })
+        ),
+
+        // 4. 线上修读与自主学习课程专区
+        !loading && !error && onlineCourses.length > 0 && h('div', {
+          style: {
+            marginTop: '24px',
+            padding: '16px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+            border: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+          },
+        },
+          h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' } },
+            h('span', null, '💻'),
+            h('span', null, `网络自主修读 / 线上考核课程 (${onlineCourses.length} 门)`)
+          ),
+          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' } },
+            onlineCourses.map((c, i) =>
+              h('div', {
+                key: i,
+                style: {
+                  ...S.card,
+                  marginBottom: 0,
+                  padding: '12px 14px',
+                  background: 'var(--dsw-alias-bg-card, rgba(125, 125, 125, 0.03))',
+                },
+              },
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                  h('span', { style: { fontSize: '13px', fontWeight: 600 } }, c.name),
+                  h('span', { style: S.badge }, `${c.credit}学分`)
+                ),
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+                  `教师: ${c.teacher || '自主修读'} · 课程性质: ${c.property || '必修'}`
+                ),
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                  `课程代码: ${c.courseNumber}-${c.unitNumber}`
+                )
+              )
+            )
+          )
+        ),
+
+        // 5. 课程详情弹窗 Modal (点击卡片触发)
+        activeModalItem && h('div', {
+          style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            backdropFilter: 'blur(3px)',
+          },
+          onClick: () => setActiveModalItem(null),
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))',
+              color: 'var(--dsw-alias-text, inherit)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '480px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' } },
+              h('div', null,
+                h('div', { style: { fontSize: '18px', fontWeight: 700 } }, activeModalItem.course.name),
+                h('div', { style: { display: 'flex', gap: '6px', marginTop: '6px' } },
+                  h('span', { style: S.badge }, `${activeModalItem.course.property || '课程'} · ${activeModalItem.course.credit} 学分`),
+                  h('span', { style: S.badge }, `课号: ${activeModalItem.course.courseNumber}-${activeModalItem.course.unitNumber}`)
+                )
+              ),
+              h('button', {
+                style: {
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                },
+                onClick: () => setActiveModalItem(null),
+              }, '✕')
+            ),
+
+            h('div', { style: { fontSize: '13px', lineHeight: 1.8 } },
+              h('div', null, `👨‍🏫 授课教师: ${activeModalItem.course.teacher || '待公布'}`),
+              activeModalItem.schedule && h('div', null,
+                `📍 上课地点: ${activeModalItem.schedule.campus ? activeModalItem.schedule.campus + '校区 ' : ''}${activeModalItem.schedule.building} ${activeModalItem.schedule.classroom}`
+              ),
+              activeModalItem.schedule && h('div', null,
+                `⏰ 上课时间: ${dayNames[activeModalItem.schedule.day]} 第 ${activeModalItem.schedule.startSession}~${activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 1} 节 (${SCU_TIMETABLE[activeModalItem.schedule.startSession - 1]?.time} ~ ${SCU_TIMETABLE[activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 2]?.end})`
+              ),
+              activeModalItem.schedule && h('div', null,
+                `📅 教学周次: ${activeModalItem.schedule.weekDescription || (activeModalItem.schedule.weeks?.length ? `${activeModalItem.schedule.weeks[0]}~${activeModalItem.schedule.weeks[activeModalItem.schedule.weeks.length - 1]}周` : '全学期')}`
+              )
+            ),
+
+            // 活跃周次 20 周小指示点
+            activeModalItem.schedule?.weeks && h('div', { style: { marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.1))' } },
+              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '8px' } }, '学期活跃周分布 (1-20周):'),
+              h('div', { style: { display: 'flex', gap: '4px', flexWrap: 'wrap' } },
+                Array.from({ length: 20 }, (_, idx) => idx + 1).map(w => {
+                  const isActive = activeModalItem.schedule.weeks.includes(w)
+                  return h('span', {
+                    key: w,
+                    title: `第 ${w} 周: ${isActive ? '有课' : '无课'}`,
+                    style: {
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: isActive ? '#2563eb' : 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.1))',
+                      color: isActive ? '#ffffff' : 'var(--dsw-alias-text-sub, #71717a)',
+                      fontWeight: isActive ? 600 : 400,
+                    },
+                  }, w)
+                })
+              )
+            ),
+
+            h('div', { style: { marginTop: '20px', textAlign: 'right' } },
+              h('button', {
+                style: { ...S.btnPrimary, padding: '7px 18px', fontSize: '12px' },
+                onClick: () => setActiveModalItem(null),
+              }, '关闭')
+            )
           )
         )
       )
