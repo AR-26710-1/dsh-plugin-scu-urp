@@ -3343,93 +3343,17 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ================== 子页面 6：凭据与设置（含微信/微川大扫码登录与稳定退出） ==================
+    // ================== 子页面 6：教务处账号与凭据管理（本地加密与自动心跳保活） ==================
     function SettingsView({ onLoginSuccess, onLogoutSuccess, isLoggedIn, studentName, hasCreds }) {
-      // 登录模式: 'qrcode' (扫码登录) | 'password' (学号密码)
-      const [authMode, setAuthMode] = useState('password')
-
-      // 学号密码登录状态
       const [username, setUsername] = useState('')
       const [password, setPassword] = useState('')
       const [remember, setRemember] = useState(true)
       const [submitting, setSubmitting] = useState(false)
       const [msg, setMsg] = useState({ text: '', isError: false })
 
-      // 微信/微川大扫码登录状态
-      const [qrLoading, setQrLoading] = useState(false)
-      const [qrData, setQrData] = useState(null)
-      const [qrStatus, setQrStatus] = useState('INIT') // 'INIT' | 'WAITING' | 'SUCCESS' | 'EXPIRED' | 'ERROR'
-      const [qrMsg, setQrMsg] = useState('')
-      const pollTimerRef = useRef(null)
-
-      // 获取新的统一认证二维码
-      const fetchNewQrCode = useCallback(async () => {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current)
-          pollTimerRef.current = null
-        }
-        setQrLoading(true)
-        setQrStatus('INIT')
-        setQrMsg('正在向四川大学统一认证平台请求二维码...')
-        try {
-          const resp = await fetch(`${SERVICE_URL}/api/auth/qrcode/new`)
-          if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}))
-            setQrStatus('ERROR')
-            setQrMsg(err.detail || '获取二维码失败')
-            return
-          }
-          const data = await resp.json()
-          setQrData(data)
-          setQrStatus('WAITING')
-          setQrMsg('请使用微信或微川大扫描二维码授权登录')
-
-          // 开启 2 秒定时轮询
-          pollTimerRef.current = setInterval(async () => {
-            try {
-              const sResp = await fetch(`${SERVICE_URL}/api/auth/qrcode/status?code=${encodeURIComponent(data.code)}`)
-              if (!sResp.ok) return
-              const sData = await sResp.json()
-              if (sData.status === 'SUCCESS') {
-                clearInterval(pollTimerRef.current)
-                pollTimerRef.current = null
-                setQrStatus('SUCCESS')
-                setQrMsg('统一认证扫码授权成功！已长期保存凭据')
-                setTimeout(() => {
-                  onLoginSuccess(sData.studentName || sData.username || '川大学生')
-                }, 800)
-              } else if (sData.status === 'EXPIRED') {
-                clearInterval(pollTimerRef.current)
-                pollTimerRef.current = null
-                setQrStatus('EXPIRED')
-                setQrMsg('二维码已超时失效，请点击刷新')
-              }
-            } catch (_) {}
-          }, 2000)
-        } catch (e) {
-          setQrStatus('ERROR')
-          setQrMsg(`网络连接失败: ${e.message}`)
-        } finally {
-          setQrLoading(false)
-        }
-      }, [onLoginSuccess])
-
-      // 当切换到扫码模式且未登录时，自动获取二维码
-      useEffect(() => {
-        if (!isLoggedIn && authMode === 'qrcode' && !qrData && qrStatus === 'INIT') {
-          fetchNewQrCode()
-        }
-        return () => {
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current)
-            pollTimerRef.current = null
-          }
-        }
-      }, [isLoggedIn, authMode, qrData, qrStatus, fetchNewQrCode])
-
       const handleLogin = async (e) => {
         e.preventDefault()
-        if (!username || !password) return setMsg({ text: '请填写学号和教务密码', isError: true })
+        if (!username || !password) return setMsg({ text: '请填写学号和教务系统密码', isError: true })
         setSubmitting(true)
         setMsg({ text: '', isError: false })
         try {
@@ -3442,7 +3366,7 @@ window.__ModuleLoader__.load({
           if (!resp.ok) {
             setMsg({ text: d.detail || '登录失败，请检查账号密码', isError: true })
           } else {
-            setMsg({ text: '登录成功并已更新本地凭据！', isError: false })
+            setMsg({ text: '登录成功！已基于主机密钥加密保存凭据并启动长效保活。', isError: false })
             onLoginSuccess(d.studentName || username)
           }
         } catch (err) {
@@ -3458,19 +3382,13 @@ window.__ModuleLoader__.load({
         } finally {
           setUsername('')
           setPassword('')
-          setQrData(null)
-          setQrStatus('INIT')
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current)
-            pollTimerRef.current = null
-          }
           setMsg({ text: '已成功退出登录并清除本地凭据缓存。', isError: false })
           onLogoutSuccess()
         }
       }
 
       return h('div', { style: { maxWidth: '520px', margin: '0 auto' } },
-        // 1. 已登录状态展示
+        // 1. 已登录在线状态卡片
         isLoggedIn && h('div', {
           style: {
             ...S.card,
@@ -3486,7 +3404,7 @@ window.__ModuleLoader__.load({
           h('div', null,
             h('div', { style: { fontSize: '14px', fontWeight: 700 } }, `当前已登录: ${studentName || '川大学生'}`),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              '凭据与会话已长效持久化保存，心跳保活引擎全天在线'
+              '凭据已加密保存，后台心跳探针持续保活，打开 Harness 即可 0ms 首屏瞬开'
             )
           ),
           h('button', {
@@ -3499,70 +3417,14 @@ window.__ModuleLoader__.load({
           }, '退出当前登录')
         ),
 
-        // 2. 主登录卡片
+        // 2. 主登录卡片 (直接在 Harness 内长效免密登录)
         h('div', { style: S.card },
-          h('h3', { style: { margin: '0 0 8px 0', fontSize: '16px' } }, '教务系统身份接入'),
-          h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '18px', lineHeight: 1.5 } },
-            '直接在 Harness 内登录统一身份认证。登录成功后凭证将在本地加密持久化，长效免登录。'
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' } },
+            h(UserIcon, { size: 18 }),
+            h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: 700 } }, '教务处账号接入')
           ),
-
-          // 登录方式 Segmented Tab 切换栏
-          !isLoggedIn && h('div', {
-            style: {
-              display: 'flex',
-              background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
-              borderRadius: '8px',
-              padding: '3px',
-              marginBottom: '20px',
-            },
-          },
-            h('button', {
-              style: {
-                flex: 1,
-                border: 'none',
-                padding: '7px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: authMode === 'password' ? 600 : 400,
-                background: authMode === 'password' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
-                color: authMode === 'password' ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
-                boxShadow: authMode === 'password' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-              },
-              onClick: () => setAuthMode('password'),
-            },
-              h(UserIcon, { size: 14 }),
-              '学号密码账号登录 (推荐 · 长期保活)'
-            ),
-            h('button', {
-              style: {
-                flex: 1,
-                border: 'none',
-                padding: '7px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: authMode === 'qrcode' ? 600 : 400,
-                background: authMode === 'qrcode' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
-                color: authMode === 'qrcode' ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
-                boxShadow: authMode === 'qrcode' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-              },
-              onClick: () => {
-                setAuthMode('qrcode')
-                if (!qrData) fetchNewQrCode()
-              },
-            },
-              h(QrCodeIcon, { size: 14 }),
-              '智慧川大移动端 APP 扫码'
-            )
+          h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '18px', lineHeight: 1.5 } },
+            '在 Harness 内直接验证并登录。系统将自动加密保存凭据，全天候静默心跳保活，长期免重复输入。'
           ),
 
           // 提示消息
@@ -3577,128 +3439,21 @@ window.__ModuleLoader__.load({
             },
           }, msg.text),
 
-          // A. 微信扫码登录视图
-          !isLoggedIn && authMode === 'qrcode' && h('div', {
-            style: {
-              textAlign: 'center',
-              padding: '10px 0 16px 0',
-            },
-          },
-            // 二维码容器
-            h('div', {
-              style: {
-                width: '190px',
-                height: '190px',
-                margin: '0 auto 16px auto',
-                padding: '10px',
-                borderRadius: '12px',
-                background: '#ffffff',
-                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              },
-            },
-              qrLoading && h('div', { style: { color: '#71717a', fontSize: '12px' } }, '正在生成二维码...'),
-              !qrLoading && qrData?.qrcode && h('img', {
-                src: qrData.qrcode,
-                alt: '四川大学统一身份认证二维码',
-                style: { width: '100%', height: '100%', display: 'block', borderRadius: '4px' },
-              }),
-              // 过期遮罩
-              qrStatus === 'EXPIRED' && h('div', {
-                style: {
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(255, 255, 255, 0.92)',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  padding: '10px',
-                },
-                onClick: fetchNewQrCode,
-              },
-                h(RefreshIcon, { size: 24, style: { marginBottom: '8px', color: '#2563eb' } }),
-                h('div', { style: { fontSize: '13px', fontWeight: 600, color: '#18181b' } }, '二维码已超时'),
-                h('div', { style: { fontSize: '11px', color: '#71717a', marginTop: '2px' } }, '点击重新获取')
-              ),
-              // 成功遮罩
-              qrStatus === 'SUCCESS' && h('div', {
-                style: {
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(255, 255, 255, 0.95)',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                },
-              },
-                h(CheckCircleIcon, { size: 36, style: { color: '#10b981', marginBottom: '8px' } }),
-                h('div', { style: { fontSize: '13px', fontWeight: 700, color: '#059669' } }, '认证授权成功！')
-              )
-            ),
-
-            // 说明文字与操作按钮
-            h('div', {
-              style: {
-                fontSize: '13px',
-                fontWeight: 600,
-                color: qrStatus === 'SUCCESS' ? '#059669' : (qrStatus === 'ERROR' ? '#ef4444' : 'var(--dsw-alias-text, inherit)'),
-                marginBottom: '6px',
-              },
-            }, qrMsg || '请使用微信或微川大扫描二维码授权登录'),
-            h('div', {
-              style: {
-                fontSize: '11px',
-                color: '#d97706',
-                background: 'rgba(245, 158, 11, 0.1)',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                marginBottom: '14px',
-                lineHeight: 1.5,
-              },
-            },
-              '注意：本二维码为川大竹云 IDaaS 移动端专属密文协议，请使用【智慧川大移动端 APP】内扫一扫；普通微信“扫一扫”无法识别（会弹出 authKey 字典）。日常使用强烈推荐使用左侧“学号密码账号登录”，免扫码且永久保活！'
-            ),
-            h('button', {
-              type: 'button',
-              style: { ...S.btnSecondary, fontSize: '12px', padding: '5px 14px' },
-              disabled: qrLoading,
-              onClick: fetchNewQrCode,
-            },
-              h(RefreshIcon, { size: 12, style: { marginRight: '4px' } }),
-              '刷新二维码'
-            )
-          ),
-
-          // B. 学号密码账号登录表单
-          !isLoggedIn && authMode === 'password' && h('form', { onSubmit: handleLogin },
+          // 学号密码表单
+          h('form', { onSubmit: handleLogin },
             h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '川大学号'),
             h('input', {
               style: S.input,
               type: 'text',
-              placeholder: '例如 2021xxxxxxx',
+              placeholder: '例如 2024xxxxxxx',
               value: username,
               onChange: (e) => setUsername(e.target.value),
             }),
-            h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '教务系统登录密码'),
+            h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '综合教务系统密码'),
             h('input', {
               style: S.input,
               type: 'password',
-              placeholder: '综合教务系统密码',
+              placeholder: '四川大学综合教务系统密码',
               value: password,
               onChange: (e) => setPassword(e.target.value),
             }),
@@ -3708,17 +3463,24 @@ window.__ModuleLoader__.load({
                 checked: remember,
                 onChange: (e) => setRemember(e.target.checked),
               }),
-              '记住凭据（打开 Harness 即可自动静默登录）'
+              '记住凭据并在本地硬件安全加密存储（全天自动保活免登录）'
             ),
-            h('button', {
-              type: 'submit',
-              style: { ...S.btnPrimary, width: '100%' },
-              disabled: submitting,
-            }, submitting ? '正在验证并登录...' : '立即登录教务处')
+            h('div', { style: { display: 'flex', gap: '10px' } },
+              h('button', {
+                type: 'submit',
+                style: { ...S.btnPrimary, flex: 1 },
+                disabled: submitting,
+              }, submitting ? '正在验证教务处登录...' : (isLoggedIn ? '更新已保存的账号凭据' : '立即登录并开启长期免密')),
+              isLoggedIn && h('button', {
+                type: 'button',
+                style: S.btnSecondary,
+                onClick: handleLogout,
+              }, '退出登录')
+            )
           )
         ),
 
-        // 3. 官方统一身份认证 (SSO) 网页备用直达通道
+        // 3. 官方统一身份认证 (SSO) 备用通道与密码指引
         h('div', {
           style: {
             ...S.card,
@@ -3729,10 +3491,10 @@ window.__ModuleLoader__.load({
         },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' } },
             h(ShieldIcon, { size: 15 }),
-            h('h4', { style: { margin: 0, fontSize: '13px', fontWeight: 600 } }, '官方统一身份认证服务 (备用/改密)')
+            h('h4', { style: { margin: 0, fontSize: '13px', fontWeight: 600 } }, '不清楚教务系统密码？官方统一认证找回指引')
           ),
-          h('p', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '10px', lineHeight: 1.5 } },
-            '若需修改统一身份密码或通过短信找回账号，可前往学校认证中心官网操作。'
+          h('p', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '12px', lineHeight: 1.6 } },
+            '川大综合教务系统（zhjw.scu.edu.cn）的密码可能与统一身份认证平台（id.scu.edu.cn）不同。若提示密码错误，您可点击下方直达学校官网，通过短信验证或网页单点登录后重置教务密码，随后在 Harness 内输入一次即可永久免密使用。'
           ),
           h('button', {
             type: 'button',
@@ -3741,8 +3503,9 @@ window.__ModuleLoader__.load({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              fontSize: '11px',
-              padding: '4px 10px',
+              fontSize: '12px',
+              padding: '5px 12px',
+              fontWeight: 600,
             },
             onClick: () => {
               if (typeof window !== 'undefined' && window.open) {
@@ -3750,8 +3513,8 @@ window.__ModuleLoader__.load({
               }
             },
           },
-            h(ExternalLinkIcon, { size: 12 }),
-            '在外部浏览器中打开统一认证官网'
+            h(ExternalLinkIcon, { size: 13 }),
+            '前往四川大学统一身份认证官网 (id.scu.edu.cn)'
           )
         )
       )
