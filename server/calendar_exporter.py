@@ -6,20 +6,37 @@
 import datetime
 from typing import List, Dict, Any, Optional
 
-# 四川大学作息时刻表 (标准 12 节次)
-SCU_SESSION_TIMES = {
+# 四川大学官方本科教学作息时间表 (来源: 四川大学教务处 https://jwc.scu.edu.cn/scdxbkjxzxsj.htm)
+# 1. 望江、华西校区
+SCU_SESSION_TIMES_WANGJIANG_HUAXI = {
+    1: ("08:00", "08:45"),
+    2: ("08:55", "09:40"),
+    3: ("10:00", "10:45"),
+    4: ("10:55", "11:40"),
+    5: ("14:00", "14:45"),
+    6: ("14:55", "15:40"),
+    7: ("15:50", "16:35"),
+    8: ("16:55", "17:40"),
+    9: ("17:50", "18:35"),
+    10: ("19:30", "20:15"),
+    11: ("20:25", "21:10"),
+    12: ("21:20", "22:05"),
+}
+
+# 2. 江安校区
+SCU_SESSION_TIMES_JIANGAN = {
     1: ("08:15", "09:00"),
-    2: ("09:05", "09:50"),
-    3: ("10:10", "10:55"),
-    4: ("11:00", "11:45"),
+    2: ("09:10", "09:55"),
+    3: ("10:15", "11:00"),
+    4: ("11:10", "11:55"),
     5: ("13:50", "14:35"),
-    6: ("14:40", "15:25"),
-    7: ("15:45", "16:30"),
-    8: ("16:35", "17:20"),
-    9: ("18:30", "19:15"),
+    6: ("14:45", "15:30"),
+    7: ("15:40", "16:25"),
+    8: ("16:45", "17:30"),
+    9: ("17:40", "18:25"),
     10: ("19:20", "20:05"),
     11: ("20:15", "21:00"),
-    12: ("21:05", "21:50"),
+    12: ("21:10", "21:55"),
 }
 
 
@@ -87,18 +104,21 @@ def generate_ics(
             cont_sess = s.get("continuingSessions", 2) or 2
             end_sess = min(12, start_sess + cont_sess - 1)
 
-            if not day or not start_sess or start_sess not in SCU_SESSION_TIMES:
-                continue
-
-            start_clock = SCU_SESSION_TIMES[start_sess][0]
-            end_clock = SCU_SESSION_TIMES.get(end_sess, SCU_SESSION_TIMES[start_sess])[1]
-
-            # 地点格式化
-            campus = s.get("campus", "")
-            building = s.get("building", "")
-            classroom = s.get("classroom", "")
+            # 地点格式化与校区时刻表判定 (来源: 四川大学教务处 https://jwc.scu.edu.cn/scdxbkjxzxsj.htm)
+            campus = s.get("campus", "") or ""
+            building = s.get("building", "") or ""
+            classroom = s.get("classroom", "") or ""
             loc_parts = [p for p in [campus, building, classroom] if p]
             location_str = " ".join(loc_parts) if loc_parts else "四川大学"
+
+            is_wj_hx = ("望江" in campus) or ("华西" in campus) or ("望江" in building) or ("华西" in building)
+            session_times_table = SCU_SESSION_TIMES_WANGJIANG_HUAXI if is_wj_hx else SCU_SESSION_TIMES_JIANGAN
+
+            if not day or not start_sess or start_sess not in session_times_table:
+                continue
+
+            start_clock = session_times_table[start_sess][0]
+            end_clock = session_times_table.get(end_sess, session_times_table[start_sess])[1]
 
             weeks = s.get("weeks") or []
             week_desc = s.get("weekDescription") or (f"{weeks[0]}~{weeks[-1]}周" if weeks else "全周")

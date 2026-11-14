@@ -366,12 +366,12 @@ export function apply(ctx, config) {
         },
         session: {
           type: 'number',
-          description: '可选：指定具体第几节 (1~12)，如 3 代表第 3 节 (10:10-10:55)',
+          description: '可选：指定具体第几节 (1~12)，按所选校区官方作息表精准筛选，如第 1 节 (江安 08:15-09:00 / 望江 08:00-08:45)',
         },
         timeSlot: {
           type: 'string',
           enum: ['morning', 'afternoon', 'evening', 'all'],
-          description: '可选：指定时段，morning(上午1-4节)、afternoon(下午5-8节)、evening(晚间9-12节)、all(全天)',
+          description: '可选：指定时段，morning(上午1-4节)、afternoon(下午5-9节)、evening(晚上10-12节)、all(全天1-12节)',
         },
         onlyFreeNow: {
           type: 'boolean',

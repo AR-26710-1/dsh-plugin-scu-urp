@@ -211,21 +211,45 @@ window.__ModuleLoader__.load({
       return COURSE_PALETTES[Math.abs(hash) % COURSE_PALETTES.length]
     }
 
-    // 四川大学标准 12 节次参考时刻表
-    const SCU_TIMETABLE = [
-      { session: 1, time: '08:15', end: '09:00', period: '上午' },
-      { session: 2, time: '09:05', end: '09:50', period: '上午' },
-      { session: 3, time: '10:10', end: '10:55', period: '上午' },
-      { session: 4, time: '11:00', end: '11:45', period: '上午' },
-      { session: 5, time: '13:50', end: '14:35', period: '下午' },
-      { session: 6, time: '14:40', end: '15:25', period: '下午' },
-      { session: 7, time: '15:45', end: '16:30', period: '下午' },
-      { session: 8, time: '16:35', end: '17:20', period: '下午' },
-      { session: 9, time: '18:30', end: '19:15', period: '晚间' },
-      { session: 10, time: '19:20', end: '20:05', period: '晚间' },
-      { session: 11, time: '20:15', end: '21:00', period: '晚间' },
-      { session: 12, time: '21:05', end: '21:50', period: '晚间' },
+    // 四川大学官方本科教学作息时间表 (来源: 四川大学教务处 https://jwc.scu.edu.cn/scdxbkjxzxsj.htm)
+    const SCU_OFFICIAL_TIMETABLE_WANGJIANG_HUAXI = [
+      { session: 1, time: '08:00', start: '08:00', end: '08:45', period: '上午', label: '第 1 节 (08:00 - 08:45)' },
+      { session: 2, time: '08:55', start: '08:55', end: '09:40', period: '上午', label: '第 2 节 (08:55 - 09:40)' },
+      { session: 3, time: '10:00', start: '10:00', end: '10:45', period: '上午', label: '第 3 节 (10:00 - 10:45)' },
+      { session: 4, time: '10:55', start: '10:55', end: '11:40', period: '上午', label: '第 4 节 (10:55 - 11:40)' },
+      { session: 5, time: '14:00', start: '14:00', end: '14:45', period: '下午', label: '第 5 节 (14:00 - 14:45)' },
+      { session: 6, time: '14:55', start: '14:55', end: '15:40', period: '下午', label: '第 6 节 (14:55 - 15:40)' },
+      { session: 7, time: '15:50', start: '15:50', end: '16:35', period: '下午', label: '第 7 节 (15:50 - 16:35)' },
+      { session: 8, time: '16:55', start: '16:55', end: '17:40', period: '下午', label: '第 8 节 (16:55 - 17:40)' },
+      { session: 9, time: '17:50', start: '17:50', end: '18:35', period: '下午', label: '第 9 节 (17:50 - 18:35)' },
+      { session: 10, time: '19:30', start: '19:30', end: '20:15', period: '晚上', label: '第 10 节 (19:30 - 20:15)' },
+      { session: 11, time: '20:25', start: '20:25', end: '21:10', period: '晚上', label: '第 11 节 (20:25 - 21:10)' },
+      { session: 12, time: '21:20', start: '21:20', end: '22:05', period: '晚上', label: '第 12 节 (21:20 - 22:05)' },
     ]
+
+    const SCU_OFFICIAL_TIMETABLE_JIANGAN = [
+      { session: 1, time: '08:15', start: '08:15', end: '09:00', period: '上午', label: '第 1 节 (08:15 - 09:00)' },
+      { session: 2, time: '09:10', start: '09:10', end: '09:55', period: '上午', label: '第 2 节 (09:10 - 09:55)' },
+      { session: 3, time: '10:15', start: '10:15', end: '11:00', period: '上午', label: '第 3 节 (10:15 - 11:00)' },
+      { session: 4, time: '11:10', start: '11:10', end: '11:55', period: '上午', label: '第 4 节 (11:10 - 11:55)' },
+      { session: 5, time: '13:50', start: '13:50', end: '14:35', period: '下午', label: '第 5 节 (13:50 - 14:35)' },
+      { session: 6, time: '14:45', start: '14:45', end: '15:30', period: '下午', label: '第 6 节 (14:45 - 15:30)' },
+      { session: 7, time: '15:40', start: '15:40', end: '16:25', period: '下午', label: '第 7 节 (15:40 - 16:25)' },
+      { session: 8, time: '16:45', start: '16:45', end: '17:30', period: '下午', label: '第 8 节 (16:45 - 17:30)' },
+      { session: 9, time: '17:40', start: '17:40', end: '18:25', period: '下午', label: '第 9 节 (17:40 - 18:25)' },
+      { session: 10, time: '19:20', start: '19:20', end: '20:05', period: '晚上', label: '第 10 节 (19:20 - 20:05)' },
+      { session: 11, time: '20:15', start: '20:15', end: '21:00', period: '晚上', label: '第 11 节 (20:15 - 21:00)' },
+      { session: 12, time: '21:10', start: '21:10', end: '21:55', period: '晚上', label: '第 12 节 (21:10 - 21:55)' },
+    ]
+
+    function getOfficialScuTimetable(campus) {
+      if (campus === '01' || campus === '02' || campus === '望江' || campus === '华西' || (typeof campus === 'string' && (campus.includes('望江') || campus.includes('华西')))) {
+        return SCU_OFFICIAL_TIMETABLE_WANGJIANG_HUAXI
+      }
+      return SCU_OFFICIAL_TIMETABLE_JIANGAN
+    }
+
+    const SCU_TIMETABLE = SCU_OFFICIAL_TIMETABLE_JIANGAN
 
     // ================== 子页面 1：高颜值自适应课表 ==================
     function ScheduleView({ onRequireLogin }) {
@@ -782,10 +806,17 @@ window.__ModuleLoader__.load({
                 h(MapPinIcon, { size: 13 }),
                 h('span', null, `上课地点: ${activeModalItem.schedule.campus ? activeModalItem.schedule.campus + '校区 ' : ''}${activeModalItem.schedule.building} ${activeModalItem.schedule.classroom}`)
               ),
-              activeModalItem.schedule && h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
-                h(ClockIcon, { size: 13 }),
-                h('span', null, `上课时间: ${dayNames[activeModalItem.schedule.day]} 第 ${activeModalItem.schedule.startSession}~${activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 1} 节 (${SCU_TIMETABLE[activeModalItem.schedule.startSession - 1]?.time} ~ ${SCU_TIMETABLE[activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 2]?.end})`)
-              ),
+              activeModalItem.schedule && (() => {
+                const courseTt = getOfficialScuTimetable(activeModalItem.schedule.campus)
+                const startS = activeModalItem.schedule.startSession
+                const endS = startS + activeModalItem.schedule.continuingSessions - 1
+                const startTime = courseTt[startS - 1]?.start || ''
+                const endTime = courseTt[endS - 1]?.end || ''
+                return h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                  h(ClockIcon, { size: 13 }),
+                  h('span', null, `上课时间: ${dayNames[activeModalItem.schedule.day]} 第 ${startS}~${endS} 节 (${startTime} ~ ${endTime})`)
+                )
+              })(),
               activeModalItem.schedule && h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
                 h(CalendarIcon, { size: 13 }),
                 h('span', null, `教学周次: ${activeModalItem.schedule.weekDescription || (activeModalItem.schedule.weeks?.length ? `${activeModalItem.schedule.weeks[0]}~${activeModalItem.schedule.weeks[activeModalItem.schedule.weeks.length - 1]}周` : '全学期')}`)
@@ -1299,21 +1330,6 @@ window.__ModuleLoader__.load({
     }
 
     // ================== 子页面 4：空闲教室 / 考研自习室查询 (含具体节次与时间点筛选、1~12节矩阵、空调配置) ==================
-    const SCU_TIMETABLE_DETAILED = [
-      { session: 1, start: '08:15', end: '09:00', period: '上午', label: '第 1 节 (08:15 - 09:00)' },
-      { session: 2, start: '09:05', end: '09:50', period: '上午', label: '第 2 节 (09:05 - 09:50)' },
-      { session: 3, start: '10:10', end: '10:55', period: '上午', label: '第 3 节 (10:10 - 10:55)' },
-      { session: 4, start: '11:00', end: '11:45', period: '上午', label: '第 4 节 (11:00 - 11:45)' },
-      { session: 5, start: '13:50', end: '14:35', period: '下午', label: '第 5 节 (13:50 - 14:35)' },
-      { session: 6, start: '14:40', end: '15:25', period: '下午', label: '第 6 节 (14:40 - 15:25)' },
-      { session: 7, start: '15:45', end: '16:30', period: '下午', label: '第 7 节 (15:45 - 16:30)' },
-      { session: 8, start: '16:35', end: '17:20', period: '下午', label: '第 8 节 (16:35 - 17:20)' },
-      { session: 9, start: '18:30', end: '19:15', period: '晚间', label: '第 9 节 (18:30 - 19:15)' },
-      { session: 10, start: '19:30', end: '20:15', period: '晚间', label: '第 10 节 (19:30 - 20:15)' },
-      { session: 11, start: '20:25', end: '21:10', period: '晚间', label: '第 11 节 (20:25 - 21:10)' },
-      { session: 12, start: '21:15', end: '22:00', period: '晚间', label: '第 12 节 (21:15 - 22:00)' },
-    ]
-
     function ClassroomsView({ onRequireLogin }) {
       const [loading, setLoading] = useState(true)
       const [error, setError] = useState('')
@@ -1326,7 +1342,7 @@ window.__ModuleLoader__.load({
       const [selectedTimeSlot, setSelectedTimeSlot] = useState('all') // 'all' | 'morning' | 'afternoon' | 'evening'
       const [filterMode, setFilterMode] = useState('ALL') // 'ALL' | 'TARGET_FREE' | 'FREE_ALL_DAY' | 'HAS_AC'
       const [searchKw, setSearchKw] = useState('')
-      const [data, setData] = useState({ classrooms: [], campuses: [], buildings: [], targetSessions: [] })
+      const [data, setData] = useState({ classrooms: [], campuses: [], buildings: [], targetSessions: [], timetable: [] })
       const [activeModalRoom, setActiveModalRoom] = useState(null)
 
       const fetchClassrooms = useCallback(async () => {
@@ -1393,6 +1409,11 @@ window.__ModuleLoader__.load({
       }
       const tomorrowStr = getRelativeDate(1)
       const afterTomorrowStr = getRelativeDate(2)
+
+      // 四川大学教务处官方作息时间表 (按江安 vs 望江/华西自适应)
+      const currentTimetable = (data.timetable && data.timetable.length === 12)
+        ? data.timetable
+        : getOfficialScuTimetable(campus)
 
       // 当前目标聚焦小节集合
       const activeTargetSessions = data.targetSessions || (selectedSession > 0 ? [selectedSession] : [])
@@ -1522,8 +1543,11 @@ window.__ModuleLoader__.load({
                 h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '自习时间点与节次筛选:'),
                 h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
                   selectedSession > 0
-                    ? `已选 ${SCU_TIMETABLE_DETAILED[selectedSession - 1]?.label}`
-                    : (selectedTimeSlot === 'morning' ? '已选 上午全段 (08:15 - 11:45)' : (selectedTimeSlot === 'afternoon' ? '已选 下午全段 (13:50 - 17:20)' : (selectedTimeSlot === 'evening' ? '已选 晚间全段 (18:30 - 22:00)' : '已选 全天时段 (1~12节)')))
+                    ? `已选 ${currentTimetable[selectedSession - 1]?.label}`
+                    : (selectedTimeSlot === 'morning' ? `已选 上午全段 (第1~4节 · ${currentTimetable[0]?.start}-${currentTimetable[3]?.end})` : (selectedTimeSlot === 'afternoon' ? `已选 下午全段 (第5~9节 · ${currentTimetable[4]?.start}-${currentTimetable[8]?.end})` : (selectedTimeSlot === 'evening' ? `已选 晚间全段 (第10~12节 · ${currentTimetable[9]?.start}-${currentTimetable[11]?.end})` : `已选 全天时段 (第1~12节 · ${currentTimetable[0]?.start}-${currentTimetable[11]?.end})`)))
+                ),
+                h('span', { style: { fontSize: '11px', padding: '1px 6px', borderRadius: '4px', background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.1))', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                  campus === '03' ? '江安作息 · 08:15起' : '望江/华西作息 · 08:00起'
                 )
               ),
               // 下拉 Select 备用快捷切换 (包含每一节与具体时间)
@@ -1550,11 +1574,11 @@ window.__ModuleLoader__.load({
                     }
                   },
                 },
-                  h('option', { value: 'all' }, '全天时段 (第1~12节 · 08:15-22:00)'),
-                  h('option', { value: 'morning' }, '上午大段 (第1~4节 · 08:15-11:45)'),
-                  h('option', { value: 'afternoon' }, '下午大段 (第5~8节 · 13:50-17:20)'),
-                  h('option', { value: 'evening' }, '晚间大段 (第9~12节 · 18:30-22:00)'),
-                  SCU_TIMETABLE_DETAILED.map(t =>
+                  h('option', { value: 'all' }, `全天时段 (第1~12节 · ${currentTimetable[0]?.start}-${currentTimetable[11]?.end})`),
+                  h('option', { value: 'morning' }, `上午大段 (第1~4节 · ${currentTimetable[0]?.start}-${currentTimetable[3]?.end})`),
+                  h('option', { value: 'afternoon' }, `下午大段 (第5~9节 · ${currentTimetable[4]?.start}-${currentTimetable[8]?.end})`),
+                  h('option', { value: 'evening' }, `晚间大段 (第10~12节 · ${currentTimetable[9]?.start}-${currentTimetable[11]?.end})`),
+                  currentTimetable.map(t =>
                     h('option', { key: t.session, value: t.session.toString() }, `${t.label} · ${t.period}`)
                   )
                 )
@@ -1564,10 +1588,10 @@ window.__ModuleLoader__.load({
             // 大时段分段 Pill 栏
             h('div', { style: { display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' } },
               [
-                { key: 'all', label: '全天 (1~12节 · 08:15-22:00)' },
-                { key: 'morning', label: '上午 (1~4节 · 08:15-11:45)' },
-                { key: 'afternoon', label: '下午 (5~8节 · 13:50-17:20)' },
-                { key: 'evening', label: '晚间 (9~12节 · 18:30-22:00)' },
+                { key: 'all', label: `全天 (1~12节 · ${currentTimetable[0]?.start}-${currentTimetable[11]?.end})` },
+                { key: 'morning', label: `上午 (1~4节 · ${currentTimetable[0]?.start}-${currentTimetable[3]?.end})` },
+                { key: 'afternoon', label: `下午 (5~9节 · ${currentTimetable[4]?.start}-${currentTimetable[8]?.end})` },
+                { key: 'evening', label: `晚间 (10~12节 · ${currentTimetable[9]?.start}-${currentTimetable[11]?.end})` },
               ].map(slot => {
                 const isActive = selectedSession === 0 && selectedTimeSlot === slot.key
                 return h('button', {
@@ -1592,7 +1616,7 @@ window.__ModuleLoader__.load({
 
             // 精准 12 小节双行微型胶囊网格 (带时间点，既有第几节又有时间点)
             h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '4px' } },
-              SCU_TIMETABLE_DETAILED.map(t => {
+              currentTimetable.map(t => {
                 const isSelected = selectedSession === t.session
                 const isCurrentRealtime = data.isToday && data.currentRealtimeSession === t.session
 
@@ -1640,7 +1664,7 @@ window.__ModuleLoader__.load({
               data.targetLabel || (selectedSession > 0 ? `第 ${selectedSession} 节` : '全天时段')
             ),
             h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              selectedSession > 0 ? `${SCU_TIMETABLE_DETAILED[selectedSession - 1]?.start} ~ ${SCU_TIMETABLE_DETAILED[selectedSession - 1]?.end} 目标时段` : (selectedDate === todayStr ? '今日排期' : `${selectedDate} 目标日期`)
+              selectedSession > 0 ? `${currentTimetable[selectedSession - 1]?.start} ~ ${currentTimetable[selectedSession - 1]?.end} 目标时段` : (selectedDate === todayStr ? '今日排期' : `${selectedDate} 目标日期`)
             )
           ),
           h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
@@ -1833,11 +1857,11 @@ window.__ModuleLoader__.load({
                   (r.sessions || []).map((isFree, sIdx) => {
                     const sessionNum = sIdx + 1
                     const isTargetFocused = activeTargetSessions.includes(sessionNum)
-                    const tInfo = SCU_TIMETABLE_DETAILED[sIdx]
+                    const tInfo = currentTimetable[sIdx]
 
                     return h('div', {
                       key: sIdx,
-                      title: `${tInfo?.label}: ${isFree ? '空闲可自习' : '课程占用'}`,
+                      title: `${tInfo?.label || ('第 ' + sessionNum + ' 节')}: ${isFree ? '空闲可自习' : '课程占用'}`,
                       style: {
                         height: '18px',
                         borderRadius: '3px',
@@ -1920,7 +1944,7 @@ window.__ModuleLoader__.load({
             h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '340px', overflowY: 'auto' } },
               (activeModalRoom.sessions || []).map((isFree, sIdx) => {
                 const sNum = sIdx + 1
-                const tInfo = SCU_TIMETABLE_DETAILED[sIdx]
+                const tInfo = currentTimetable[sIdx]
                 const isFocused = activeTargetSessions.includes(sNum)
 
                 return h('div', {

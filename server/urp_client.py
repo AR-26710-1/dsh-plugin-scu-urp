@@ -589,51 +589,71 @@ class SCUUrpClient:
         ],
     }
 
-    # 四川大学标准 12 节作息时刻表 (含小节、时段与精确起止时间)
-    SCU_TIMETABLE_LIST = [
-        {"session": 1, "start": "08:15", "end": "09:00", "period": "上午", "label": "第1节 (08:15 - 09:00)"},
-        {"session": 2, "start": "09:05", "end": "09:50", "period": "上午", "label": "第2节 (09:05 - 09:50)"},
-        {"session": 3, "start": "10:10", "end": "10:55", "period": "上午", "label": "第3节 (10:10 - 10:55)"},
-        {"session": 4, "start": "11:00", "end": "11:45", "period": "上午", "label": "第4节 (11:00 - 11:45)"},
-        {"session": 5, "start": "13:50", "end": "14:35", "period": "下午", "label": "第5节 (13:50 - 14:35)"},
-        {"session": 6, "start": "14:40", "end": "15:25", "period": "下午", "label": "第6节 (14:40 - 15:25)"},
-        {"session": 7, "start": "15:45", "end": "16:30", "period": "下午", "label": "第7节 (15:45 - 16:30)"},
-        {"session": 8, "start": "16:35", "end": "17:20", "period": "下午", "label": "第8节 (16:35 - 17:20)"},
-        {"session": 9, "start": "18:30", "end": "19:15", "period": "晚间", "label": "第9节 (18:30 - 19:15)"},
-        {"session": 10, "start": "19:30", "end": "20:15", "period": "晚间", "label": "第10节 (19:30 - 20:15)"},
-        {"session": 11, "start": "20:25", "end": "21:10", "period": "晚间", "label": "第11节 (20:25 - 21:10)"},
-        {"session": 12, "start": "21:15", "end": "22:00", "period": "晚间", "label": "第12节 (21:15 - 22:00)"},
+    # 四川大学官方本科教学作息时间表 (来源: 四川大学教务处 https://jwc.scu.edu.cn/scdxbkjxzxsj.htm)
+    # 1. 望江、华西校区教学时间安排表
+    SCU_TIMETABLE_WANGJIANG_HUAXI = [
+        {"session": 1, "start": "08:00", "end": "08:45", "period": "上午", "label": "第1节 (08:00 - 08:45)"},
+        {"session": 2, "start": "08:55", "end": "09:40", "period": "上午", "label": "第2节 (08:55 - 09:40)"},
+        {"session": 3, "start": "10:00", "end": "10:45", "period": "上午", "label": "第3节 (10:00 - 10:45)"},
+        {"session": 4, "start": "10:55", "end": "11:40", "period": "上午", "label": "第4节 (10:55 - 11:40)"},
+        {"session": 5, "start": "14:00", "end": "14:45", "period": "下午", "label": "第5节 (14:00 - 14:45)"},
+        {"session": 6, "start": "14:55", "end": "15:40", "period": "下午", "label": "第6节 (14:55 - 15:40)"},
+        {"session": 7, "start": "15:50", "end": "16:35", "period": "下午", "label": "第7节 (15:50 - 16:35)"},
+        {"session": 8, "start": "16:55", "end": "17:40", "period": "下午", "label": "第8节 (16:55 - 17:40)"},
+        {"session": 9, "start": "17:50", "end": "18:35", "period": "下午", "label": "第9节 (17:50 - 18:35)"},
+        {"session": 10, "start": "19:30", "end": "20:15", "period": "晚上", "label": "第10节 (19:30 - 20:15)"},
+        {"session": 11, "start": "20:25", "end": "21:10", "period": "晚上", "label": "第11节 (20:25 - 21:10)"},
+        {"session": 12, "start": "21:20", "end": "22:05", "period": "晚上", "label": "第12节 (21:20 - 22:05)"},
     ]
 
-    @staticmethod
-    def get_current_session_by_time(dt: Optional[datetime.datetime] = None) -> int:
+    # 2. 江安校区教学时间安排表
+    SCU_TIMETABLE_JIANGAN = [
+        {"session": 1, "start": "08:15", "end": "09:00", "period": "上午", "label": "第1节 (08:15 - 09:00)"},
+        {"session": 2, "start": "09:10", "end": "09:55", "period": "上午", "label": "第2节 (09:10 - 09:55)"},
+        {"session": 3, "start": "10:15", "end": "11:00", "period": "上午", "label": "第3节 (10:15 - 11:00)"},
+        {"session": 4, "start": "11:10", "end": "11:55", "period": "上午", "label": "第4节 (11:10 - 11:55)"},
+        {"session": 5, "start": "13:50", "end": "14:35", "period": "下午", "label": "第5节 (13:50 - 14:35)"},
+        {"session": 6, "start": "14:45", "end": "15:30", "period": "下午", "label": "第6节 (14:45 - 15:30)"},
+        {"session": 7, "start": "15:40", "end": "16:25", "period": "下午", "label": "第7节 (15:40 - 16:25)"},
+        {"session": 8, "start": "16:45", "end": "17:30", "period": "下午", "label": "第8节 (16:45 - 17:30)"},
+        {"session": 9, "start": "17:40", "end": "18:25", "period": "下午", "label": "第9节 (17:40 - 18:25)"},
+        {"session": 10, "start": "19:20", "end": "20:05", "period": "晚上", "label": "第10节 (19:20 - 20:05)"},
+        {"session": 11, "start": "20:15", "end": "21:00", "period": "晚上", "label": "第11节 (20:15 - 21:00)"},
+        {"session": 12, "start": "21:10", "end": "21:55", "period": "晚上", "label": "第12节 (21:10 - 21:55)"},
+    ]
+
+    @classmethod
+    def get_campus_timetable(cls, campus_code: str = "03") -> List[Dict[str, Any]]:
+        """根据校区代码获取四川大学官方作息时刻表 (03江安 vs 01望江/02华西)"""
+        if campus_code == "03":
+            return cls.SCU_TIMETABLE_JIANGAN
+        return cls.SCU_TIMETABLE_WANGJIANG_HUAXI
+
+    @classmethod
+    def get_current_session_by_time(cls, campus_code: str = "03", dt: Optional[datetime.datetime] = None) -> int:
         """
-        根据当前时刻推算川大对应上课小节 (1~12)
-        若在课间或之前则归入下一个小节，22:00 之后返回 0 (已下课)
+        根据当前时刻及所在校区推算对应上课小节 (1~12)
+        若在课间或之前则归入下一个小节，晚上课程结束后返回 0 (已下课)
         """
         if dt is None:
             dt = datetime.datetime.now()
         cur_min = dt.hour * 60 + dt.minute
 
-        session_ends = [
-            (1, 545),    # 09:05 前视为第 1 节
-            (2, 605),    # 10:05 前视为第 2 节
-            (3, 665),    # 11:05 前视为第 3 节
-            (4, 730),    # 12:10 前视为第 4 节
-            (5, 880),    # 14:40 前视为第 5 节
-            (6, 935),    # 15:35 前视为第 6 节
-            (7, 995),    # 16:35 前视为第 7 节
-            (8, 1055),   # 17:35 前视为第 8 节
-            (9, 1120),   # 18:40 前视为第 9 节
-            (10, 1220),  # 20:20 前视为第 10 节
-            (11, 1272),  # 21:12 前视为第 11 节
-            (12, 1320),  # 22:00 前视为第 12 节
-        ]
-        if cur_min < 495:
+        tt = cls.get_campus_timetable(campus_code)
+        # 将各节次转为分钟数
+        first_start = int(tt[0]["start"].split(":")[0]) * 60 + int(tt[0]["start"].split(":")[1])
+        if cur_min < first_start:
             return 1
-        for s_idx, s_end in session_ends:
-            if cur_min <= s_end:
-                return s_idx
+
+        for t in tt:
+            s_end = int(t["end"].split(":")[0]) * 60 + int(t["end"].split(":")[1])
+            # 下一节开始前有 10-20 分钟课间，在课间视作即将开始下一节
+            if cur_min <= s_end + 5:
+                return t["session"]
+
+        last_end = int(tt[-1]["end"].split(":")[0]) * 60 + int(tt[-1]["end"].split(":")[1])
+        if cur_min > last_end:
+            return 0
         return 0
 
     def get_free_classrooms(
@@ -690,33 +710,35 @@ class SCUUrpClient:
         day_of_week = data.get("week") or 1
         res_date = data.get("date") or target_date
 
-        cur_realtime_session = self.get_current_session_by_time() if is_today else 0
+        # 获取当前校区的官方教学时刻表
+        timetable = self.get_campus_timetable(campus_code)
+
+        cur_realtime_session = self.get_current_session_by_time(campus_code) if is_today else 0
 
         # 解析用户目标筛选节次集合 (target_sessions)
         target_sessions: List[int] = []
-        target_label = "全天 (1~12节)"
+        target_label = f"全天 (第1~12节 · {timetable[0]['start']}-{timetable[11]['end']})"
 
         if session is not None and 1 <= session <= 12:
             target_sessions = [session]
-            t_info = self.SCU_TIMETABLE_LIST[session - 1]
+            t_info = timetable[session - 1]
             target_label = f"第 {session} 节 ({t_info['start']} - {t_info['end']})"
         elif time_slot == "morning":
             target_sessions = [1, 2, 3, 4]
-            target_label = "上午 (第1~4节 · 08:15-11:45)"
+            target_label = f"上午 (第1~4节 · {timetable[0]['start']}-{timetable[3]['end']})"
         elif time_slot == "afternoon":
-            target_sessions = [5, 6, 7, 8]
-            target_label = "下午 (第5~8节 · 13:50-17:20)"
+            target_sessions = [5, 6, 7, 8, 9]
+            target_label = f"下午 (第5~9节 · {timetable[4]['start']}-{timetable[8]['end']})"
         elif time_slot == "evening":
-            target_sessions = [9, 10, 11, 12]
-            target_label = "晚间 (第9~12节 · 18:30-22:00)"
+            target_sessions = [10, 11, 12]
+            target_label = f"晚上 (第10~12节 · {timetable[9]['start']}-{timetable[11]['end']})"
         elif is_today and cur_realtime_session > 0:
-            # 今天且未指定特定节次，默认定位至当前进行中小节
             target_sessions = [cur_realtime_session]
-            t_info = self.SCU_TIMETABLE_LIST[cur_realtime_session - 1]
+            t_info = timetable[cur_realtime_session - 1]
             target_label = f"当前时段: 第 {cur_realtime_session} 节 ({t_info['start']} - {t_info['end']})"
         else:
             target_sessions = list(range(1, 13))
-            target_label = "全天时段 (第1~12节)"
+            target_label = f"全天时段 (第1~12节 · {timetable[0]['start']}-{timetable[11]['end']})"
 
         # 构建教室基础占用字典
         occupancy_map: Dict[str, Dict[str, Any]] = {}
@@ -836,6 +858,6 @@ class SCUUrpClient:
             "freeAllDayCount": sum(1 for it in occupancy_map.values() if all(it["sessions"])),
             "campuses": self.SCU_CAMPUS_DICT,
             "buildings": b_list,
-            "timetable": self.SCU_TIMETABLE_LIST,
+            "timetable": timetable,
             "classrooms": classroom_items,
         }
