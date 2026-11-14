@@ -214,5 +214,37 @@ async def export_grades_csv(
         raise HTTPException(status_code=500, detail=f"导出成绩单失败: {str(e)}")
 
 
+@app.get("/api/classrooms/buildings")
+async def get_classroom_buildings():
+    """获取支持查询自习室的校区与各校区常用教学楼字典"""
+    return {
+        "campuses": client.SCU_CAMPUS_DICT,
+        "buildings": client.SCU_BUILDINGS_DICT,
+    }
+
+
+@app.get("/api/classrooms/free")
+async def get_free_classrooms_api(
+    campus: str = Query(default="03", description="校区代码或名称，如 '03' 或 '江安'"),
+    building: str = Query(default="301", description="教学楼代码或名称，如 '301' 或 '一教A座'"),
+    date: Optional[str] = Query(default=None, description="查询日期，格式 YYYY-MM-DD，留空则为当天"),
+    minCapacity: int = Query(default=0, description="最小座位容量过滤"),
+    onlyFreeNow: bool = Query(default=False, description="是否仅展示当前时刻空闲的教室"),
+):
+    """获取指定校区、教学楼、日期的空闲教室与 1~12 节占用矩阵"""
+    ensure_authenticated()
+    try:
+        res = client.get_free_classrooms(
+            campus=campus,
+            building=building,
+            query_date=date,
+            min_capacity=minCapacity,
+            only_current_free=onlyFreeNow,
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取空闲自习室信息失败: {str(e)}")
+
+
 if __name__ == "__main__":
     uvicorn.run("app:app", host="127.0.0.1", port=48080, reload=False)

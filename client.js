@@ -183,6 +183,10 @@ window.__ModuleLoader__.load({
     const SmartphoneIcon = createSvgIcon([], [], [{ x1: 12, y1: 18, x2: 12.01, y2: 18 }], [{ x: 5, y: 2, w: 14, h: 20, rx: 2 }])
     const DownloadIcon = createSvgIcon(['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'])
     const CheckCircleIcon = createSvgIcon(['M22 11.08V12a10 10 0 1 1-5.93-9.14', 'M22 4L12 14.01l-3-3'])
+    const LibraryIcon = createSvgIcon(['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'], [], [{ x1: 12, y1: 6, x2: 12, y2: 14 }])
+    const UsersIcon = createSvgIcon(['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'], [{ cx: 9, cy: 7, r: 4 }])
+    const SnowflakeIcon = createSvgIcon([], [], [{ x1: 12, y1: 2, x2: 12, y2: 22 }, { x1: 2, y1: 12, x2: 22, y2: 12 }, { x1: 4.93, y1: 4.93, x2: 19.07, y2: 19.07 }, { x1: 19.07, y1: 4.93, x2: 4.93, y2: 19.07 }])
+    const SearchIcon = createSvgIcon(['M21 21l-4.35-4.35'], [{ cx: 11, cy: 11, r: 8 }])
 
     // ================== 课表莫兰迪色系 (遵循 DSH 极简风格，亮暗自适应) ==================
     const COURSE_PALETTES = [
@@ -1294,6 +1298,522 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // ================== 子页面 4：空闲教室 / 考研自习室查询 (含1~12节矩阵、空调研讨配置) ==================
+    function ClassroomsView({ onRequireLogin }) {
+      const [loading, setLoading] = useState(true)
+      const [error, setError] = useState('')
+      const [campus, setCampus] = useState('03') // 03 江安, 01 望江, 02 华西
+      const [building, setBuilding] = useState('301')
+      const todayStr = new Date().toISOString().slice(0, 10)
+      const [selectedDate, setSelectedDate] = useState(todayStr)
+      const [filterMode, setFilterMode] = useState('ALL') // 'ALL' | 'FREE_NOW' | 'FREE_ALL_DAY' | 'HAS_AC'
+      const [searchKw, setSearchKw] = useState('')
+      const [data, setData] = useState({ classrooms: [], campuses: [], buildings: [] })
+      const [activeModalRoom, setActiveModalRoom] = useState(null)
+
+      const fetchClassrooms = useCallback(async () => {
+        setLoading(true)
+        setError('')
+        try {
+          const q = new URLSearchParams({
+            campus,
+            building,
+            date: selectedDate,
+          })
+          const resp = await fetch(`${SERVICE_URL}/api/classrooms/free?${q.toString()}`)
+          if (resp.status === 401) return onRequireLogin()
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}))
+            setError(err.detail || '获取自习室数据失败')
+            return
+          }
+          const d = await resp.json()
+          setData(d)
+        } catch (e) {
+          setError(`网络异常: ${e.message}`)
+        } finally {
+          setLoading(false)
+        }
+      }, [campus, building, selectedDate, onRequireLogin])
+
+      useEffect(() => {
+        fetchClassrooms()
+      }, [fetchClassrooms])
+
+      // 切换校区时自动设定该校区首选自习教学楼
+      const handleCampusChange = (newCampus) => {
+        setCampus(newCampus)
+        if (newCampus === '03') setBuilding('301')
+        else if (newCampus === '01') setBuilding('104')
+        else setBuilding('201')
+      }
+
+      const allRooms = data.classrooms || []
+      const filteredRooms = allRooms.filter((r) => {
+        if (filterMode === 'FREE_NOW' && !r.isCurrentFree) return false
+        if (filterMode === 'FREE_ALL_DAY' && !r.isFreeAllDay) return false
+        if (filterMode === 'HAS_AC' && !r.hasAirConditioner) return false
+        if (searchKw && !r.name.toLowerCase().includes(searchKw.toLowerCase().trim())) return false
+        return true
+      })
+
+      const freeNowCount = allRooms.filter(r => r.isCurrentFree).length
+      const freeAllDayCount = allRooms.filter(r => r.isFreeAllDay).length
+      const hasAcCount = allRooms.filter(r => r.hasAirConditioner).length
+
+      // 计算快捷日期：今天、明天、后天
+      const getRelativeDate = (offsetDays) => {
+        const d = new Date()
+        d.setDate(d.getDate() + offsetDays)
+        return d.toISOString().slice(0, 10)
+      }
+      const tomorrowStr = getRelativeDate(1)
+      const afterTomorrowStr = getRelativeDate(2)
+
+      return h('div', null,
+        // 1. 顶部控制栏 (校区切换、教学楼选择、日期选择与刷新)
+        h('div', {
+          style: {
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            borderRadius: '10px',
+            padding: '14px 18px',
+            marginBottom: '18px',
+          },
+        },
+          // 第一行：校区与日期切换
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' } },
+            // 校区 Segmented 按钮
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '所在校区:'),
+              h('div', {
+                style: {
+                  display: 'flex',
+                  background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
+                  borderRadius: '6px',
+                  padding: '2px',
+                },
+              },
+                [
+                  { code: '03', label: '江安校区' },
+                  { code: '01', label: '望江校区' },
+                  { code: '02', label: '华西校区' },
+                ].map(c =>
+                  h('button', {
+                    key: c.code,
+                    style: {
+                      ...S.btnSecondary,
+                      border: 'none',
+                      padding: '5px 14px',
+                      background: campus === c.code ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
+                      fontWeight: campus === c.code ? 600 : 400,
+                      boxShadow: campus === c.code ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    },
+                    onClick: () => handleCampusChange(c.code),
+                  }, c.label)
+                )
+              )
+            ),
+
+            // 日期快捷选择
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '自习日期:'),
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  padding: '5px 10px',
+                  background: selectedDate === todayStr ? 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.15))' : 'transparent',
+                  fontWeight: selectedDate === todayStr ? 600 : 400,
+                },
+                onClick: () => setSelectedDate(todayStr),
+              }, '今天'),
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  padding: '5px 10px',
+                  background: selectedDate === tomorrowStr ? 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.15))' : 'transparent',
+                  fontWeight: selectedDate === tomorrowStr ? 600 : 400,
+                },
+                onClick: () => setSelectedDate(tomorrowStr),
+              }, '明天'),
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  padding: '5px 10px',
+                  background: selectedDate === afterTomorrowStr ? 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.15))' : 'transparent',
+                  fontWeight: selectedDate === afterTomorrowStr ? 600 : 400,
+                },
+                onClick: () => setSelectedDate(afterTomorrowStr),
+              }, '后天'),
+              h('input', {
+                type: 'date',
+                style: {
+                  ...S.input,
+                  width: 'auto',
+                  marginBottom: 0,
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                },
+                value: selectedDate,
+                onChange: (e) => setSelectedDate(e.target.value),
+              }),
+              h('button', {
+                style: { ...S.btnSecondary, display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px' },
+                onClick: fetchClassrooms,
+              },
+                h(RefreshIcon, { size: 12 }),
+                '刷新'
+              )
+            )
+          ),
+
+          // 第二行：常用自习教学楼快捷胶囊
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '10px', borderTop: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.08))' } },
+            h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '常用教学楼:'),
+            (data.buildings || []).map(b =>
+              h('button', {
+                key: b.code,
+                style: {
+                  ...S.btnSecondary,
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  borderRadius: '12px',
+                  background: building === b.code ? 'var(--dsw-alias-text, #18181b)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
+                  color: building === b.code ? 'var(--dsw-alias-bg, #ffffff)' : 'inherit',
+                  borderColor: building === b.code ? 'transparent' : 'var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                },
+                onClick: () => setBuilding(b.code),
+              }, b.name)
+            )
+          )
+        ),
+
+        // 2. 指标概览卡片 (KPI)
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' } },
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
+            h('div', { style: { fontSize: '24px', fontWeight: 700, color: '#2563eb' } },
+              data.currentSession > 0 ? `第 ${data.currentSession} 节` : '已下课'
+            ),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              data.isToday ? (data.currentSession > 0 ? `${SCU_TIMETABLE[data.currentSession - 1]?.time || ''} ~ ${SCU_TIMETABLE[data.currentSession - 1]?.end || ''} 当前时段` : '今日已全天下课') : `非今日排期 (第${data.teachingWeek || 1}周)`
+            )
+          ),
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
+            h('div', { style: { fontSize: '24px', fontWeight: 700, color: '#10b981' } }, `${freeNowCount} 间`),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '此时此刻空闲 (可直接前往)')
+          ),
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
+            h('div', { style: { fontSize: '24px', fontWeight: 700 } }, `${freeAllDayCount} 间`),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '全天空闲 (全天无课程占用)')
+          ),
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
+            h('div', { style: { fontSize: '24px', fontWeight: 700 } }, `${allRooms.length} 间`),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, `${data.campus || '江安'} · ${data.building || '教学楼'} 总教室`)
+          )
+        ),
+
+        // 3. 筛选与教室号快速检索条
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          },
+        },
+          // 快速过滤按钮组
+          h('div', { style: { display: 'flex', gap: '6px' } },
+            [
+              { key: 'ALL', label: `全部教室 (${allRooms.length})` },
+              { key: 'FREE_NOW', label: `此时空闲 (${freeNowCount})` },
+              { key: 'FREE_ALL_DAY', label: `全天空闲 (${freeAllDayCount})` },
+              { key: 'HAS_AC', label: `空调/研讨 (${hasAcCount})` },
+            ].map(f =>
+              h('button', {
+                key: f.key,
+                style: {
+                  ...S.btnSecondary,
+                  padding: '5px 12px',
+                  borderRadius: '16px',
+                  background: filterMode === f.key ? 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.18))' : 'transparent',
+                  fontWeight: filterMode === f.key ? 600 : 400,
+                  color: filterMode === f.key ? '#2563eb' : 'inherit',
+                  borderColor: filterMode === f.key ? '#2563eb' : 'var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                },
+                onClick: () => setFilterMode(f.key),
+              }, f.label)
+            )
+          ),
+
+          // 快速搜索输入框
+          h('div', { style: { position: 'relative', width: '220px' } },
+            h('input', {
+              type: 'text',
+              placeholder: '搜索教室号，如 A208、A101...',
+              style: {
+                ...S.input,
+                marginBottom: 0,
+                padding: '6px 10px 6px 30px',
+                fontSize: '12px',
+              },
+              value: searchKw,
+              onChange: (e) => setSearchKw(e.target.value),
+            }),
+            h('span', { style: { position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, pointerEvents: 'none' } },
+              h(SearchIcon, { size: 13 })
+            )
+          )
+        ),
+
+        // 加载与报错提示
+        loading && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '正在实时同步教务处各教室 1~12 节课占用状态...'),
+        error && h('div', { style: { padding: '16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px' } }, error),
+
+        // 4. 空闲教室卡片网格
+        !loading && !error && filteredRooms.length === 0 && h('div', {
+          style: {
+            textAlign: 'center',
+            padding: '50px 20px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            background: 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.03))',
+            borderRadius: '10px',
+            border: '1px dashed var(--dsw-alias-border, rgba(125,125,125,0.15))',
+          },
+        }, '未匹配到符合条件的自习教室，可尝试切换筛选条件或更换楼栋'),
+
+        !loading && !error && filteredRooms.length > 0 && h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '12px',
+          },
+        },
+          filteredRooms.map((r, idx) => {
+            const isCurFree = r.isCurrentFree
+            const consecutive = r.consecutiveFreeSessions
+
+            return h('div', {
+              key: idx,
+              onClick: () => setActiveModalRoom(r),
+              title: '点击查看 1~12 节全天详细排课与自习建议',
+              style: {
+                ...S.card,
+                marginBottom: 0,
+                padding: '14px 16px',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                transition: 'all 0.15s ease',
+                borderLeft: isCurFree ? '3px solid #10b981' : '3px solid rgba(125,125,125,0.3)',
+              },
+            },
+              // 卡片顶部：教室名、座位数、标签
+              h('div', null,
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                    h('span', { style: { fontSize: '16px', fontWeight: 700 } }, r.name),
+                    h('span', {
+                      style: {
+                        fontSize: '11px',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.1))',
+                        color: 'var(--dsw-alias-text-sub, #71717a)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      },
+                    },
+                      h(UsersIcon, { size: 10 }),
+                      `${r.capacity}座`
+                    )
+                  ),
+                  h('span', {
+                    style: {
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: isCurFree ? 'rgba(16, 185, 129, 0.12)' : 'rgba(125, 125, 125, 0.1)',
+                      color: isCurFree ? '#059669' : 'var(--dsw-alias-text-sub, #71717a)',
+                    },
+                  },
+                    isCurFree ? (consecutive > 1 ? `空闲 · 连空${consecutive}节` : '此时空闲') : '此时占用'
+                  )
+                ),
+
+                // 特性标签 (全天无课、空调)
+                h('div', { style: { display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' } },
+                  r.isFreeAllDay && h('span', {
+                    style: {
+                      fontSize: '10px',
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      color: '#2563eb',
+                      fontWeight: 500,
+                    },
+                  }, '全天空闲'),
+                  r.hasAirConditioner && h('span', {
+                    style: {
+                      fontSize: '10px',
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      background: 'rgba(14, 165, 233, 0.1)',
+                      color: '#0284c7',
+                      fontWeight: 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '2px',
+                    },
+                  },
+                    h(SnowflakeIcon, { size: 9 }),
+                    '空调研讨'
+                  )
+                )
+              ),
+
+              // 卡片底部：1~12 节微型矩阵条 (Session Matrix)
+              h('div', { style: { marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.08))' } },
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '5px' } },
+                  h('span', null, '1~12节占用状况:'),
+                  h('span', null, '点击查看')
+                ),
+                h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '2px' } },
+                  (r.sessions || []).map((isFree, sIdx) => {
+                    const sessionNum = sIdx + 1
+                    const isCurrentSession = data.isToday && (data.currentSession === sessionNum)
+
+                    return h('div', {
+                      key: sIdx,
+                      title: `第 ${sessionNum} 节 (${SCU_TIMETABLE[sIdx]?.time || ''}): ${isFree ? '空闲可自习' : '课程占用'}`,
+                      style: {
+                        height: '18px',
+                        borderRadius: '3px',
+                        background: isFree ? 'rgba(16, 185, 129, 0.22)' : 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.15))',
+                        color: isFree ? '#059669' : 'rgba(125, 125, 125, 0.45)',
+                        fontSize: '9px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        outline: isCurrentSession ? '2px solid #2563eb' : 'none',
+                        outlineOffset: '-1px',
+                        zIndex: isCurrentSession ? 1 : 0,
+                      },
+                    }, sessionNum)
+                  })
+                )
+              )
+            )
+          })
+        ),
+
+        // 5. 教室全天排课详情弹窗 Modal
+        activeModalRoom && h('div', {
+          style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            backdropFilter: 'blur(3px)',
+          },
+          onClick: () => setActiveModalRoom(null),
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))',
+              color: 'var(--dsw-alias-text, inherit)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '460px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h(LibraryIcon, { size: 18 }),
+                h('span', { style: { fontSize: '18px', fontWeight: 700 } }, `${data.building || ''} · ${activeModalRoom.name}`),
+                h('span', { style: S.badge }, `${activeModalRoom.capacity} 个座位`)
+              ),
+              h('button', {
+                style: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)' },
+                onClick: () => setActiveModalRoom(null),
+              }, '✕')
+            ),
+
+            activeModalRoom.remark && h('div', {
+              style: {
+                fontSize: '12px',
+                color: 'var(--dsw-alias-text-sub, #71717a)',
+                marginBottom: '14px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.05))',
+              },
+            }, `教室特性: ${activeModalRoom.remark}`),
+
+            h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '8px' } }, `${selectedDate} 当日 1~12 节全天占用时序:`),
+
+            // 垂直节次清单
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '340px', overflowY: 'auto' } },
+              (activeModalRoom.sessions || []).map((isFree, sIdx) => {
+                const sNum = sIdx + 1
+                const tInfo = SCU_TIMETABLE[sIdx]
+                const isCur = data.isToday && data.currentSession === sNum
+
+                return h('div', {
+                  key: sIdx,
+                  style: {
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    background: isCur ? 'rgba(37, 99, 235, 0.08)' : (isFree ? 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.04))' : 'rgba(125,125,125,0.08)'),
+                    border: isCur ? '1px solid rgba(37, 99, 235, 0.3)' : '1px solid var(--dsw-alias-border, rgba(125,125,125,0.06))',
+                  },
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                    h('span', { style: { fontWeight: 600, fontSize: '12px' } }, `第 ${sNum} 节`),
+                    h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `${tInfo?.time} ~ ${tInfo?.end}`),
+                    isCur && h('span', { style: { fontSize: '10px', color: '#2563eb', fontWeight: 600 } }, '(当前时段)')
+                  ),
+                  h('span', {
+                    style: {
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: isFree ? '#059669' : 'var(--dsw-alias-text-sub, #71717a)',
+                    },
+                  }, isFree ? '空闲可自习' : '课程占用')
+                )
+              })
+            ),
+
+            h('div', { style: { marginTop: '18px', textAlign: 'right' } },
+              h('button', {
+                style: { ...S.btnPrimary, padding: '7px 18px', fontSize: '12px' },
+                onClick: () => setActiveModalRoom(null),
+              }, '关闭')
+            )
+          )
+        )
+      )
+    }
+
     // ================== 子页面 4：凭据与设置（含稳定退出） ==================
     function SettingsView({ onLoginSuccess, onLogoutSuccess, isLoggedIn, studentName, hasCreds }) {
       const [username, setUsername] = useState('')
@@ -1468,7 +1988,7 @@ window.__ModuleLoader__.load({
                 h(ScuIcon, { size: 24 }),
                 h('h1', { style: S.title }, '四川大学教务系统 (URP)')
               ),
-              h('div', { style: S.subTitle }, '全自动登录 · 课表日程 · 全量成绩与 GPA 统计 · 考试安排')
+              h('div', { style: S.subTitle }, '全自动登录 · 课表日程 · 全量成绩与 GPA 统计 · 考试安排 · 空闲自习室')
             ),
             h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
               h('div', { style: { display: 'flex', alignItems: 'center', fontSize: '13px' } },
@@ -1511,6 +2031,13 @@ window.__ModuleLoader__.load({
               '考试安排'
             ),
             h('button', {
+              style: S.tabBtn(activeTab === 'classrooms'),
+              onClick: () => setActiveTab('classrooms'),
+            },
+              h(LibraryIcon, { size: 14, style: { marginRight: '6px' } }),
+              '空闲自习室'
+            ),
+            h('button', {
               style: S.tabBtn(activeTab === 'settings'),
               onClick: () => setActiveTab('settings'),
             },
@@ -1539,7 +2066,8 @@ window.__ModuleLoader__.load({
               : h(React.Fragment, null,
                   activeTab === 'schedule' && h(ScheduleView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'grades' && h(GradesView, { onRequireLogin: () => setActiveTab('settings') }),
-                  activeTab === 'exams' && h(ExamsView, { onRequireLogin: () => setActiveTab('settings') })
+                  activeTab === 'exams' && h(ExamsView, { onRequireLogin: () => setActiveTab('settings') }),
+                  activeTab === 'classrooms' && h(ClassroomsView, { onRequireLogin: () => setActiveTab('settings') })
                 )
           )
         )

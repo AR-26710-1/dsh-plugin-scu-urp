@@ -539,3 +539,258 @@ class SCUUrpClient:
             "exams": results,
             "message": "当前区间暂无已排定的考试安排" if not results else "获取成功",
         }
+
+    # ================== 空闲教室 / 考研自习室查询 ==================
+
+    SCU_CAMPUS_DICT = [
+        {"name": "江安校区", "code": "03", "short": "江安"},
+        {"name": "望江校区", "code": "01", "short": "望江"},
+        {"name": "华西校区", "code": "02", "short": "华西"},
+    ]
+
+    # 各校区常用自习教学楼预设
+    SCU_BUILDINGS_DICT = {
+        "03": [
+            {"code": "301", "name": "一教A座", "aliases": ["一教A座", "一教A", "301"]},
+            {"code": "302", "name": "一教B座", "aliases": ["一教B座", "一教B", "302"]},
+            {"code": "303", "name": "一教C座", "aliases": ["一教C座", "一教C", "303"]},
+            {"code": "304", "name": "一教D座", "aliases": ["一教D座", "一教D", "304"]},
+            {"code": "305", "name": "综合楼B座", "aliases": ["综合楼B座", "综B", "305"]},
+            {"code": "306", "name": "综合楼C座", "aliases": ["综合楼C座", "综C", "306"]},
+            {"code": "334", "name": "二基楼B座", "aliases": ["二基楼B座", "二基楼", "334"]},
+            {"code": "340", "name": "文科楼一区", "aliases": ["文科楼一区", "文科楼1区", "340"]},
+            {"code": "347", "name": "文科楼二区", "aliases": ["文科楼二区", "文科楼2区", "347"]},
+            {"code": "349", "name": "文科楼三区", "aliases": ["文科楼三区", "文科楼3区", "349"]},
+            {"code": "353", "name": "文科楼四区", "aliases": ["文科楼四区", "文科楼4区", "353"]},
+            {"code": "356", "name": "匹兹堡学院北楼", "aliases": ["匹兹堡北楼", "匹兹堡学院", "356"]},
+            {"code": "357", "name": "现代工学互动教学中心", "aliases": ["工学互动中心", "南楼", "357"]},
+        ],
+        "01": [
+            {"code": "101", "name": "一教", "aliases": ["一教", "望江一教", "101"]},
+            {"code": "102", "name": "二教", "aliases": ["二教", "望江二教", "102"]},
+            {"code": "103", "name": "三教", "aliases": ["三教", "望江三教", "103"]},
+            {"code": "104", "name": "基教楼A座", "aliases": ["基教楼A座", "基教A", "104"]},
+            {"code": "105", "name": "基教楼C座", "aliases": ["基教楼C座", "基教C", "105"]},
+            {"code": "106", "name": "五教", "aliases": ["五教", "106"]},
+            {"code": "108", "name": "基教楼B座", "aliases": ["基教楼B座", "基教B", "电气学院", "108"]},
+            {"code": "155", "name": "四教", "aliases": ["四教", "155"]},
+            {"code": "176", "name": "文科楼", "aliases": ["文科楼", "望江文科楼", "176"]},
+            {"code": "177", "name": "西区逸夫科技楼", "aliases": ["逸夫科技楼", "177"]},
+        ],
+        "02": [
+            {"code": "201", "name": "临医楼", "aliases": ["临医楼", "201"]},
+            {"code": "202", "name": "二教", "aliases": ["二教", "华西二教", "202"]},
+            {"code": "203", "name": "三教", "aliases": ["三教", "华西三教", "203"]},
+            {"code": "207", "name": "四教", "aliases": ["四教", "华西四教", "207"]},
+            {"code": "208", "name": "八教", "aliases": ["八教", "208"]},
+            {"code": "218", "name": "逸夫楼", "aliases": ["逸夫楼", "华西逸夫楼", "218"]},
+            {"code": "220", "name": "第四教学楼", "aliases": ["第四教学楼", "220"]},
+            {"code": "221", "name": "第六教学楼", "aliases": ["第六教学楼", "221"]},
+        ],
+    }
+
+    @staticmethod
+    def get_current_session_by_time(dt: Optional[datetime.datetime] = None) -> int:
+        """
+        根据当前时刻推算川大对应上课小节 (1~12)
+        若在课间或之前则归入下一个小节，22:00 之后返回 0 (已下课)
+        """
+        if dt is None:
+            dt = datetime.datetime.now()
+        cur_min = dt.hour * 60 + dt.minute
+
+        # 节次开始与结束时间映射 (分钟数)
+        # 1: 08:15(495)-09:00(540), 2: 09:10(550)-09:55(595)
+        # 3: 10:15(615)-11:00(660), 4: 11:10(670)-11:55(715)
+        # 5: 13:50(830)-14:35(875)
+        # 6: 14:45(885)-15:30(930), 7: 15:40(940)-16:25(985)
+        # 8: 16:45(1005)-17:30(1050), 9: 17:40(1060)-18:25(1105)
+        # 10: 19:30(1170)-20:15(1215), 11: 20:25(1225)-21:10(1270)
+        # 12: 21:15(1275)-22:00(1320)
+        session_ends = [
+            (1, 545),    # 09:05 前视为第 1 节
+            (2, 605),    # 10:05 前视为第 2 节
+            (3, 665),    # 11:05 前视为第 3 节
+            (4, 730),    # 12:10 前视为第 4 节
+            (5, 880),    # 14:40 前视为第 5 节
+            (6, 935),    # 15:35 前视为第 6 节
+            (7, 995),    # 16:35 前视为第 7 节
+            (8, 1055),   # 17:35 前视为第 8 节
+            (9, 1120),   # 18:40 前视为第 9 节
+            (10, 1220),  # 20:20 前视为第 10 节
+            (11, 1272),  # 21:12 前视为第 11 节
+            (12, 1320),  # 22:00 前视为第 12 节
+        ]
+        if cur_min < 495:
+            return 1
+        for s_idx, s_end in session_ends:
+            if cur_min <= s_end:
+                return s_idx
+        return 0
+
+    def get_free_classrooms(
+        self,
+        campus: str = "03",
+        building: str = "301",
+        query_date: Optional[str] = None,
+        min_capacity: int = 0,
+        only_current_free: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        获取指定校区、教学楼、日期的空闲教室与占用矩阵
+        """
+        # 校区标准化
+        campus_code = "03"
+        for c in self.SCU_CAMPUS_DICT:
+            if campus in (c["code"], c["name"], c["short"]):
+                campus_code = c["code"]
+                break
+
+        # 教学楼标准化
+        building_code = "301" if campus_code == "03" else ("104" if campus_code == "01" else "201")
+        b_list = self.SCU_BUILDINGS_DICT.get(campus_code, [])
+        for b in b_list:
+            if building in ([b["code"], b["name"]] + b.get("aliases", [])):
+                building_code = b["code"]
+                break
+
+        # 日期默认为今天
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
+        target_date = query_date.strip() if query_date else today_str
+
+        # 发送教务系统底层占用接口查询
+        payload = {
+            "xqh": campus_code,
+            "jxlh": building_code,
+            "searchDate": target_date,
+            "jslx": "",
+            "jasm": "",
+            "zwFrom": str(min_capacity) if min_capacity > 0 else "",
+            "zwTo": "",
+        }
+
+        resp = self.request("POST", "/student/teachingResources/classroomUseStatus/jasInfo", data=payload)
+        data = resp.json()
+
+        classrooms_raw = data.get("classrooms") or []
+        times_raw = data.get("classroomTime") or []
+        teaching_week = data.get("jxzc") or 1
+        day_of_week = data.get("week") or 1
+        res_date = data.get("date") or target_date
+
+        # 计算当前节次 (若查询的是今天，按当前时间算；若不是今天，默认 1)
+        is_today = (target_date == today_str)
+        cur_session = self.get_current_session_by_time() if is_today else 1
+
+        # 构建教室基础占用字典
+        occupancy_map: Dict[str, Dict[str, Any]] = {}
+        for c in classrooms_raw:
+            cid = c.get("id", {})
+            c_num = cid.get("classroomNumber") or c.get("classroomName") or ""
+            if not c_num:
+                continue
+            remark = c.get("remark") or ""
+            has_ac = ("空调" in remark) or ("研讨" in remark)
+            occupancy_map[c_num] = {
+                "name": c.get("classroomName", c_num),
+                "roomNumber": c_num,
+                "capacity": int(c.get("placeNum") or 0),
+                "remark": remark,
+                "hasAirConditioner": has_ac,
+                "sessions": [True] * 12,  # True 表示空闲 (1~12节)
+            }
+
+        # 标注占用节次
+        for t in times_raw:
+            t_id = t.get("id", {})
+            c_num = t_id.get("classroomNumber") or ""
+            if c_num in occupancy_map:
+                try:
+                    start_jc = int(t_id.get("sessionstart") or 1)
+                    continuing = int(t.get("continuingsession") or 1)
+                    for s in range(start_jc, min(start_jc + continuing, 13)):
+                        occupancy_map[c_num]["sessions"][s - 1] = False
+                except (ValueError, TypeError):
+                    continue
+
+        # 详细分析每间教室的状态
+        classroom_items = []
+        for c_num, info in occupancy_map.items():
+            sess = info["sessions"]
+            is_all_free = all(sess)
+            # 当前节次是否空闲
+            is_cur_free = sess[cur_session - 1] if 1 <= cur_session <= 12 else True
+            # 今日剩余节次是否全空闲
+            rest_sessions = sess[cur_session - 1:] if 1 <= cur_session <= 12 else sess
+            is_rest_free = all(rest_sessions) if rest_sessions else True
+
+            # 计算从当前节起连续空闲小节数
+            consecutive_free = 0
+            if 1 <= cur_session <= 12:
+                for is_f in sess[cur_session - 1:]:
+                    if is_f:
+                        consecutive_free += 1
+                    else:
+                        break
+
+            item = {
+                "name": info["name"],
+                "roomNumber": info["roomNumber"],
+                "capacity": info["capacity"],
+                "remark": info["remark"],
+                "hasAirConditioner": info["hasAirConditioner"],
+                "sessions": sess,
+                "isCurrentFree": is_cur_free,
+                "isFreeAllDay": is_all_free,
+                "isFreeRestOfDay": is_rest_free,
+                "consecutiveFreeSessions": consecutive_free,
+            }
+
+            if only_current_free and not is_cur_free:
+                continue
+            if min_capacity > 0 and info["capacity"] < min_capacity:
+                continue
+
+            classroom_items.append(item)
+
+        # 排序：优先按连续空闲节数降序，次按容量降序，再按名字升序
+        classroom_items.sort(
+            key=lambda x: (
+                1 if x["isCurrentFree"] else 0,
+                x["consecutiveFreeSessions"],
+                x["capacity"],
+                x["name"]
+            ),
+            reverse=True
+        )
+
+        # 找到当前选中的教学楼名称与校区名称
+        campus_name = "江安校区"
+        for c in self.SCU_CAMPUS_DICT:
+            if c["code"] == campus_code:
+                campus_name = c["name"]
+                break
+
+        building_name = building_code
+        for b in b_list:
+            if b["code"] == building_code:
+                building_name = b["name"]
+                break
+
+        return {
+            "campus": campus_name,
+            "campusCode": campus_code,
+            "building": building_name,
+            "buildingCode": building_code,
+            "queryDate": res_date,
+            "isToday": is_today,
+            "teachingWeek": teaching_week,
+            "dayOfWeek": day_of_week,
+            "currentSession": cur_session,
+            "totalClassrooms": len(occupancy_map),
+            "freeNowCount": sum(1 for it in occupancy_map.values() if (it["sessions"][cur_session - 1] if 1 <= cur_session <= 12 else True)),
+            "freeAllDayCount": sum(1 for it in occupancy_map.values() if all(it["sessions"])),
+            "campuses": self.SCU_CAMPUS_DICT,
+            "buildings": b_list,
+            "classrooms": classroom_items,
+        }

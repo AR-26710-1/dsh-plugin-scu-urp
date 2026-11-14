@@ -120,18 +120,18 @@ export function apply(ctx, config) {
       },
       render(_args, value) {
         if (!value.success) {
-          return [{ type: 'text', text: `❌ 查询课表失败: ${value.error}` }]
+          return [{ type: 'text', text: `查询课表失败: ${value.error}` }]
         }
         const d = value.data
         if (d.todayWeekday !== undefined) {
           const courses = d.courses || []
           if (courses.length === 0) {
-            return [{ type: 'text', text: '🎉 今天没有排定的课程，好好休息吧！' }]
+            return [{ type: 'text', text: '今天没有排定的课程，好好休息吧。' }]
           }
           const list = courses.map(c => `• **${c.name}** (${c.property || '课程'} ${c.credit}学分)\n  教师: ${c.teacher || '未知'}\n  时间: ${c.schedules?.map(s => `周${s.day} 第${s.startSession}~${s.startSession + s.continuingSessions - 1}节 (${s.building} ${s.classroom})`).join('; ')}`).join('\n')
-          return [{ type: 'text', text: `📅 **今日课程日程 (${courses.length} 门)**:\n${list}` }]
+          return [{ type: 'text', text: `**今日课程日程 (${courses.length} 门)**:\n${list}` }]
         }
-        return [{ type: 'text', text: `📅 本学期共开设 ${d.totalCourses || 0} 门课程，课表数据已拉取成功。` }]
+        return [{ type: 'text', text: `本学期共开设 ${d.totalCourses || 0} 门课程，课表数据已拉取成功。` }]
       },
     },
     async execute(args) {
@@ -194,15 +194,15 @@ export function apply(ctx, config) {
       },
       render(_args, value) {
         if (!value.success) {
-          return [{ type: 'text', text: `❌ 查询成绩失败: ${value.error}` }]
+          return [{ type: 'text', text: `查询成绩失败: ${value.error}` }]
         }
         const d = value.data
         if (d.term) {
-          return [{ type: 'text', text: `📊 **学期 ${d.term}** 共有 ${d.totalCourses} 门成绩记录。` }]
+          return [{ type: 'text', text: `**学期 ${d.term}** 共有 ${d.totalCourses} 门成绩记录。` }]
         }
         return [{
           type: 'text',
-          text: `📊 **川大成绩与 GPA 统计分析**:\n• **必修课加权绩点 (保研/评奖标准)**: **${d.requiredGpa}** (${d.requiredCourses} 门必修 · ${d.requiredCredit} 学分)\n• 全科综合加权 GPA: **${d.overallGpa}** (总修读 ${d.totalCourses} 门 · ${d.totalCredit} 学分)\n• 综合加权平均分: **${d.overallAvgScore} 分**\n\n💡 成绩单导出: [下载标准 Excel/CSV 成绩单表格](${serviceUrl}/api/grades/export-csv?download=true)`,
+          text: `**川大成绩与 GPA 统计分析**:\n• **必修课加权绩点 (保研/评奖标准)**: **${d.requiredGpa}** (${d.requiredCourses} 门必修 · ${d.requiredCredit} 学分)\n• 全科综合加权 GPA: **${d.overallGpa}** (总修读 ${d.totalCourses} 门 · ${d.totalCredit} 学分)\n• 综合加权平均分: **${d.overallAvgScore} 分**\n\n• 成绩单导出: [下载标准 Excel/CSV 成绩单表格](${serviceUrl}/api/grades/export-csv?download=true)`,
         }]
       },
     },
@@ -259,15 +259,15 @@ export function apply(ctx, config) {
       },
       render(_args, value) {
         if (!value.success) {
-          return [{ type: 'text', text: `❌ 查询考试安排失败: ${value.error}` }]
+          return [{ type: 'text', text: `查询考试安排失败: ${value.error}` }]
         }
         const d = value.data
         const exams = d.exams || []
         if (exams.length === 0) {
-          return [{ type: 'text', text: '📝 近期暂无已排定的考试安排。' }]
+          return [{ type: 'text', text: '近期暂无已排定的考试安排。' }]
         }
         const list = exams.map(e => `• **${e.courseName}**\n  时间: ${e.examTime}\n  考场: ${e.location || '待定'} (座位: ${e.seatNumber || '见现场'})`).join('\n')
-        return [{ type: 'text', text: `📝 **已排定考试安排 (${exams.length} 门)**:\n${list}` }]
+        return [{ type: 'text', text: `**已排定考试安排 (${exams.length} 门)**:\n${list}` }]
       },
     },
     async execute() {
@@ -319,11 +319,11 @@ export function apply(ctx, config) {
       },
       render(_args, value) {
         if (!value.success) {
-          return [{ type: 'text', text: `❌ 导出日历失败: ${value.error}` }]
+          return [{ type: 'text', text: `导出日历失败: ${value.error}` }]
         }
         return [{
           type: 'text',
-          text: `📅 **课表日历已成功生成！**\n• 共生成 **${value.eventCount}** 个上课日程事件\n• 开学第一周周一: ${value.startDate}\n• 提前提醒: 课前 ${value.alarmMinutes ?? 15} 分钟\n• **下载链接**: [点击下载 .ics 日历文件](${serviceUrl}${value.downloadUrl})\n\n💡 **导入建议**:\n• **iPhone / Mac**: 点击下载后用系统自带“日历”打开，或发送给手机点击即可全量订阅/添加到日历；\n• **Android / Windows**: 打开系统“日历”应用 -> 账户与设置 -> 从本地 .ics 文件导入。`,
+          text: `**课表日历已成功生成**\n• 共生成 **${value.eventCount}** 个上课日程事件\n• 开学第一周周一: ${value.startDate}\n• 提前提醒: 课前 ${value.alarmMinutes ?? 15} 分钟\n• **下载链接**: [点击下载 .ics 日历文件](${serviceUrl}${value.downloadUrl})\n\n**系统导入指引**:\n• **iPhone / Mac**: 点击下载后用系统自带“日历”打开，或发送给手机点击即可全量订阅/添加到日历；\n• **Android / Windows**: 打开系统“日历”应用 -> 账户与设置 -> 从本地 .ics 文件导入。`,
         }]
       },
     },
@@ -339,6 +339,87 @@ export function apply(ctx, config) {
         }
         const data = await resp.json()
         return data
+      } catch (e) {
+        return { success: false, error: `无法连接到本地教务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 5. 注册空闲自习室查询工具
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_free_classrooms',
+    description: '查询四川大学今日或指定日期的空闲教室与考研自习室排期、1~12节占用矩阵、座位容量及空调配置。支持指定校区（江安/望江/华西）与教学楼（一教A/B/C/D、综B、综C、二基楼、基教楼等）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        campus: {
+          type: 'string',
+          description: '校区名称或代号，支持 "江安" (03)、"望江" (01)、"华西" (02)，默认 "江安"',
+        },
+        building: {
+          type: 'string',
+          description: '教学楼名称或代号，例如 "一教A座"、"一教B座"、"综B"、"二基楼"、"基教楼A座" 等，默认 "一教A座"',
+        },
+        date: {
+          type: 'string',
+          description: '可选：查询日期，格式 YYYY-MM-DD，默认为今天',
+        },
+        onlyFreeNow: {
+          type: 'boolean',
+          description: '可选：是否仅返回当前节次正处于空闲状态的教室，默认为 false',
+        },
+        minCapacity: {
+          type: 'number',
+          description: '可选：最小座位数容量过滤',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(_args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询空闲教室失败: ${value.error}` }]
+        }
+        const d = value.data
+        const rooms = d.classrooms || []
+        const freeNowList = rooms.filter(r => r.isCurrentFree)
+        const topRooms = freeNowList.slice(0, 10).map(r => {
+          const ac = r.hasAirConditioner ? ' · 空调/研讨' : ''
+          return `• **${r.name}** (${r.capacity}座${ac}): 此时空闲，从当前第${d.currentSession}节起**连续空闲 ${r.consecutiveFreeSessions} 节**`
+        }).join('\n')
+
+        return [{
+          type: 'text',
+          text: `**川大空闲自习室查询 (${d.campus} · ${d.building})**:\n• 查询日期: ${d.queryDate} (第 ${d.teachingWeek} 教学周 · 周${d.dayOfWeek})\n• 当前小节: **第 ${d.currentSession > 0 ? d.currentSession : '已下课'} 节**\n• 此时空闲教室: **${d.freeNowCount}** 间 / 今日全天空闲: **${d.freeAllDayCount}** 间 (共 ${d.totalClassrooms} 间)\n\n**推荐空闲自习室 (最长连续空闲)**:\n${topRooms || '当前时段该楼栋暂无可用空闲教室'}\n\n提示: 可以在插件面板中切换校区、教学楼或查看全天 1~12 节完整占用矩阵。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const query = new URLSearchParams()
+        if (args.campus) query.set('campus', args.campus)
+        if (args.building) query.set('building', args.building)
+        if (args.date) query.set('date', args.date)
+        if (args.onlyFreeNow) query.set('onlyFreeNow', 'true')
+        if (typeof args.minCapacity === 'number') query.set('minCapacity', args.minCapacity.toString())
+
+        const resp = await fetch(`${serviceUrl}/api/classrooms/free?${query.toString()}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
       } catch (e) {
         return { success: false, error: `无法连接到本地教务后端: ${e.message}` }
       }
