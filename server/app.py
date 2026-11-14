@@ -49,6 +49,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SCU URP Harness Bridge", version="1.0.0", lifespan=lifespan)
 
+# 启用 CORS 允许 Harness 客户端或 Webview 跨域访问
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class LoginRequest(BaseModel):
     username: str
