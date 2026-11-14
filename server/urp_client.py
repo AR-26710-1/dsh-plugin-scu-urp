@@ -589,6 +589,22 @@ class SCUUrpClient:
         ],
     }
 
+    # 四川大学标准 12 节作息时刻表 (含小节、时段与精确起止时间)
+    SCU_TIMETABLE_LIST = [
+        {"session": 1, "start": "08:15", "end": "09:00", "period": "上午", "label": "第1节 (08:15 - 09:00)"},
+        {"session": 2, "start": "09:05", "end": "09:50", "period": "上午", "label": "第2节 (09:05 - 09:50)"},
+        {"session": 3, "start": "10:10", "end": "10:55", "period": "上午", "label": "第3节 (10:10 - 10:55)"},
+        {"session": 4, "start": "11:00", "end": "11:45", "period": "上午", "label": "第4节 (11:00 - 11:45)"},
+        {"session": 5, "start": "13:50", "end": "14:35", "period": "下午", "label": "第5节 (13:50 - 14:35)"},
+        {"session": 6, "start": "14:40", "end": "15:25", "period": "下午", "label": "第6节 (14:40 - 15:25)"},
+        {"session": 7, "start": "15:45", "end": "16:30", "period": "下午", "label": "第7节 (15:45 - 16:30)"},
+        {"session": 8, "start": "16:35", "end": "17:20", "period": "下午", "label": "第8节 (16:35 - 17:20)"},
+        {"session": 9, "start": "18:30", "end": "19:15", "period": "晚间", "label": "第9节 (18:30 - 19:15)"},
+        {"session": 10, "start": "19:30", "end": "20:15", "period": "晚间", "label": "第10节 (19:30 - 20:15)"},
+        {"session": 11, "start": "20:25", "end": "21:10", "period": "晚间", "label": "第11节 (20:25 - 21:10)"},
+        {"session": 12, "start": "21:15", "end": "22:00", "period": "晚间", "label": "第12节 (21:15 - 22:00)"},
+    ]
+
     @staticmethod
     def get_current_session_by_time(dt: Optional[datetime.datetime] = None) -> int:
         """
@@ -599,14 +615,6 @@ class SCUUrpClient:
             dt = datetime.datetime.now()
         cur_min = dt.hour * 60 + dt.minute
 
-        # 节次开始与结束时间映射 (分钟数)
-        # 1: 08:15(495)-09:00(540), 2: 09:10(550)-09:55(595)
-        # 3: 10:15(615)-11:00(660), 4: 11:10(670)-11:55(715)
-        # 5: 13:50(830)-14:35(875)
-        # 6: 14:45(885)-15:30(930), 7: 15:40(940)-16:25(985)
-        # 8: 16:45(1005)-17:30(1050), 9: 17:40(1060)-18:25(1105)
-        # 10: 19:30(1170)-20:15(1215), 11: 20:25(1225)-21:10(1270)
-        # 12: 21:15(1275)-22:00(1320)
         session_ends = [
             (1, 545),    # 09:05 前视为第 1 节
             (2, 605),    # 10:05 前视为第 2 节
@@ -633,11 +641,14 @@ class SCUUrpClient:
         campus: str = "03",
         building: str = "301",
         query_date: Optional[str] = None,
+        session: Optional[int] = None,
+        time_slot: Optional[str] = None,
         min_capacity: int = 0,
         only_current_free: bool = False,
     ) -> Dict[str, Any]:
         """
         获取指定校区、教学楼、日期的空闲教室与占用矩阵
+        支持精确指定第几节 (1~12) 或时段 (morning, afternoon, evening, all) 筛选
         """
         # 校区标准化
         campus_code = "03"
@@ -657,6 +668,7 @@ class SCUUrpClient:
         # 日期默认为今天
         today_str = datetime.date.today().strftime("%Y-%m-%d")
         target_date = query_date.strip() if query_date else today_str
+        is_today = (target_date == today_str)
 
         # 发送教务系统底层占用接口查询
         payload = {
@@ -678,9 +690,33 @@ class SCUUrpClient:
         day_of_week = data.get("week") or 1
         res_date = data.get("date") or target_date
 
-        # 计算当前节次 (若查询的是今天，按当前时间算；若不是今天，默认 1)
-        is_today = (target_date == today_str)
-        cur_session = self.get_current_session_by_time() if is_today else 1
+        cur_realtime_session = self.get_current_session_by_time() if is_today else 0
+
+        # 解析用户目标筛选节次集合 (target_sessions)
+        target_sessions: List[int] = []
+        target_label = "全天 (1~12节)"
+
+        if session is not None and 1 <= session <= 12:
+            target_sessions = [session]
+            t_info = self.SCU_TIMETABLE_LIST[session - 1]
+            target_label = f"第 {session} 节 ({t_info['start']} - {t_info['end']})"
+        elif time_slot == "morning":
+            target_sessions = [1, 2, 3, 4]
+            target_label = "上午 (第1~4节 · 08:15-11:45)"
+        elif time_slot == "afternoon":
+            target_sessions = [5, 6, 7, 8]
+            target_label = "下午 (第5~8节 · 13:50-17:20)"
+        elif time_slot == "evening":
+            target_sessions = [9, 10, 11, 12]
+            target_label = "晚间 (第9~12节 · 18:30-22:00)"
+        elif is_today and cur_realtime_session > 0:
+            # 今天且未指定特定节次，默认定位至当前进行中小节
+            target_sessions = [cur_realtime_session]
+            t_info = self.SCU_TIMETABLE_LIST[cur_realtime_session - 1]
+            target_label = f"当前时段: 第 {cur_realtime_session} 节 ({t_info['start']} - {t_info['end']})"
+        else:
+            target_sessions = list(range(1, 13))
+            target_label = "全天时段 (第1~12节)"
 
         # 构建教室基础占用字典
         occupancy_map: Dict[str, Dict[str, Any]] = {}
@@ -713,25 +749,27 @@ class SCUUrpClient:
                 except (ValueError, TypeError):
                     continue
 
-        # 详细分析每间教室的状态
+        # 详细分析每间教室在目标时段及全天的状态
         classroom_items = []
+        base_start_session = target_sessions[0] if target_sessions else 1
+
         for c_num, info in occupancy_map.items():
             sess = info["sessions"]
             is_all_free = all(sess)
-            # 当前节次是否空闲
-            is_cur_free = sess[cur_session - 1] if 1 <= cur_session <= 12 else True
-            # 今日剩余节次是否全空闲
-            rest_sessions = sess[cur_session - 1:] if 1 <= cur_session <= 12 else sess
-            is_rest_free = all(rest_sessions) if rest_sessions else True
 
-            # 计算从当前节起连续空闲小节数
+            # 检查在目标筛选集合内是否全部空闲
+            is_target_free = all(sess[s - 1] for s in target_sessions if 1 <= s <= 12)
+
+            # 当前实时小节是否空闲 (如果是今天)
+            is_realtime_free = sess[cur_realtime_session - 1] if 1 <= cur_realtime_session <= 12 else True
+
+            # 计算从目标起始节次起连续空闲小节数
             consecutive_free = 0
-            if 1 <= cur_session <= 12:
-                for is_f in sess[cur_session - 1:]:
-                    if is_f:
-                        consecutive_free += 1
-                    else:
-                        break
+            for is_f in sess[base_start_session - 1:]:
+                if is_f:
+                    consecutive_free += 1
+                else:
+                    break
 
             item = {
                 "name": info["name"],
@@ -740,23 +778,23 @@ class SCUUrpClient:
                 "remark": info["remark"],
                 "hasAirConditioner": info["hasAirConditioner"],
                 "sessions": sess,
-                "isCurrentFree": is_cur_free,
+                "isTargetFree": is_target_free,
+                "isCurrentFree": is_realtime_free if is_today else is_target_free,
                 "isFreeAllDay": is_all_free,
-                "isFreeRestOfDay": is_rest_free,
                 "consecutiveFreeSessions": consecutive_free,
             }
 
-            if only_current_free and not is_cur_free:
+            if only_current_free and not is_target_free:
                 continue
             if min_capacity > 0 and info["capacity"] < min_capacity:
                 continue
 
             classroom_items.append(item)
 
-        # 排序：优先按连续空闲节数降序，次按容量降序，再按名字升序
+        # 排序：目标时段空闲优先，连续空闲节数降序，容量降序，教室名升序
         classroom_items.sort(
             key=lambda x: (
-                1 if x["isCurrentFree"] else 0,
+                1 if x["isTargetFree"] else 0,
                 x["consecutiveFreeSessions"],
                 x["capacity"],
                 x["name"]
@@ -764,7 +802,6 @@ class SCUUrpClient:
             reverse=True
         )
 
-        # 找到当前选中的教学楼名称与校区名称
         campus_name = "江安校区"
         for c in self.SCU_CAMPUS_DICT:
             if c["code"] == campus_code:
@@ -777,6 +814,8 @@ class SCUUrpClient:
                 building_name = b["name"]
                 break
 
+        target_free_count = sum(1 for it in classroom_items if it["isTargetFree"])
+
         return {
             "campus": campus_name,
             "campusCode": campus_code,
@@ -786,11 +825,17 @@ class SCUUrpClient:
             "isToday": is_today,
             "teachingWeek": teaching_week,
             "dayOfWeek": day_of_week,
-            "currentSession": cur_session,
+            "currentRealtimeSession": cur_realtime_session,
+            "selectedSession": session,
+            "selectedTimeSlot": time_slot,
+            "targetSessions": target_sessions,
+            "targetLabel": target_label,
+            "targetFreeCount": target_free_count,
             "totalClassrooms": len(occupancy_map),
-            "freeNowCount": sum(1 for it in occupancy_map.values() if (it["sessions"][cur_session - 1] if 1 <= cur_session <= 12 else True)),
+            "freeNowCount": sum(1 for it in occupancy_map.values() if (it["sessions"][cur_realtime_session - 1] if 1 <= cur_realtime_session <= 12 else True)),
             "freeAllDayCount": sum(1 for it in occupancy_map.values() if all(it["sessions"])),
             "campuses": self.SCU_CAMPUS_DICT,
             "buildings": b_list,
+            "timetable": self.SCU_TIMETABLE_LIST,
             "classrooms": classroom_items,
         }

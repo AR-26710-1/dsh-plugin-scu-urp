@@ -228,16 +228,20 @@ async def get_free_classrooms_api(
     campus: str = Query(default="03", description="校区代码或名称，如 '03' 或 '江安'"),
     building: str = Query(default="301", description="教学楼代码或名称，如 '301' 或 '一教A座'"),
     date: Optional[str] = Query(default=None, description="查询日期，格式 YYYY-MM-DD，留空则为当天"),
+    session: Optional[int] = Query(default=None, description="指定具体第几节 (1~12)"),
+    timeSlot: Optional[str] = Query(default=None, description="指定时段，如 'morning', 'afternoon', 'evening', 'all'"),
     minCapacity: int = Query(default=0, description="最小座位容量过滤"),
-    onlyFreeNow: bool = Query(default=False, description="是否仅展示当前时刻空闲的教室"),
+    onlyFreeNow: bool = Query(default=False, description="是否仅展示目标时段空闲的教室"),
 ):
-    """获取指定校区、教学楼、日期的空闲教室与 1~12 节占用矩阵"""
+    """获取指定校区、教学楼、日期与精确时段/小节的空闲教室与 1~12 节占用矩阵"""
     ensure_authenticated()
     try:
         res = client.get_free_classrooms(
             campus=campus,
             building=building,
             query_date=date,
+            session=session,
+            time_slot=timeSlot,
             min_capacity=minCapacity,
             only_current_free=onlyFreeNow,
         )

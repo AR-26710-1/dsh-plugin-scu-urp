@@ -364,9 +364,18 @@ export function apply(ctx, config) {
           type: 'string',
           description: '可选：查询日期，格式 YYYY-MM-DD，默认为今天',
         },
+        session: {
+          type: 'number',
+          description: '可选：指定具体第几节 (1~12)，如 3 代表第 3 节 (10:10-10:55)',
+        },
+        timeSlot: {
+          type: 'string',
+          enum: ['morning', 'afternoon', 'evening', 'all'],
+          description: '可选：指定时段，morning(上午1-4节)、afternoon(下午5-8节)、evening(晚间9-12节)、all(全天)',
+        },
         onlyFreeNow: {
           type: 'boolean',
-          description: '可选：是否仅返回当前节次正处于空闲状态的教室，默认为 false',
+          description: '可选：是否仅返回目标时段或当前时刻正处于空闲状态的教室，默认为 false',
         },
         minCapacity: {
           type: 'number',
@@ -392,15 +401,15 @@ export function apply(ctx, config) {
         }
         const d = value.data
         const rooms = d.classrooms || []
-        const freeNowList = rooms.filter(r => r.isCurrentFree)
-        const topRooms = freeNowList.slice(0, 10).map(r => {
+        const freeTargetList = rooms.filter(r => r.isTargetFree)
+        const topRooms = freeTargetList.slice(0, 10).map(r => {
           const ac = r.hasAirConditioner ? ' · 空调/研讨' : ''
-          return `• **${r.name}** (${r.capacity}座${ac}): 此时空闲，从当前第${d.currentSession}节起**连续空闲 ${r.consecutiveFreeSessions} 节**`
+          return `• **${r.name}** (${r.capacity}座${ac}): 该时段空闲，连续空闲 **${r.consecutiveFreeSessions}** 节`
         }).join('\n')
 
         return [{
           type: 'text',
-          text: `**川大空闲自习室查询 (${d.campus} · ${d.building})**:\n• 查询日期: ${d.queryDate} (第 ${d.teachingWeek} 教学周 · 周${d.dayOfWeek})\n• 当前小节: **第 ${d.currentSession > 0 ? d.currentSession : '已下课'} 节**\n• 此时空闲教室: **${d.freeNowCount}** 间 / 今日全天空闲: **${d.freeAllDayCount}** 间 (共 ${d.totalClassrooms} 间)\n\n**推荐空闲自习室 (最长连续空闲)**:\n${topRooms || '当前时段该楼栋暂无可用空闲教室'}\n\n提示: 可以在插件面板中切换校区、教学楼或查看全天 1~12 节完整占用矩阵。`,
+          text: `**川大空闲自习室查询 (${d.campus} · ${d.building})**:\n• 查询日期: ${d.queryDate} (第 ${d.teachingWeek} 教学周 · 周${d.dayOfWeek})\n• 目标时段: **${d.targetLabel}**\n• 该时段空闲教室: **${d.targetFreeCount}** 间 / 今日全天空闲: **${d.freeAllDayCount}** 间 (共 ${d.totalClassrooms} 间)\n\n**推荐空闲自习室 (最长连续空闲)**:\n${topRooms || '所选时段该楼栋暂无可用空闲教室'}\n\n提示: 可以在插件面板中切换校区、教学楼、具体节次或查看全天 1~12 节完整占用矩阵。`,
         }]
       },
     },
@@ -410,6 +419,8 @@ export function apply(ctx, config) {
         if (args.campus) query.set('campus', args.campus)
         if (args.building) query.set('building', args.building)
         if (args.date) query.set('date', args.date)
+        if (typeof args.session === 'number') query.set('session', args.session.toString())
+        if (args.timeSlot) query.set('timeSlot', args.timeSlot)
         if (args.onlyFreeNow) query.set('onlyFreeNow', 'true')
         if (typeof args.minCapacity === 'number') query.set('minCapacity', args.minCapacity.toString())
 

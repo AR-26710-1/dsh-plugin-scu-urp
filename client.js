@@ -1298,7 +1298,22 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ================== 子页面 4：空闲教室 / 考研自习室查询 (含1~12节矩阵、空调研讨配置) ==================
+    // ================== 子页面 4：空闲教室 / 考研自习室查询 (含具体节次与时间点筛选、1~12节矩阵、空调配置) ==================
+    const SCU_TIMETABLE_DETAILED = [
+      { session: 1, start: '08:15', end: '09:00', period: '上午', label: '第 1 节 (08:15 - 09:00)' },
+      { session: 2, start: '09:05', end: '09:50', period: '上午', label: '第 2 节 (09:05 - 09:50)' },
+      { session: 3, start: '10:10', end: '10:55', period: '上午', label: '第 3 节 (10:10 - 10:55)' },
+      { session: 4, start: '11:00', end: '11:45', period: '上午', label: '第 4 节 (11:00 - 11:45)' },
+      { session: 5, start: '13:50', end: '14:35', period: '下午', label: '第 5 节 (13:50 - 14:35)' },
+      { session: 6, start: '14:40', end: '15:25', period: '下午', label: '第 6 节 (14:40 - 15:25)' },
+      { session: 7, start: '15:45', end: '16:30', period: '下午', label: '第 7 节 (15:45 - 16:30)' },
+      { session: 8, start: '16:35', end: '17:20', period: '下午', label: '第 8 节 (16:35 - 17:20)' },
+      { session: 9, start: '18:30', end: '19:15', period: '晚间', label: '第 9 节 (18:30 - 19:15)' },
+      { session: 10, start: '19:30', end: '20:15', period: '晚间', label: '第 10 节 (19:30 - 20:15)' },
+      { session: 11, start: '20:25', end: '21:10', period: '晚间', label: '第 11 节 (20:25 - 21:10)' },
+      { session: 12, start: '21:15', end: '22:00', period: '晚间', label: '第 12 节 (21:15 - 22:00)' },
+    ]
+
     function ClassroomsView({ onRequireLogin }) {
       const [loading, setLoading] = useState(true)
       const [error, setError] = useState('')
@@ -1306,9 +1321,12 @@ window.__ModuleLoader__.load({
       const [building, setBuilding] = useState('301')
       const todayStr = new Date().toISOString().slice(0, 10)
       const [selectedDate, setSelectedDate] = useState(todayStr)
-      const [filterMode, setFilterMode] = useState('ALL') // 'ALL' | 'FREE_NOW' | 'FREE_ALL_DAY' | 'HAS_AC'
+      // 节次与具体时间筛选：0 表示大时段/全天，1~12 为特定小节
+      const [selectedSession, setSelectedSession] = useState(0)
+      const [selectedTimeSlot, setSelectedTimeSlot] = useState('all') // 'all' | 'morning' | 'afternoon' | 'evening'
+      const [filterMode, setFilterMode] = useState('ALL') // 'ALL' | 'TARGET_FREE' | 'FREE_ALL_DAY' | 'HAS_AC'
       const [searchKw, setSearchKw] = useState('')
-      const [data, setData] = useState({ classrooms: [], campuses: [], buildings: [] })
+      const [data, setData] = useState({ classrooms: [], campuses: [], buildings: [], targetSessions: [] })
       const [activeModalRoom, setActiveModalRoom] = useState(null)
 
       const fetchClassrooms = useCallback(async () => {
@@ -1320,6 +1338,12 @@ window.__ModuleLoader__.load({
             building,
             date: selectedDate,
           })
+          if (selectedSession > 0) {
+            q.set('session', selectedSession.toString())
+          } else if (selectedTimeSlot && selectedTimeSlot !== 'all') {
+            q.set('timeSlot', selectedTimeSlot)
+          }
+
           const resp = await fetch(`${SERVICE_URL}/api/classrooms/free?${q.toString()}`)
           if (resp.status === 401) return onRequireLogin()
           if (!resp.ok) {
@@ -1334,7 +1358,7 @@ window.__ModuleLoader__.load({
         } finally {
           setLoading(false)
         }
-      }, [campus, building, selectedDate, onRequireLogin])
+      }, [campus, building, selectedDate, selectedSession, selectedTimeSlot, onRequireLogin])
 
       useEffect(() => {
         fetchClassrooms()
@@ -1350,14 +1374,14 @@ window.__ModuleLoader__.load({
 
       const allRooms = data.classrooms || []
       const filteredRooms = allRooms.filter((r) => {
-        if (filterMode === 'FREE_NOW' && !r.isCurrentFree) return false
+        if (filterMode === 'TARGET_FREE' && !r.isTargetFree) return false
         if (filterMode === 'FREE_ALL_DAY' && !r.isFreeAllDay) return false
         if (filterMode === 'HAS_AC' && !r.hasAirConditioner) return false
         if (searchKw && !r.name.toLowerCase().includes(searchKw.toLowerCase().trim())) return false
         return true
       })
 
-      const freeNowCount = allRooms.filter(r => r.isCurrentFree).length
+      const targetFreeCount = allRooms.filter(r => r.isTargetFree).length
       const freeAllDayCount = allRooms.filter(r => r.isFreeAllDay).length
       const hasAcCount = allRooms.filter(r => r.hasAirConditioner).length
 
@@ -1370,19 +1394,22 @@ window.__ModuleLoader__.load({
       const tomorrowStr = getRelativeDate(1)
       const afterTomorrowStr = getRelativeDate(2)
 
+      // 当前目标聚焦小节集合
+      const activeTargetSessions = data.targetSessions || (selectedSession > 0 ? [selectedSession] : [])
+
       return h('div', null,
-        // 1. 顶部控制栏 (校区切换、教学楼选择、日期选择与刷新)
+        // 1. 顶部控制栏 (校区切换、日期选择、教学楼胶囊、具体节次与时间点选择器)
         h('div', {
           style: {
             background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
             border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
             borderRadius: '10px',
-            padding: '14px 18px',
+            padding: '16px 18px',
             marginBottom: '18px',
           },
         },
           // 第一行：校区与日期切换
-          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' } },
             // 校区 Segmented 按钮
             h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
               h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '所在校区:'),
@@ -1468,7 +1495,7 @@ window.__ModuleLoader__.load({
           ),
 
           // 第二行：常用自习教学楼快捷胶囊
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '10px', borderTop: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.08))' } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingBottom: '12px', borderBottom: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.08))' } },
             h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '常用教学楼:'),
             (data.buildings || []).map(b =>
               h('button', {
@@ -1485,26 +1512,144 @@ window.__ModuleLoader__.load({
                 onClick: () => setBuilding(b.code),
               }, b.name)
             )
+          ),
+
+          // 第三行：具体时间点与节次筛选区 (既有第几节，又有精准时间点)
+          h('div', { style: { paddingTop: '12px' } },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h(ClockIcon, { size: 14 }),
+                h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '自习时间点与节次筛选:'),
+                h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                  selectedSession > 0
+                    ? `已选 ${SCU_TIMETABLE_DETAILED[selectedSession - 1]?.label}`
+                    : (selectedTimeSlot === 'morning' ? '已选 上午全段 (08:15 - 11:45)' : (selectedTimeSlot === 'afternoon' ? '已选 下午全段 (13:50 - 17:20)' : (selectedTimeSlot === 'evening' ? '已选 晚间全段 (18:30 - 22:00)' : '已选 全天时段 (1~12节)')))
+                )
+              ),
+              // 下拉 Select 备用快捷切换 (包含每一节与具体时间)
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '快捷菜单:'),
+                h('select', {
+                  style: {
+                    ...S.input,
+                    width: 'auto',
+                    marginBottom: 0,
+                    padding: '3px 8px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  },
+                  value: selectedSession > 0 ? selectedSession.toString() : selectedTimeSlot,
+                  onChange: (e) => {
+                    const v = e.target.value
+                    if (['all', 'morning', 'afternoon', 'evening'].includes(v)) {
+                      setSelectedSession(0)
+                      setSelectedTimeSlot(v)
+                    } else {
+                      setSelectedSession(parseInt(v))
+                      setSelectedTimeSlot('')
+                    }
+                  },
+                },
+                  h('option', { value: 'all' }, '全天时段 (第1~12节 · 08:15-22:00)'),
+                  h('option', { value: 'morning' }, '上午大段 (第1~4节 · 08:15-11:45)'),
+                  h('option', { value: 'afternoon' }, '下午大段 (第5~8节 · 13:50-17:20)'),
+                  h('option', { value: 'evening' }, '晚间大段 (第9~12节 · 18:30-22:00)'),
+                  SCU_TIMETABLE_DETAILED.map(t =>
+                    h('option', { key: t.session, value: t.session.toString() }, `${t.label} · ${t.period}`)
+                  )
+                )
+              )
+            ),
+
+            // 大时段分段 Pill 栏
+            h('div', { style: { display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' } },
+              [
+                { key: 'all', label: '全天 (1~12节 · 08:15-22:00)' },
+                { key: 'morning', label: '上午 (1~4节 · 08:15-11:45)' },
+                { key: 'afternoon', label: '下午 (5~8节 · 13:50-17:20)' },
+                { key: 'evening', label: '晚间 (9~12节 · 18:30-22:00)' },
+              ].map(slot => {
+                const isActive = selectedSession === 0 && selectedTimeSlot === slot.key
+                return h('button', {
+                  key: slot.key,
+                  style: {
+                    ...S.btnSecondary,
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    borderRadius: '6px',
+                    background: isActive ? 'var(--dsw-alias-text, #18181b)' : 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.08))',
+                    color: isActive ? 'var(--dsw-alias-bg, #ffffff)' : 'inherit',
+                    borderColor: isActive ? 'transparent' : 'var(--dsw-alias-border, rgba(125,125,125,0.15))',
+                    fontWeight: isActive ? 600 : 400,
+                  },
+                  onClick: () => {
+                    setSelectedSession(0)
+                    setSelectedTimeSlot(slot.key)
+                  },
+                }, slot.label)
+              })
+            ),
+
+            // 精准 12 小节双行微型胶囊网格 (带时间点，既有第几节又有时间点)
+            h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '4px' } },
+              SCU_TIMETABLE_DETAILED.map(t => {
+                const isSelected = selectedSession === t.session
+                const isCurrentRealtime = data.isToday && data.currentRealtimeSession === t.session
+
+                return h('button', {
+                  key: t.session,
+                  title: `${t.label} · ${t.period} (点击锁定筛选)`,
+                  style: {
+                    ...S.btnSecondary,
+                    padding: '5px 2px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '6px',
+                    border: isSelected ? '1px solid #2563eb' : (isCurrentRealtime ? '1px dashed #2563eb' : '1px solid var(--dsw-alias-border, rgba(125,125,125,0.12))'),
+                    background: isSelected ? '#2563eb' : (isCurrentRealtime ? 'rgba(37, 99, 235, 0.08)' : 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))'),
+                    color: isSelected ? '#ffffff' : 'inherit',
+                    cursor: 'pointer',
+                    boxShadow: isSelected ? '0 1px 3px rgba(37, 99, 235, 0.3)' : 'none',
+                    transition: 'all 0.12s ease',
+                  },
+                  onClick: () => {
+                    // 若点击已选中的单节则切回全天，否则选中该单节
+                    if (selectedSession === t.session) {
+                      setSelectedSession(0)
+                      setSelectedTimeSlot('all')
+                    } else {
+                      setSelectedSession(t.session)
+                      setSelectedTimeSlot('')
+                    }
+                  },
+                },
+                  h('span', { style: { fontSize: '11px', fontWeight: 600, lineHeight: 1.2 } }, `第${t.session}节`),
+                  h('span', { style: { fontSize: '9px', opacity: isSelected ? 0.9 : 0.65, lineHeight: 1.2, marginTop: '2px' } }, t.start)
+                )
+              })
+            )
           )
         ),
 
         // 2. 指标概览卡片 (KPI)
         h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' } },
           h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '24px', fontWeight: 700, color: '#2563eb' } },
-              data.currentSession > 0 ? `第 ${data.currentSession} 节` : '已下课'
+            h('div', { style: { fontSize: '20px', fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } },
+              data.targetLabel || (selectedSession > 0 ? `第 ${selectedSession} 节` : '全天时段')
             ),
             h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              data.isToday ? (data.currentSession > 0 ? `${SCU_TIMETABLE[data.currentSession - 1]?.time || ''} ~ ${SCU_TIMETABLE[data.currentSession - 1]?.end || ''} 当前时段` : '今日已全天下课') : `非今日排期 (第${data.teachingWeek || 1}周)`
+              selectedSession > 0 ? `${SCU_TIMETABLE_DETAILED[selectedSession - 1]?.start} ~ ${SCU_TIMETABLE_DETAILED[selectedSession - 1]?.end} 目标时段` : (selectedDate === todayStr ? '今日排期' : `${selectedDate} 目标日期`)
             )
           ),
           h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '24px', fontWeight: 700, color: '#10b981' } }, `${freeNowCount} 间`),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '此时此刻空闲 (可直接前往)')
+            h('div', { style: { fontSize: '24px', fontWeight: 700, color: '#10b981' } }, `${targetFreeCount} 间`),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '所选时段完全空闲 (可前往自习)')
           ),
           h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
             h('div', { style: { fontSize: '24px', fontWeight: 700 } }, `${freeAllDayCount} 间`),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '全天空闲 (全天无课程占用)')
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '全天空闲 (全天无任何课程)')
           ),
           h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
             h('div', { style: { fontSize: '24px', fontWeight: 700 } }, `${allRooms.length} 间`),
@@ -1527,7 +1672,7 @@ window.__ModuleLoader__.load({
           h('div', { style: { display: 'flex', gap: '6px' } },
             [
               { key: 'ALL', label: `全部教室 (${allRooms.length})` },
-              { key: 'FREE_NOW', label: `此时空闲 (${freeNowCount})` },
+              { key: 'TARGET_FREE', label: `所选时段空闲 (${targetFreeCount})` },
               { key: 'FREE_ALL_DAY', label: `全天空闲 (${freeAllDayCount})` },
               { key: 'HAS_AC', label: `空调/研讨 (${hasAcCount})` },
             ].map(f =>
@@ -1581,7 +1726,7 @@ window.__ModuleLoader__.load({
             borderRadius: '10px',
             border: '1px dashed var(--dsw-alias-border, rgba(125,125,125,0.15))',
           },
-        }, '未匹配到符合条件的自习教室，可尝试切换筛选条件或更换楼栋'),
+        }, '未匹配到符合条件的自习教室，可尝试切换所选时段或更换楼栋'),
 
         !loading && !error && filteredRooms.length > 0 && h('div', {
           style: {
@@ -1591,7 +1736,7 @@ window.__ModuleLoader__.load({
           },
         },
           filteredRooms.map((r, idx) => {
-            const isCurFree = r.isCurrentFree
+            const isTargetFree = r.isTargetFree
             const consecutive = r.consecutiveFreeSessions
 
             return h('div', {
@@ -1607,7 +1752,7 @@ window.__ModuleLoader__.load({
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 transition: 'all 0.15s ease',
-                borderLeft: isCurFree ? '3px solid #10b981' : '3px solid rgba(125,125,125,0.3)',
+                borderLeft: isTargetFree ? '3px solid #10b981' : '3px solid rgba(125,125,125,0.3)',
               },
             },
               // 卡片顶部：教室名、座位数、标签
@@ -1637,11 +1782,13 @@ window.__ModuleLoader__.load({
                       fontWeight: 600,
                       padding: '2px 8px',
                       borderRadius: '12px',
-                      background: isCurFree ? 'rgba(16, 185, 129, 0.12)' : 'rgba(125, 125, 125, 0.1)',
-                      color: isCurFree ? '#059669' : 'var(--dsw-alias-text-sub, #71717a)',
+                      background: isTargetFree ? 'rgba(16, 185, 129, 0.12)' : 'rgba(125, 125, 125, 0.1)',
+                      color: isTargetFree ? '#059669' : 'var(--dsw-alias-text-sub, #71717a)',
                     },
                   },
-                    isCurFree ? (consecutive > 1 ? `空闲 · 连空${consecutive}节` : '此时空闲') : '此时占用'
+                    isTargetFree
+                      ? (consecutive > 1 ? `空闲 · 连空${consecutive}节` : '所选时段空闲')
+                      : '所选时段占用'
                   )
                 ),
 
@@ -1679,17 +1826,18 @@ window.__ModuleLoader__.load({
               // 卡片底部：1~12 节微型矩阵条 (Session Matrix)
               h('div', { style: { marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--dsw-alias-border, rgba(125,125,125,0.08))' } },
                 h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '5px' } },
-                  h('span', null, '1~12节占用状况:'),
-                  h('span', null, '点击查看')
+                  h('span', null, '1~12节时序状况:'),
+                  h('span', null, '点击看详情')
                 ),
                 h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '2px' } },
                   (r.sessions || []).map((isFree, sIdx) => {
                     const sessionNum = sIdx + 1
-                    const isCurrentSession = data.isToday && (data.currentSession === sessionNum)
+                    const isTargetFocused = activeTargetSessions.includes(sessionNum)
+                    const tInfo = SCU_TIMETABLE_DETAILED[sIdx]
 
                     return h('div', {
                       key: sIdx,
-                      title: `第 ${sessionNum} 节 (${SCU_TIMETABLE[sIdx]?.time || ''}): ${isFree ? '空闲可自习' : '课程占用'}`,
+                      title: `${tInfo?.label}: ${isFree ? '空闲可自习' : '课程占用'}`,
                       style: {
                         height: '18px',
                         borderRadius: '3px',
@@ -1700,9 +1848,9 @@ window.__ModuleLoader__.load({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        outline: isCurrentSession ? '2px solid #2563eb' : 'none',
+                        outline: isTargetFocused ? '2px solid #2563eb' : 'none',
                         outlineOffset: '-1px',
-                        zIndex: isCurrentSession ? 1 : 0,
+                        zIndex: isTargetFocused ? 1 : 0,
                       },
                     }, sessionNum)
                   })
@@ -1768,12 +1916,12 @@ window.__ModuleLoader__.load({
 
             h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '8px' } }, `${selectedDate} 当日 1~12 节全天占用时序:`),
 
-            // 垂直节次清单
+            // 垂直节次清单 (标注具体起止时间点)
             h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '340px', overflowY: 'auto' } },
               (activeModalRoom.sessions || []).map((isFree, sIdx) => {
                 const sNum = sIdx + 1
-                const tInfo = SCU_TIMETABLE[sIdx]
-                const isCur = data.isToday && data.currentSession === sNum
+                const tInfo = SCU_TIMETABLE_DETAILED[sIdx]
+                const isFocused = activeTargetSessions.includes(sNum)
 
                 return h('div', {
                   key: sIdx,
@@ -1783,14 +1931,14 @@ window.__ModuleLoader__.load({
                     alignItems: 'center',
                     padding: '8px 12px',
                     borderRadius: '6px',
-                    background: isCur ? 'rgba(37, 99, 235, 0.08)' : (isFree ? 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.04))' : 'rgba(125,125,125,0.08)'),
-                    border: isCur ? '1px solid rgba(37, 99, 235, 0.3)' : '1px solid var(--dsw-alias-border, rgba(125,125,125,0.06))',
+                    background: isFocused ? 'rgba(37, 99, 235, 0.08)' : (isFree ? 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.04))' : 'rgba(125,125,125,0.08)'),
+                    border: isFocused ? '1px solid rgba(37, 99, 235, 0.35)' : '1px solid var(--dsw-alias-border, rgba(125,125,125,0.06))',
                   },
                 },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
                     h('span', { style: { fontWeight: 600, fontSize: '12px' } }, `第 ${sNum} 节`),
-                    h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `${tInfo?.time} ~ ${tInfo?.end}`),
-                    isCur && h('span', { style: { fontSize: '10px', color: '#2563eb', fontWeight: 600 } }, '(当前时段)')
+                    h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `${tInfo?.start} ~ ${tInfo?.end} (${tInfo?.period})`),
+                    isFocused && h('span', { style: { fontSize: '10px', color: '#2563eb', fontWeight: 600 } }, '(当前关注)')
                   ),
                   h('span', {
                     style: {
