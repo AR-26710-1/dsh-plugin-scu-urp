@@ -135,24 +135,54 @@ window.__ModuleLoader__.load({
       },
     }
 
-    // ================== 图标组件 (侧边栏 18px 线性 Feather 图标) ==================
-    function ScuIcon(props) {
-      const size = typeof props?.size === 'number' ? props.size : 18
-      return h('svg', {
-        width: size,
-        height: size,
-        viewBox: '0 0 24 24',
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 2,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        style: { display: 'block' },
-      },
-        h('path', { d: 'M22 10v6M2 10l10-5 10 5-10 5z' }),
-        h('path', { d: 'M6 12v5c0 3 6 3 6 3s6 0 6-3v-5' })
-      )
+    // ================== 统一镂空简笔画图标组件库 (纯 SVG Feather 规范，极简单色，无彩色 Emoji) ==================
+    function createSvgIcon(paths = [], circles = [], lines = [], rects = []) {
+      return function SvgIcon(props) {
+        const size = typeof props?.size === 'number' ? props.size : 16
+        const strokeWidth = typeof props?.strokeWidth === 'number' ? props.strokeWidth : 1.75
+        const style = {
+          display: 'inline-block',
+          verticalAlign: '-0.15em',
+          flexShrink: 0,
+          ...(props?.style || {}),
+        }
+        return h('svg', {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          style,
+        },
+          paths.map((d, i) => h('path', { key: `p-${i}`, d })),
+          circles.map((c, i) => h('circle', { key: `c-${i}`, cx: c.cx, cy: c.cy, r: c.r })),
+          lines.map((l, i) => h('line', { key: `l-${i}`, x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2 })),
+          rects.map((r, i) => h('rect', { key: `r-${i}`, x: r.x, y: r.y, width: r.w, height: r.h, rx: r.rx || 1 }))
+        )
+      }
     }
+
+    const ScuIcon = createSvgIcon(['M22 10v6M2 10l10-5 10 5-10 5z', 'M6 12v5c0 3 6 3 6 3s6 0 6-3v-5'])
+    const CalendarIcon = createSvgIcon([], [], [{ x1: 16, y1: 2, x2: 16, y2: 6 }, { x1: 8, y1: 2, x2: 8, y2: 6 }, { x1: 3, y1: 10, x2: 21, y2: 10 }], [{ x: 3, y: 4, w: 18, h: 18, rx: 2 }])
+    const ChartIcon = createSvgIcon([], [], [{ x1: 18, y1: 20, x2: 18, y2: 10 }, { x1: 12, y1: 20, x2: 12, y2: 4 }, { x1: 6, y1: 20, x2: 6, y2: 14 }, { x1: 3, y1: 20, x2: 21, y2: 20 }])
+    const FileTextIcon = createSvgIcon(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6', 'M16 13H8', 'M16 17H8', 'M10 9H8'])
+    const SettingsIcon = createSvgIcon(
+      ['M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'],
+      [{ cx: 12, cy: 12, r: 3 }]
+    )
+    const RefreshIcon = createSvgIcon(['M23 4v6h-6', 'M1 20v-6h6', 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15'])
+    const GridIcon = createSvgIcon([], [], [], [{ x: 3, y: 3, w: 7, h: 7, rx: 1.5 }, { x: 14, y: 3, w: 7, h: 7, rx: 1.5 }, { x: 14, y: 14, w: 7, h: 7, rx: 1.5 }, { x: 3, y: 14, w: 7, h: 7, rx: 1.5 }])
+    const ListIcon = createSvgIcon([], [], [{ x1: 8, y1: 6, x2: 21, y2: 6 }, { x1: 8, y1: 12, x2: 21, y2: 12 }, { x1: 8, y1: 18, x2: 21, y2: 18 }, { x1: 3, y1: 6, x2: 3.01, y2: 6 }, { x1: 3, y1: 12, x2: 3.01, y2: 12 }, { x1: 3, y1: 18, x2: 3.01, y2: 18 }])
+    const MapPinIcon = createSvgIcon(['M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'], [{ cx: 12, cy: 10, r: 3 }])
+    const UserIcon = createSvgIcon(['M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'], [{ cx: 12, cy: 7, r: 4 }])
+    const ClockIcon = createSvgIcon([], [{ cx: 12, cy: 12, r: 10 }], [{ x1: 12, y1: 6, x2: 12, y2: 12 }, { x1: 12, y1: 12, x2: 16, y2: 14 }])
+    const LaptopIcon = createSvgIcon(['M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55A1 1 0 0 1 20.38 20H3.62a1 1 0 0 1-.9-1.45L4 16'])
+    const SmartphoneIcon = createSvgIcon([], [], [{ x1: 12, y1: 18, x2: 12.01, y2: 18 }], [{ x: 5, y: 2, w: 14, h: 20, rx: 2 }])
+    const DownloadIcon = createSvgIcon(['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'])
+    const CheckCircleIcon = createSvgIcon(['M22 11.08V12a10 10 0 1 1-5.93-9.14', 'M22 4L12 14.01l-3-3'])
 
     // ================== 课表莫兰迪色系 (遵循 DSH 极简风格，亮暗自适应) ==================
     const COURSE_PALETTES = [
@@ -265,15 +295,19 @@ window.__ModuleLoader__.load({
           },
         },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-            h('span', { style: { fontSize: '18px' } }, '🗓️'),
+            h(CalendarIcon, { size: 20 }),
             h('div', null,
               h('div', { style: { fontSize: '13px', fontWeight: 600 } },
                 `今天是 ${dayNames[todayDay]} · 今日共 ${todayCourses.length} 门排课`
               ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' } },
                 todayCourses.length > 0
-                  ? `今日首节课程: 《${todayCourses[0].course.name}》 第 ${todayCourses[0].schedule.startSession} 节 · 📍 ${todayCourses[0].schedule.classroom || todayCourses[0].schedule.building || '待定'}`
-                  : '今日暂无现场面授课程，适合自主研学或预习复习 ☕️'
+                  ? h(React.Fragment, null,
+                      h('span', null, `今日首节课程: 《${todayCourses[0].course.name}》 第 ${todayCourses[0].schedule.startSession} 节 · `),
+                      h(MapPinIcon, { size: 12 }),
+                      h('span', null, todayCourses[0].schedule.classroom || todayCourses[0].schedule.building || '待定')
+                    )
+                  : '今日暂无现场面授课程，适合自主研学或预习复习'
               )
             )
           ),
@@ -310,9 +344,15 @@ window.__ModuleLoader__.load({
                   background: viewMode === 'grid' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
                   fontWeight: viewMode === 'grid' ? 600 : 400,
                   boxShadow: viewMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
                 },
                 onClick: () => setViewMode('grid'),
-              }, '📅 周网格'),
+              },
+                h(GridIcon, { size: 13 }),
+                '周网格'
+              ),
               h('button', {
                 style: {
                   ...S.btnSecondary,
@@ -321,23 +361,43 @@ window.__ModuleLoader__.load({
                   background: viewMode === 'list' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
                   fontWeight: viewMode === 'list' ? 600 : 400,
                   boxShadow: viewMode === 'list' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
                 },
                 onClick: () => setViewMode('list'),
-              }, '📋 日程列表')
+              },
+                h(ListIcon, { size: 13 }),
+                '日程列表'
+              )
             ),
             h('button', {
               style: {
                 ...S.btnSecondary,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '5px',
               },
               onClick: () => {
                 setExportDownloaded(false)
                 setShowExportModal(true)
               },
-            }, '📱 导出日历'),
-            h('button', { style: S.btnSecondary, onClick: fetchSchedule }, '刷新 🔄')
+            },
+              h(SmartphoneIcon, { size: 13 }),
+              '导出日历'
+            ),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              },
+              onClick: fetchSchedule,
+            },
+              h(RefreshIcon, { size: 13 }),
+              '刷新'
+            )
           )
         ),
 
@@ -505,8 +565,14 @@ window.__ModuleLoader__.load({
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
                       },
-                    }, `📍 ${s.classroom || s.building}`)
+                    },
+                      h(MapPinIcon, { size: 10 }),
+                      h('span', null, s.classroom || s.building)
+                    )
                   ),
                   h('div', {
                     style: {
@@ -588,8 +654,14 @@ window.__ModuleLoader__.load({
                           h('span', { style: { fontSize: '14px', fontWeight: 600 } }, c.name),
                           h('span', { style: S.badge }, `${c.property || '课程'} · ${c.credit}学分`)
                         ),
-                        h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-                          `👨‍🏫 ${c.teacher || '待公布'}  ·  📍 ${s.building} ${s.classroom}  ·  第 ${s.weeks?.length ? `${s.weeks[0]}~${s.weeks[s.weeks.length - 1]}周` : '全学期'}`
+                        h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' } },
+                          h(UserIcon, { size: 12 }),
+                          h('span', null, c.teacher || '待公布'),
+                          h('span', { style: { opacity: 0.5 } }, '·'),
+                          h(MapPinIcon, { size: 12 }),
+                          h('span', null, `${s.building} ${s.classroom}`),
+                          h('span', { style: { opacity: 0.5 } }, '·'),
+                          h('span', null, `第 ${s.weeks?.length ? `${s.weeks[0]}~${s.weeks[s.weeks.length - 1]}周` : '全学期'}`)
                         )
                       ),
                       h('div', { style: { textAlign: 'right' } },
@@ -617,7 +689,7 @@ window.__ModuleLoader__.load({
           },
         },
           h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' } },
-            h('span', null, '💻'),
+            h(LaptopIcon, { size: 15 }),
             h('span', null, `网络自主修读 / 线上考核课程 (${onlineCourses.length} 门)`)
           ),
           h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' } },
@@ -697,16 +769,22 @@ window.__ModuleLoader__.load({
               }, '✕')
             ),
 
-            h('div', { style: { fontSize: '13px', lineHeight: 1.8 } },
-              h('div', null, `👨‍🏫 授课教师: ${activeModalItem.course.teacher || '待公布'}`),
-              activeModalItem.schedule && h('div', null,
-                `📍 上课地点: ${activeModalItem.schedule.campus ? activeModalItem.schedule.campus + '校区 ' : ''}${activeModalItem.schedule.building} ${activeModalItem.schedule.classroom}`
+            h('div', { style: { fontSize: '13px', lineHeight: 1.9 } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                h(UserIcon, { size: 13 }),
+                h('span', null, `授课教师: ${activeModalItem.course.teacher || '待公布'}`)
               ),
-              activeModalItem.schedule && h('div', null,
-                `⏰ 上课时间: ${dayNames[activeModalItem.schedule.day]} 第 ${activeModalItem.schedule.startSession}~${activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 1} 节 (${SCU_TIMETABLE[activeModalItem.schedule.startSession - 1]?.time} ~ ${SCU_TIMETABLE[activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 2]?.end})`
+              activeModalItem.schedule && h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                h(MapPinIcon, { size: 13 }),
+                h('span', null, `上课地点: ${activeModalItem.schedule.campus ? activeModalItem.schedule.campus + '校区 ' : ''}${activeModalItem.schedule.building} ${activeModalItem.schedule.classroom}`)
               ),
-              activeModalItem.schedule && h('div', null,
-                `📅 教学周次: ${activeModalItem.schedule.weekDescription || (activeModalItem.schedule.weeks?.length ? `${activeModalItem.schedule.weeks[0]}~${activeModalItem.schedule.weeks[activeModalItem.schedule.weeks.length - 1]}周` : '全学期')}`
+              activeModalItem.schedule && h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                h(ClockIcon, { size: 13 }),
+                h('span', null, `上课时间: ${dayNames[activeModalItem.schedule.day]} 第 ${activeModalItem.schedule.startSession}~${activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 1} 节 (${SCU_TIMETABLE[activeModalItem.schedule.startSession - 1]?.time} ~ ${SCU_TIMETABLE[activeModalItem.schedule.startSession + activeModalItem.schedule.continuingSessions - 2]?.end})`)
+              ),
+              activeModalItem.schedule && h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                h(CalendarIcon, { size: 13 }),
+                h('span', null, `教学周次: ${activeModalItem.schedule.weekDescription || (activeModalItem.schedule.weeks?.length ? `${activeModalItem.schedule.weeks[0]}~${activeModalItem.schedule.weeks[activeModalItem.schedule.weeks.length - 1]}周` : '全学期')}`)
               )
             ),
 
@@ -778,8 +856,8 @@ window.__ModuleLoader__.load({
           },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
               h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                h('span', { style: { fontSize: '20px' } }, '📱'),
-                h('span', { style: { fontSize: '17px', fontWeight: 700 } }, '导出为系统手机日历 (.ics)')
+                h(SmartphoneIcon, { size: 18 }),
+                h('span', { style: { fontSize: '16px', fontWeight: 700 } }, '导出为系统手机日历 (.ics)')
               ),
               h('button', {
                 style: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)' },
@@ -816,7 +894,7 @@ window.__ModuleLoader__.load({
                   onChange: (e) => setExportStartDate(e.target.value),
                 }),
                 h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
-                  '💡 默认为川大 2026-2027 秋季学期开学周一 (2026-08-31)，若校历有变动可直接点选'
+                  '默认按川大 2026-2027 秋季学期开学周一 (2026-08-31) 设定，若校历有变动可点选微调'
                 )
               ),
 
@@ -854,7 +932,10 @@ window.__ModuleLoader__.load({
                   window.open(url, '_blank')
                   setExportDownloaded(true)
                 },
-              }, '⬇️ 立即下载 .ics 日历文件')
+              },
+                h(DownloadIcon, { size: 14 }),
+                '立即下载 .ics 日历文件'
+              )
             ),
 
             // 下载成功与导入贴士
@@ -870,10 +951,13 @@ window.__ModuleLoader__.load({
                 lineHeight: 1.6,
               },
             },
-              h('div', { style: { fontWeight: 600, marginBottom: '4px' } }, '✅ 日历文件已触发下载！导入方法:'),
-              h('div', null, '• 🍏 苹果用户: 下载后用系统“日历”打开，或通过微信发给 iPhone 点击“全部添加到日历”；'),
-              h('div', null, '• 🤖 安卓用户: 打开手机自带“日历”应用 ➔ 侧边设置 ➔ 从存储设备导入 .ics 文件；'),
-              h('div', null, '• 💻 Windows / Mac: 双击下载的 .ics 文件直接导入 Outlook 或系统日历。')
+              h('div', { style: { fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' } },
+                h(CheckCircleIcon, { size: 14 }),
+                '日历文件已触发下载！系统导入指引:'
+              ),
+              h('div', null, '• 苹果系统 (iOS / macOS): 双击打开，或通过隔空投送发给 iPhone 点击“全部添加到日历”；'),
+              h('div', null, '• 安卓系统 (小米 / 华为 / OPPO / vivo): 打开手机自带“日历” -> 设置 -> 选择从本地 .ics 导入；'),
+              h('div', null, '• 桌面系统 (Windows / Mac / Outlook): 双击下载的文件直接添加并建立同步日历。')
             )
           )
         )
@@ -954,7 +1038,18 @@ window.__ModuleLoader__.load({
               (data.terms || []).map(t => h('option', { key: t, value: t }, t))
             )
           ),
-          h('button', { style: S.btnSecondary, onClick: fetchGrades }, '刷新成绩 🔄')
+          h('button', {
+            style: {
+              ...S.btnSecondary,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            },
+            onClick: fetchGrades,
+          },
+            h(RefreshIcon, { size: 13 }),
+            '刷新成绩'
+          )
         ),
 
         loading && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '正在拉取成绩并重新折算绩点...'),
@@ -1019,13 +1114,24 @@ window.__ModuleLoader__.load({
       return h('div', null,
         h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
           h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `已排定考试 (${exams.length})`),
-          h('button', { style: S.btnSecondary, onClick: fetchExams }, '刷新考试日程 🔄')
+          h('button', {
+            style: {
+              ...S.btnSecondary,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            },
+            onClick: fetchExams,
+          },
+            h(RefreshIcon, { size: 13 }),
+            '刷新考试日程'
+          )
         ),
 
         loading && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '正在拉取考试日程...'),
         error && h('div', { style: { padding: '16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px' } }, error),
 
-        !loading && !error && exams.length === 0 && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '14px' } }, '近期暂无已排定的考试安排 🎉'),
+        !loading && !error && exams.length === 0 && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '14px' } }, '当前暂无已排定的考试安排'),
 
         !loading && !error && exams.map((ex, i) =>
           h('div', { key: i, style: S.card },
@@ -1033,8 +1139,14 @@ window.__ModuleLoader__.load({
               h('span', { style: { fontSize: '15px', fontWeight: 600 } }, ex.courseName),
               h('span', { style: S.badge }, `座位: ${ex.seatNumber || '现场公布'}`)
             ),
-            h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-text, inherit)', marginTop: '6px' } }, `⏰ 时间: ${ex.examTime}`),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, `📍 考场地点: ${ex.location || '待公布'}`)
+            h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-text, inherit)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' } },
+              h(ClockIcon, { size: 13 }),
+              h('span', null, `时间: ${ex.examTime}`)
+            ),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' } },
+              h(MapPinIcon, { size: 13 }),
+              h('span', null, `考场地点: ${ex.location || '待公布'}`)
+            )
           )
         )
       )
@@ -1238,19 +1350,31 @@ window.__ModuleLoader__.load({
             h('button', {
               style: S.tabBtn(activeTab === 'schedule'),
               onClick: () => setActiveTab('schedule'),
-            }, '📅 课表日程'),
+            },
+              h(CalendarIcon, { size: 14, style: { marginRight: '6px' } }),
+              '课表日程'
+            ),
             h('button', {
               style: S.tabBtn(activeTab === 'grades'),
               onClick: () => setActiveTab('grades'),
-            }, '📊 成绩与绩点'),
+            },
+              h(ChartIcon, { size: 14, style: { marginRight: '6px' } }),
+              '成绩与绩点'
+            ),
             h('button', {
               style: S.tabBtn(activeTab === 'exams'),
               onClick: () => setActiveTab('exams'),
-            }, '📝 考试安排'),
+            },
+              h(FileTextIcon, { size: 14, style: { marginRight: '6px' } }),
+              '考试安排'
+            ),
             h('button', {
               style: S.tabBtn(activeTab === 'settings'),
               onClick: () => setActiveTab('settings'),
-            }, '⚙️ 账号与凭据')
+            },
+              h(SettingsIcon, { size: 14, style: { marginRight: '6px' } }),
+              '账号与凭据'
+            )
           ),
 
           // 主视图渲染
