@@ -46,8 +46,26 @@ export function apply(ctx, config) {
 
         const serverScript = path.resolve(__dirname, 'server', 'app.py')
         try {
-          const pyBin = process.platform === 'win32' ? 'py' : 'python3'
-          serverProcess = spawn(pyBin, [serverScript], {
+          // 优先定位已安装依赖的 Python 3.12 绝对路径，避免被系统的其它 Python (如 msys/mingw) 干扰
+          const localAppData = process.env.LOCALAPPDATA || path.resolve(process.env.USERPROFILE || 'C:\\Users\\30315', 'AppData', 'Local')
+          const defaultPy312 = path.resolve(localAppData, 'Programs', 'Python', 'Python312', 'python.exe')
+          
+          let pyBin = 'py'
+          let pyArgs = ['-3.12', serverScript]
+
+          if (process.platform === 'win32') {
+            try {
+              if (path.isAbsolute(defaultPy312)) {
+                pyBin = defaultPy312
+                pyArgs = [serverScript]
+              }
+            } catch (_) {}
+          } else {
+            pyBin = 'python3'
+            pyArgs = [serverScript]
+          }
+
+          serverProcess = spawn(pyBin, pyArgs, {
             cwd: path.resolve(__dirname, 'server'),
             detached: false,
             stdio: 'ignore',

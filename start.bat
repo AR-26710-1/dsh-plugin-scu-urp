@@ -10,10 +10,10 @@ echo.
 cd /d "%~dp0server"
 
 echo [1/2] 检查并安装 Python 依赖库...
-py -m pip install -r requirements.txt
+py -3.12 -m pip install -r requirements.txt
 
 echo.
 echo [2/2] 启动本地 URP 桥接服务 (http://127.0.0.1:48080)...
-py app.py
+py -3.12 app.py
 
 pause
