@@ -389,7 +389,16 @@ class SCUUrpClient:
         weighted_gpa_sum = 0.0
         weighted_score_sum = 0.0
         score_credit_sum = 0.0
-        terms = set()
+
+        # 必修课程专用统计 (保研与评奖指标)
+        req_credit = 0.0
+        req_gpa_sum = 0.0
+        req_score_sum = 0.0
+        req_score_credit = 0.0
+        req_course_count = 0
+
+        # 按学期分组统计容器
+        term_groups: Dict[str, List[Dict[str, Any]]] = {}
 
         for g in raw_list:
             if not isinstance(g, dict):
@@ -410,13 +419,9 @@ class SCUUrpClient:
 
             # 若录入方式为等级制 (002)，优先展示等级名称
             display_score = djm if g.get("CJLRFSDM") == "002" and djm else (score or djm)
-
-            if term:
-                terms.add(term)
-
             gpa = self.calculate_gpa(score, djm)
 
-            formatted_grades.append({
+            item = {
                 "name": kcm,
                 "code": f"{kch}_{kxh}" if kxh else kch,
                 "term": term,
@@ -425,9 +430,14 @@ class SCUUrpClient:
                 "rawScore": score,
                 "gradeLevel": djm,
                 "property": prop,
+                "isRequired": (prop == "必修"),
                 "gpa": gpa,
                 "unpassReason": unpass_reason,
-            })
+            }
+            formatted_grades.append(item)
+
+            if term:
+                term_groups.setdefault(term, []).append(item)
 
             if credit > 0:
                 total_credit += credit
@@ -439,15 +449,60 @@ class SCUUrpClient:
                 except (ValueError, TypeError):
                     pass
 
+                # 必修课加权累计
+                if prop == "必修":
+                    req_course_count += 1
+                    req_credit += credit
+                    req_gpa_sum += gpa * credit
+                    try:
+                        num_score = float(score)
+                        req_score_sum += num_score * credit
+                        req_score_credit += credit
+                    except (ValueError, TypeError):
+                        pass
+
         avg_gpa = round(weighted_gpa_sum / total_credit, 2) if total_credit > 0 else 0.0
         avg_score = round(weighted_score_sum / score_credit_sum, 2) if score_credit_sum > 0 else 0.0
+
+        required_gpa = round(req_gpa_sum / req_credit, 2) if req_credit > 0 else 0.0
+        required_avg_score = round(req_score_sum / req_score_credit, 2) if req_score_credit > 0 else 0.0
+
+        # 学期统计按时间正序排序
+        sorted_terms = sorted(list(term_groups.keys()))
+        term_stats = []
+        for t in sorted_terms:
+            t_items = term_groups[t]
+            t_credit = sum(x["credit"] for x in t_items)
+            t_gpa_sum = sum(x["gpa"] * x["credit"] for x in t_items)
+            t_score_credit = 0.0
+            t_score_sum = 0.0
+            for x in t_items:
+                try:
+                    num = float(x["rawScore"])
+                    t_score_sum += num * x["credit"]
+                    t_score_credit += x["credit"]
+                except (ValueError, TypeError):
+                    pass
+
+            term_stats.append({
+                "term": t,
+                "coursesCount": len(t_items),
+                "credits": round(t_credit, 1),
+                "gpa": round(t_gpa_sum / t_credit, 2) if t_credit > 0 else 0.0,
+                "avgScore": round(t_score_sum / t_score_credit, 2) if t_score_credit > 0 else 0.0,
+            })
 
         return {
             "totalCourses": len(formatted_grades),
             "totalCredit": round(total_credit, 1),
             "overallGpa": avg_gpa,
             "overallAvgScore": avg_score,
-            "terms": sorted(list(terms), reverse=True),
+            "requiredGpa": required_gpa,
+            "requiredCredit": round(req_credit, 1),
+            "requiredCourses": req_course_count,
+            "requiredAvgScore": required_avg_score,
+            "termStats": term_stats,
+            "terms": sorted(list(term_groups.keys()), reverse=True),
             "grades": formatted_grades,
         }
 

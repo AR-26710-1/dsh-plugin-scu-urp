@@ -162,5 +162,57 @@ async def export_schedule_ics(
         raise HTTPException(status_code=500, detail=f"生成日历文件失败: {str(e)}")
 
 
+@app.get("/api/grades/export-csv")
+async def export_grades_csv(
+    onlyRequired: bool = Query(default=False, description="是否仅导出必修课程"),
+    download: bool = Query(default=False, description="是否直接以文件下载形式响应"),
+):
+    """将全量成绩导出为标准 UTF-8 BOM CSV/Excel 文件"""
+    ensure_authenticated()
+    try:
+        data = client.get_grades()
+        grades = data.get("grades", [])
+        if onlyRequired:
+            grades = [g for g in grades if g.get("isRequired")]
+
+        # 生成 CSV，带 \ufeff (UTF-8 BOM)，确保 Windows Excel 打开不乱码
+        rows = ["序号,学期,课程代码,课程名称,学分,课程性质,是否必修,成绩,等级,绩点,未通过原因"]
+        for idx, g in enumerate(grades, 1):
+            name_clean = f'"{g.get("name", "")}"' if "," in g.get("name", "") else g.get("name", "")
+            row = [
+                str(idx),
+                g.get("term", ""),
+                g.get("code", ""),
+                name_clean,
+                str(g.get("credit", 0.0)),
+                g.get("property", ""),
+                "是" if g.get("isRequired") else "否",
+                str(g.get("score", "")),
+                g.get("gradeLevel", ""),
+                str(g.get("gpa", 0.0)),
+                g.get("unpassReason", "") or "",
+            ]
+            rows.append(",".join(row))
+
+        csv_text = "\ufeff" + "\r\n".join(rows)
+
+        if download:
+            filename = "scu_grades_required.csv" if onlyRequired else "scu_grades_all.csv"
+            headers = {
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type": "text/csv; charset=utf-8",
+            }
+            return Response(content=csv_text.encode("utf-8"), headers=headers, media_type="text/csv")
+
+        return {
+            "success": True,
+            "totalExported": len(grades),
+            "onlyRequired": onlyRequired,
+            "downloadUrl": f"/api/grades/export-csv?onlyRequired={'true' if onlyRequired else 'false'}&download=true",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出成绩单失败: {str(e)}")
+
+
 if __name__ == "__main__":
     uvicorn.run("app:app", host="127.0.0.1", port=48080, reload=False)

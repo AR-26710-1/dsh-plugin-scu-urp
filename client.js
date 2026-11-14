@@ -964,12 +964,13 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ================== 子页面 2：成绩与 GPA ==================
+    // ================== 子页面 2：成绩与 GPA (含保研必修切换、走势图与Excel导出) ==================
     function GradesView({ onRequireLogin }) {
       const [loading, setLoading] = useState(true)
       const [error, setError] = useState('')
-      const [data, setData] = useState({ grades: [], terms: [] })
+      const [data, setData] = useState({ grades: [], terms: [], termStats: [] })
       const [selectedTerm, setSelectedTerm] = useState('ALL')
+      const [scope, setScope] = useState('ALL') // 'ALL' | 'REQUIRED' (保研必修)
 
       const fetchGrades = useCallback(async () => {
         setLoading(true)
@@ -995,63 +996,197 @@ window.__ModuleLoader__.load({
         fetchGrades()
       }, [fetchGrades])
 
-      const gradesList = data.grades || []
-      const filtered = selectedTerm === 'ALL'
-        ? gradesList
-        : gradesList.filter(g => g.term === selectedTerm)
+      const allGrades = data.grades || []
+      // 根据学期和课程性质双重筛选
+      const filtered = allGrades.filter(g => {
+        if (scope === 'REQUIRED' && !g.isRequired) return false
+        if (selectedTerm !== 'ALL' && g.term !== selectedTerm) return false
+        return true
+      })
+
+      const isRequiredScope = scope === 'REQUIRED'
+      const curGpa = isRequiredScope ? (data.requiredGpa ?? '--') : (data.overallGpa ?? '--')
+      const curScore = isRequiredScope ? (data.requiredAvgScore ?? '--') : (data.overallAvgScore ?? '--')
+      const curCredit = isRequiredScope ? (data.requiredCredit ?? '--') : (data.totalCredit ?? '--')
+      const curCount = isRequiredScope ? (data.requiredCourses ?? '--') : (data.totalCourses ?? '--')
 
       return h('div', null,
-        // KPI 指标概览
-        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' } },
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '24px', fontWeight: 700 } }, data.overallGpa ?? '--'),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '总平均学分绩点 (GPA)')
+        // 1. 顶部视角切换器 (全部课程 vs 保研/评奖必修课)
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            borderRadius: '10px',
+            padding: '10px 16px',
+          },
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '统计口径:'),
+            h('div', {
+              style: {
+                display: 'flex',
+                background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
+                borderRadius: '6px',
+                padding: '2px',
+              },
+            },
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  border: 'none',
+                  padding: '5px 14px',
+                  background: scope === 'ALL' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
+                  fontWeight: scope === 'ALL' ? 600 : 400,
+                  boxShadow: scope === 'ALL' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                },
+                onClick: () => setScope('ALL'),
+              }, `全部修读 (${allGrades.length})`),
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  border: 'none',
+                  padding: '5px 14px',
+                  background: scope === 'REQUIRED' ? 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))' : 'transparent',
+                  fontWeight: scope === 'REQUIRED' ? 600 : 400,
+                  boxShadow: scope === 'REQUIRED' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  color: scope === 'REQUIRED' ? '#2563eb' : 'inherit',
+                },
+                onClick: () => setScope('REQUIRED'),
+              }, `仅必修课 (${data.requiredCourses || 0}门 · 保研/评优)`)
+            )
           ),
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '24px', fontWeight: 700 } }, data.overallAvgScore ?? '--'),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '综合加权平均分')
-          ),
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '24px', fontWeight: 700 } }, data.totalCredit ?? '--'),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '累计修读总学分')
-          ),
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '24px', fontWeight: 700 } }, data.totalCourses ?? '--'),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } }, '已获评课程总门数')
+          h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+            // 导出 Excel/CSV
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              },
+              onClick: () => {
+                const url = `${SERVICE_URL}/api/grades/export-csv?onlyRequired=${scope === 'REQUIRED'}&download=true`
+                window.open(url, '_blank')
+              },
+            },
+              h(DownloadIcon, { size: 13 }),
+              scope === 'REQUIRED' ? '导出必修成绩单 (Excel)' : '导出全部成绩单 (Excel)'
+            ),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              },
+              onClick: fetchGrades,
+            },
+              h(RefreshIcon, { size: 13 }),
+              '刷新'
+            )
           )
         ),
 
-        // 筛选栏
-        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+        // 2. KPI 指标概览
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' } },
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center', position: 'relative' } },
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: isRequiredScope ? '#2563eb' : 'inherit' } }, curGpa),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              isRequiredScope ? '必修课加权 GPA (保研标准)' : '全科综合加权平均绩点 (GPA)'
+            ),
+            isRequiredScope && data.requiredGpa && data.overallGpa && (
+              h('div', {
+                style: {
+                  fontSize: '11px',
+                  color: data.requiredGpa >= data.overallGpa ? '#10b981' : '#ef4444',
+                  marginTop: '4px',
+                  fontWeight: 500,
+                },
+              }, `${data.requiredGpa >= data.overallGpa ? '↑' : '↓'} 较综合 GPA ${data.requiredGpa >= data.overallGpa ? '+' : ''}${(data.requiredGpa - data.overallGpa).toFixed(2)}`)
+            )
+          ),
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
+            h('div', { style: { fontSize: '26px', fontWeight: 700 } }, curScore),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              isRequiredScope ? '必修课加权平均分' : '全科综合加权平均分'
+            )
+          ),
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
+            h('div', { style: { fontSize: '26px', fontWeight: 700 } }, curCredit),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              isRequiredScope ? '必修课累计学分' : '累计修读总学分'
+            )
+          ),
+          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
+            h('div', { style: { fontSize: '26px', fontWeight: 700 } }, curCount),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              isRequiredScope ? '必修已修课程数' : '已获评课程总门数'
+            )
+          )
+        ),
+
+        // 3. 学期 GPA 趋势图卡片 (Term Trend)
+        !loading && data.termStats && data.termStats.length > 0 && h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            marginBottom: '18px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+          },
+        },
+          h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' } },
+            h(ChartIcon, { size: 14 }),
+            h('span', null, '历年学期绩点与学分走势')
+          ),
+          h('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${data.termStats.length}, 1fr)`, gap: '12px' } },
+            data.termStats.map((t, idx) =>
+              h('div', {
+                key: idx,
+                style: {
+                  background: 'var(--dsw-alias-bg-card, rgba(125, 125, 125, 0.04))',
+                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  textAlign: 'center',
+                },
+              },
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '4px' } }, t.term),
+                h('div', { style: { fontSize: '18px', fontWeight: 700, color: '#2563eb' } }, t.gpa),
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                  `${t.credits}学分 · ${t.avgScore}分`
+                )
+              )
+            )
+          )
+        ),
+
+        // 4. 学期筛选栏
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' } },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
             h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '学期筛选:'),
             h('select', {
               style: {
                 ...S.btnSecondary,
-                padding: '6px 10px',
+                padding: '5px 10px',
                 outline: 'none',
               },
               value: selectedTerm,
               onChange: (e) => setSelectedTerm(e.target.value),
             },
-              h('option', { value: 'ALL' }, `全部学期 (${gradesList.length})`),
+              h('option', { value: 'ALL' }, `全部学期 (${filtered.length} 门)`),
               (data.terms || []).map(t => h('option', { key: t, value: t }, t))
             )
           ),
-          h('button', {
-            style: {
-              ...S.btnSecondary,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            },
-            onClick: fetchGrades,
-          },
-            h(RefreshIcon, { size: 13 }),
-            '刷新成绩'
+          h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+            `当前展示 ${filtered.length} 门课程`
           )
         ),
 
+        // 5. 课程列表渲染
         loading && h('div', { style: { textAlign: 'center', padding: '48px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '正在拉取成绩并重新折算绩点...'),
         error && h('div', { style: { padding: '16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '13px' } }, error),
 
@@ -1062,7 +1197,14 @@ window.__ModuleLoader__.load({
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
               h('div', null,
                 h('span', { style: { fontSize: '15px', fontWeight: 600 } }, g.name),
-                h('span', { style: { ...S.badge, marginLeft: '8px' } }, `${g.property || '课程'} · ${g.credit}学分`)
+                h('span', {
+                  style: {
+                    ...S.badge,
+                    marginLeft: '8px',
+                    borderColor: g.isRequired ? 'rgba(37, 99, 235, 0.3)' : 'inherit',
+                    color: g.isRequired ? '#2563eb' : 'inherit',
+                  },
+                }, `${g.property || '课程'} · ${g.credit}学分`)
               ),
               h('span', {
                 style: {

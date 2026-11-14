@@ -166,13 +166,17 @@ export function apply(ctx, config) {
   // 2. 注册成绩与 GPA 查询工具
   ctx.effect(() => ctx.tools.register({
     name: 'scu_get_grades',
-    description: '查询四川大学全部学期或指定学期的成绩清单、总学分、平均学分绩点(GPA)与加权平均分。',
+    description: '查询四川大学全部学期或指定学期的成绩清单、总学分、平均学分绩点(GPA)与加权平均分。支持仅查看保研/评优必修课加权GPA。',
     parameters: {
       type: 'object',
       properties: {
         term: {
           type: 'string',
-          description: '可选：指定学期代码（如 "2024-2025-1-1"），不传则返回全量成绩与总GPA。',
+          description: '可选：指定学期名称或代码（如 "2024-2025学年秋"），不传则返回全量成绩与总GPA。',
+        },
+        onlyRequired: {
+          type: 'boolean',
+          description: '可选：是否仅统计必修课加权绩点（保研排名与奖学金评选标准）。',
         },
       },
       additionalProperties: false,
@@ -198,11 +202,11 @@ export function apply(ctx, config) {
         }
         return [{
           type: 'text',
-          text: `📊 **全量成绩统计**:\n• 总修读门数: ${d.totalCourses}\n• 总学分: ${d.totalCredit}\n• 综合平均绩点 (GPA): **${d.overallGpa}**\n• 加权均分: **${d.overallAvgScore}**`,
+          text: `📊 **川大成绩与 GPA 统计分析**:\n• **必修课加权绩点 (保研/评奖标准)**: **${d.requiredGpa}** (${d.requiredCourses} 门必修 · ${d.requiredCredit} 学分)\n• 全科综合加权 GPA: **${d.overallGpa}** (总修读 ${d.totalCourses} 门 · ${d.totalCredit} 学分)\n• 综合加权平均分: **${d.overallAvgScore} 分**\n\n💡 成绩单导出: [下载标准 Excel/CSV 成绩单表格](${serviceUrl}/api/grades/export-csv?download=true)`,
         }]
       },
     },
-    async execute(args) {
+    async execute(args = {}) {
       try {
         const resp = await fetch(`${serviceUrl}/api/grades`)
         if (!resp.ok) {
@@ -210,6 +214,11 @@ export function apply(ctx, config) {
           return { success: false, error: err.detail || `HTTP ${resp.status}` }
         }
         const data = await resp.json()
+        if (args.onlyRequired) {
+          data.grades = (data.grades || []).filter(g => g.isRequired)
+          data.totalCourses = data.requiredCourses
+          data.totalCredit = data.requiredCredit
+        }
         if (args.term) {
           const filtered = (data.grades || []).filter(g => g.term === args.term)
           return {
