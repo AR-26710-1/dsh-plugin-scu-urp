@@ -275,4 +275,64 @@ export function apply(ctx, config) {
       }
     },
   }))
+
+  // 4. 注册日历导出工具
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_export_calendar',
+    description: '将四川大学课表导出为标准手机日历文件 (.ics / iCalendar 格式)，可直接导入 iPhone、Mac、Android 手机系统日历或 Outlook。支持自定义开学周一日期与课前提醒。',
+    parameters: {
+      type: 'object',
+      properties: {
+        startDate: {
+          type: 'string',
+          description: '开学第一周周一的公历日期 (格式 YYYY-MM-DD)，默认为 2026-08-31',
+        },
+        alarmMinutes: {
+          type: 'number',
+          description: '上课前提前提醒分钟数，默认为 15 分钟',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          eventCount: { type: 'number' },
+          startDate: { type: 'string' },
+          alarmMinutes: { type: 'number' },
+          downloadUrl: { type: 'string' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(_args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `❌ 导出日历失败: ${value.error}` }]
+        }
+        return [{
+          type: 'text',
+          text: `📅 **课表日历已成功生成！**\n• 共生成 **${value.eventCount}** 个上课日程事件\n• 开学第一周周一: ${value.startDate}\n• 提前提醒: 课前 ${value.alarmMinutes ?? 15} 分钟\n• **下载链接**: [点击下载 .ics 日历文件](${serviceUrl}${value.downloadUrl})\n\n💡 **导入建议**:\n• **iPhone / Mac**: 点击下载后用系统自带“日历”打开，或发送给手机点击即可全量订阅/添加到日历；\n• **Android / Windows**: 打开系统“日历”应用 -> 账户与设置 -> 从本地 .ics 文件导入。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const query = new URLSearchParams()
+        if (args.startDate) query.set('startDate', args.startDate)
+        if (typeof args.alarmMinutes === 'number') query.set('alarmMinutes', args.alarmMinutes.toString())
+        const resp = await fetch(`${serviceUrl}/api/schedule/export-ics?${query.toString()}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return data
+      } catch (e) {
+        return { success: false, error: `无法连接到本地教务后端: ${e.message}` }
+      }
+    },
+  }))
 }

@@ -201,6 +201,10 @@ window.__ModuleLoader__.load({
       const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
       const [selectedWeek, setSelectedWeek] = useState('ALL') // 'ALL' | 1~20
       const [activeModalItem, setActiveModalItem] = useState(null) // 详情弹窗数据
+      const [showExportModal, setShowExportModal] = useState(false) // 导出日历弹窗
+      const [exportStartDate, setExportStartDate] = useState('2026-08-31') // 第一周周一日期
+      const [exportAlarm, setExportAlarm] = useState(15) // 提醒分钟
+      const [exportDownloaded, setExportDownloaded] = useState(false)
 
       const todayDay = new Date().getDay() || 7 // 1~7 (周一为1, 周日为7)
       const dayNames = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
@@ -321,6 +325,18 @@ window.__ModuleLoader__.load({
                 onClick: () => setViewMode('list'),
               }, '📋 日程列表')
             ),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              },
+              onClick: () => {
+                setExportDownloaded(false)
+                setShowExportModal(true)
+              },
+            }, '📱 导出日历'),
             h('button', { style: S.btnSecondary, onClick: fetchSchedule }, '刷新 🔄')
           )
         ),
@@ -725,6 +741,139 @@ window.__ModuleLoader__.load({
                 style: { ...S.btnPrimary, padding: '7px 18px', fontSize: '12px' },
                 onClick: () => setActiveModalItem(null),
               }, '关闭')
+            )
+          )
+        ),
+
+        // 6. 导出手机日历 Modal
+        showExportModal && h('div', {
+          style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            backdropFilter: 'blur(3px)',
+          },
+          onClick: () => setShowExportModal(false),
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))',
+              color: 'var(--dsw-alias-text, inherit)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '500px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '20px' } }, '📱'),
+                h('span', { style: { fontSize: '17px', fontWeight: 700 } }, '导出为系统手机日历 (.ics)')
+              ),
+              h('button', {
+                style: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)' },
+                onClick: () => setShowExportModal(false),
+              }, '✕')
+            ),
+
+            h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '18px', lineHeight: 1.6 } },
+              '将川大全学期真实排课（含具体教室、校区、授课教师及 1~16 周精准时段）生成标准日历文件。导入后可在手机锁屏或桌面日历小组件直接查看，并在上课前弹出提醒。'
+            ),
+
+            // 参数设置区
+            h('div', {
+              style: {
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                borderRadius: '8px',
+                padding: '14px 16px',
+                marginBottom: '18px',
+              },
+            },
+              // 第一周周一日期
+              h('div', { style: { marginBottom: '12px' } },
+                h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' } }, '第一教学周周一日期:'),
+                h('input', {
+                  type: 'date',
+                  style: {
+                    ...S.input,
+                    marginBottom: '4px',
+                    padding: '7px 10px',
+                    fontSize: '13px',
+                  },
+                  value: exportStartDate,
+                  onChange: (e) => setExportStartDate(e.target.value),
+                }),
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                  '💡 默认为川大 2026-2027 秋季学期开学周一 (2026-08-31)，若校历有变动可直接点选'
+                )
+              ),
+
+              // 提前提醒分钟
+              h('div', null,
+                h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' } }, '课前弹窗提醒时间:'),
+                h('select', {
+                  style: {
+                    ...S.input,
+                    marginBottom: 0,
+                    padding: '7px 10px',
+                    fontSize: '13px',
+                  },
+                  value: exportAlarm,
+                  onChange: (e) => setExportAlarm(parseInt(e.target.value)),
+                },
+                  h('option', { value: 15 }, '课前 15 分钟提醒 (推荐)'),
+                  h('option', { value: 30 }, '课前 30 分钟提醒'),
+                  h('option', { value: 10 }, '课前 10 分钟提醒'),
+                  h('option', { value: 0 }, '不开启弹窗提醒')
+                )
+              )
+            ),
+
+            // 下载按钮
+            h('div', { style: { display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center' } },
+              h('button', {
+                style: { ...S.btnSecondary, padding: '8px 16px' },
+                onClick: () => setShowExportModal(false),
+              }, '取消'),
+              h('button', {
+                style: { ...S.btnPrimary, padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '6px' },
+                onClick: () => {
+                  const url = `${SERVICE_URL}/api/schedule/export-ics?startDate=${exportStartDate}&alarmMinutes=${exportAlarm}&download=true`
+                  window.open(url, '_blank')
+                  setExportDownloaded(true)
+                },
+              }, '⬇️ 立即下载 .ics 日历文件')
+            ),
+
+            // 下载成功与导入贴士
+            exportDownloaded && h('div', {
+              style: {
+                marginTop: '16px',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                color: '#059669',
+                fontSize: '12px',
+                lineHeight: 1.6,
+              },
+            },
+              h('div', { style: { fontWeight: 600, marginBottom: '4px' } }, '✅ 日历文件已触发下载！导入方法:'),
+              h('div', null, '• 🍏 苹果用户: 下载后用系统“日历”打开，或通过微信发给 iPhone 点击“全部添加到日历”；'),
+              h('div', null, '• 🤖 安卓用户: 打开手机自带“日历”应用 ➔ 侧边设置 ➔ 从存储设备导入 .ics 文件；'),
+              h('div', null, '• 💻 Windows / Mac: 双击下载的 .ics 文件直接导入 Outlook 或系统日历。')
             )
           )
         )

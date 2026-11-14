@@ -3,13 +3,14 @@ DeepSeek Harness - 四川大学教务系统 (URP) 本地适配器服务
 运行于本地 127.0.0.1:48080，桥接 DeepSeek Harness 插件与教务处
 """
 import uvicorn
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
 from crypto_store import CredentialStore
 from urp_client import SCUUrpClient
+from calendar_exporter import generate_ics
 
 app = FastAPI(title="SCU URP Harness Bridge", version="1.0.0")
 
@@ -123,6 +124,42 @@ async def get_exams():
         return client.get_exams()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取考试日程失败: {str(e)}")
+
+
+@app.get("/api/schedule/export-ics")
+async def export_schedule_ics(
+    startDate: str = Query(default="2026-08-31", description="第一周周一公历日期 (YYYY-MM-DD)"),
+    alarmMinutes: int = Query(default=15, description="课前提醒分钟数"),
+    download: bool = Query(default=False, description="是否直接以文件下载形式响应"),
+):
+    """将课表导出为标准 iCalendar (.ics) 日历格式"""
+    ensure_authenticated()
+    try:
+        schedule_data = client.get_schedule()
+        ics_text, count = generate_ics(
+            schedule_data,
+            start_monday_str=startDate,
+            alarm_minutes=alarmMinutes,
+            calendar_name=f"川大课表 ({client.student_name or client.username})",
+        )
+
+        if download:
+            headers = {
+                "Content-Disposition": f'attachment; filename="scu_schedule_{startDate}.ics"',
+                "Content-Type": "text/calendar; charset=utf-8",
+            }
+            return Response(content=ics_text.encode("utf-8"), headers=headers, media_type="text/calendar")
+
+        return {
+            "success": True,
+            "eventCount": count,
+            "startDate": startDate,
+            "alarmMinutes": alarmMinutes,
+            "icsContent": ics_text,
+            "downloadUrl": f"/api/schedule/export-ics?startDate={startDate}&alarmMinutes={alarmMinutes}&download=true",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成日历文件失败: {str(e)}")
 
 
 if __name__ == "__main__":
