@@ -43,6 +43,7 @@ class SCUUrpClient:
         self._ocr_instance = None
         self.is_logged_in = False
         self.student_name = ""
+        self._sso_sessions: Dict[str, Dict[str, Any]] = {}
 
     @property
     def ocr(self):
@@ -250,24 +251,180 @@ class SCUUrpClient:
         resp.raise_for_status()
         return resp
 
+    def load_session_cookies(self, cookies: Dict[str, str]) -> bool:
+        """载入持久化的 Session Cookies 并验证恢复会话"""
+        self.session.cookies.clear()
+        self.session.cookies.update(cookies)
+        return self.verify_session_alive()
+
+    def verify_session_alive(self) -> bool:
+        """轻量级探针检测当前 Session 是否存活且已登录"""
+        try:
+            test_url = f"{self.BASE_URL}/student/personalSenate/giveLessonInfo/thisSemesterSchedule/weekLySchedule"
+            resp = self.session.get(test_url, headers=self.headers, timeout=8, allow_redirects=True)
+            if "/login" in resp.url or resp.status_code in (302, 401) or "登录" in resp.text[:400]:
+                self.is_logged_in = False
+                return False
+            self.is_logged_in = True
+            if not self.student_name:
+                # 尝试从主页抓取姓名
+                r_home = self.session.get(f"{self.BASE_URL}/student/index", headers=self.headers, timeout=8)
+                m = re.search(r'class="userName"[^>]*>([^<]+)<', r_home.text)
+                if m:
+                    self.student_name = m.group(1).strip()
+            return True
+        except Exception:
+            self.is_logged_in = False
+            return False
+
     def keep_alive(self) -> bool:
         """
         轻量级教务系统会话保活探针
-        定时向教务系统发送极低开销的心跳检测，并在 Session 失效时静默自动重连
+        定时向教务系统发送心跳探针，无论密码凭据还是扫码会话均能实现长效保活
         """
-        if not self.username or not self.password:
+        if not self.username and not self.session.cookies:
             return False
         try:
-            test_url = f"{self.BASE_URL}/student/personalSenate/giveLessonInfo/thisSemesterSchedule/weekLySchedule"
-            resp = self.session.get(test_url, headers=self.headers, timeout=8)
-            if "/login" in resp.url or resp.status_code in (302, 401) or "登录" in resp.text[:400]:
-                self.is_logged_in = False
+            alive = self.verify_session_alive()
+            if alive:
+                return True
+            # 若失效且存在账密，则尝试透明静默重连
+            if self.username and self.password:
                 ok, _ = self.login()
                 return ok
-            self.is_logged_in = True
-            return True
+            return False
         except Exception:
             return False
+
+    def start_sso_qrcode(self) -> Dict[str, Any]:
+        """
+        初始化四川大学统一身份认证 (竹云 IDaaS) 微信/微川大扫码登录会话
+        """
+        import base64
+        import urllib.parse
+
+        s = requests.Session()
+        s.trust_env = False
+        s.headers.update({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://id.scu.edu.cn/frontend/login",
+        })
+
+        # 1. 请求教务处 SSO 入口解析 sp_code
+        sso_entry = "https://id.scu.edu.cn/enduser/sp/sso/scdxplugin_jwt23?enterpriseId=scdx&target_url=index"
+        r1 = s.get(sso_entry, allow_redirects=True, timeout=12)
+        sp_code = ""
+        m = re.search(r'var goUrl = "(.*?)";', r1.text)
+        if m:
+            go_url = m.group(1)
+            if "#/login?" in go_url:
+                frag_query = go_url.split("#/login?")[1]
+                qs = urllib.parse.parse_qs(frag_query)
+                sp_code = qs.get("sp_code", [""])[0]
+
+        # 2. 调用 init_code 获取扫码临时会话票据
+        r2 = s.get("https://id.scu.edu.cn/api/public/bff/v1.2/one_time_login/init_code?enterpriseId=scdx", timeout=10)
+        d2 = r2.json()
+        code = d2.get("data", {}).get("code")
+        if not code:
+            raise Exception("获取统一认证扫码临时标识失败")
+
+        # 3. 获取实时二维码图片并转换为 Base64
+        r3 = s.get(f"https://id.scu.edu.cn/api/public/bff/v1.2/one_time_login/show/{code}?enterpriseId=scdx", timeout=10)
+        qr_b64 = base64.b64encode(r3.content).decode("ascii")
+
+        self._sso_sessions[code] = {
+            "session": s,
+            "sp_code": sp_code,
+            "created_at": time.time(),
+        }
+
+        return {
+            "code": code,
+            "qrcode": f"data:image/png;base64,{qr_b64}",
+            "expiresIn": 180,
+        }
+
+    def check_sso_qrcode(self, code: str) -> Tuple[str, str, Dict[str, Any]]:
+        """
+        轮询检测统一认证二维码扫码状态
+        用户确认扫码后自动兑换教务处会话，并提取学号与姓名
+        """
+        import urllib.parse
+
+        record = self._sso_sessions.get(code)
+        if not record:
+            return "EXPIRED", "二维码已失效，请重新生成", {}
+
+        if time.time() - record["created_at"] > 180:
+            self._sso_sessions.pop(code, None)
+            return "EXPIRED", "二维码已超时，请刷新重试", {}
+
+        s = record["session"]
+        try:
+            r = s.get(
+                f"https://id.scu.edu.cn/api/public/bff/v1.2/one_time_login/obtain_confirm_status/{code}?enterpriseId=scdx",
+                timeout=10,
+            )
+            data = r.json()
+            is_confirmed = data.get("data", {}).get("result", False)
+
+            if not is_confirmed:
+                return "WAITING", "等待微信或微川大扫码确认...", {}
+
+            # 扫码确认！调用 success 接口兑换 access_token
+            r_succ = s.post(
+                f"https://id.scu.edu.cn/api/public/bff/v1.2/one_time_login/success/{code}",
+                json={"code": code, "enterpriseId": "scdx"},
+                timeout=10,
+            )
+            token_data = r_succ.json()
+            access_token = token_data.get("data", {}).get("access_token", "")
+
+            # 调用 sp_logged 单点登录重定向跳回综合教务处
+            sp_code = record["sp_code"]
+            sp_url = (
+                f"https://id.scu.edu.cn/api/bff/v1.2/commons/sp_logged"
+                f"?sp_code={urllib.parse.quote(sp_code)}&application_key=scdxplugin_jwt23"
+            )
+            if access_token:
+                sp_url += f"&access_token={access_token}"
+
+            s.get(sp_url, allow_redirects=True, timeout=15)
+
+            # 同步所有 Cookie 到全局教务客户端
+            self.session.cookies.clear()
+            self.session.cookies.update(s.cookies)
+
+            # 访问教务处首页获取学生真实姓名与学号
+            r_home = self.session.get(f"{self.BASE_URL}/student/index", headers=self.headers, timeout=12)
+            html = r_home.text
+
+            name_match = re.search(r'class="userName"[^>]*>([^<]+)<', html)
+            student_name = name_match.group(1).strip() if name_match else ""
+
+            user_match = re.search(r'(\d{13})', html)
+            username = user_match.group(1) if user_match else ""
+
+            self.is_logged_in = True
+            if student_name:
+                self.student_name = student_name
+            if username:
+                self.username = username
+
+            cookies_dict = requests.utils.dict_from_cookiejar(self.session.cookies)
+            self._sso_sessions.pop(code, None)
+
+            return "SUCCESS", "统一身份认证扫码登录成功！", {
+                "studentName": self.student_name,
+                "username": self.username,
+                "cookies": cookies_dict,
+            }
+        except Exception as e:
+            return "ERROR", f"扫码认证校验异常: {str(e)}", {}
 
     @staticmethod
     def parse_class_weeks(class_week_bitmap: str) -> List[int]:

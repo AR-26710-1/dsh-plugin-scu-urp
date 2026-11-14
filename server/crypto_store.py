@@ -27,13 +27,31 @@ class CredentialStore:
     def save_credentials(self, username: str, password: str, remember: bool = True) -> bool:
         """加密并保存学号与密码"""
         try:
-            raw_data = json.dumps({"username": username, "password": password, "remember": remember}).encode("utf-8")
+            raw_data = json.dumps({"username": username, "password": password, "remember": remember, "authType": "password"}).encode("utf-8")
             encrypted = self.fernet.encrypt(raw_data)
             with open(self.file_path, "wb") as f:
                 f.write(encrypted)
             return True
         except Exception as e:
             print(f"[CryptoStore] 保存凭据失败: {e}")
+            return False
+
+    def save_session_credentials(self, cookies: dict, username: str = "", student_name: str = "", auth_type: str = "sso_qrcode") -> bool:
+        """加密并保存扫码授权获取的持久化会话凭据与用户信息"""
+        try:
+            raw_data = json.dumps({
+                "username": username,
+                "studentName": student_name,
+                "cookies": cookies,
+                "authType": auth_type,
+                "remember": True
+            }).encode("utf-8")
+            encrypted = self.fernet.encrypt(raw_data)
+            with open(self.file_path, "wb") as f:
+                f.write(encrypted)
+            return True
+        except Exception as e:
+            print(f"[CryptoStore] 保存会话凭据失败: {e}")
             return False
 
     def load_credentials(self) -> Optional[Dict[str, Any]]:

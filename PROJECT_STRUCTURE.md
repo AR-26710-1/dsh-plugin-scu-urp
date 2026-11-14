@@ -177,7 +177,17 @@ d:\antigravaty\scu教务处/
   - 快速过滤：全天空闲教室、所选时段空闲、空调研讨配置；
   - 1~12 节全天占用矩阵条与点击查看详情弹窗，展示连续空闲节数。
 
-### 4.7 性能与保活引擎 (方案 A 落地)
+### 4.7 双模身份接入与长效会话持久化引擎 (微信扫码 & 密码保活)
+- **直接在 Harness 内微信 / 微川大扫码登录**：
+  - 逆向打通四川大学竹云 IDaaS 官方统一身份认证体系（`enterpriseId=scdx`）；
+  - 无需跳转外部浏览器，直接在 Harness 面板内渲染高清晰度矢量二维码；
+  - 毫秒级轮询授权状态，手机端确认后全自动跟随 SSO 回跳教务处建立会话；
+- **长效会话持久化与永久保活机制**：
+  - 扫码授权得到的教务会话 Cookie 与用户信息通过本地硬件特征对称加密存储；
+  - 结合后端每 10 分钟自动运行的心跳探针协程 (`_heartbeat_loop`)，实现会话永久保活；
+  - 关闭 Harness 或重启服务后，自动载入凭证恢复登录态，享受 0ms 首屏秒开体验。
+
+### 4.8 性能与保活引擎 (方案 A 落地)
 - **教务 Session 自动心跳探针 (`_heartbeat_loop`)**：
   - 后端每 10 分钟发送一次轻量教务探针；
   - 若教务处 Session 超时，使用本地安全凭证自动重新握手，保持登录状态永久在线。
@@ -194,6 +204,8 @@ d:\antigravaty\scu教务处/
 | :--- | :---: | :--- | :--- |
 | `/api/status` | GET | 查询本地服务与教务登录状态 | 返回 `{ status, hasCredentials, username, isLoggedIn, studentName }` |
 | `/api/login` | POST | 提交学号密码执行登录并可选保存凭据 | Body: `{ username, password, remember }` |
+| `/api/auth/qrcode/new` | GET | 获取统一认证微信/微川大扫码登录二维码 | 返回 `{ code, qrcode, expiresIn }` |
+| `/api/auth/qrcode/status` | GET | 轮询扫码确认状态并自动持久化凭据 | Query: `code`，返回 `{ status, studentName, username }` |
 | `/api/logout` | POST | 清除本地保存的凭据与教务 Session | 返回 `{ success, message }` |
 | `/api/schedule` | GET | 获取当前学期全量课表与教学周分布 | 返回 `{ semesterId, totalCourses, courses: [...] }` |
 | `/api/grades` | GET | 获取全量成绩、各学期统计与加权 GPA | 返回 `{ grades, terms, termStats, totalCredits, gpa }` |

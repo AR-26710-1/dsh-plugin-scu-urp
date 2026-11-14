@@ -19,19 +19,26 @@ from calendar_exporter import generate_ics
 cred_store = CredentialStore()
 client = SCUUrpClient()
 
-# 启动时自动检查是否有持久化的本地凭据
+# 启动时自动检查是否有持久化的本地凭据或已保存会话
 initial_creds = cred_store.load_credentials()
 if initial_creds:
-    client.update_credentials(initial_creds.get("username", ""), initial_creds.get("password", ""))
+    if initial_creds.get("cookies"):
+        # 优先载入已保存的持久化 Cookie 并验证有效性
+        client.load_session_cookies(initial_creds["cookies"])
+        if client.is_logged_in:
+            client.username = initial_creds.get("username", "")
+            client.student_name = initial_creds.get("studentName", "")
+    elif initial_creds.get("username") and initial_creds.get("password"):
+        client.update_credentials(initial_creds.get("username", ""), initial_creds.get("password", ""))
 
 
 async def _heartbeat_loop():
-    """后台轻量心跳探针，每 10 分钟检测并保活教务处 Session"""
+    """后台轻量心跳探针，每 10 分钟检测并保活教务处 Session，支持密码与扫码会话长效保活"""
     while True:
         try:
             await asyncio.sleep(600)
             creds = cred_store.load_credentials()
-            if creds and creds.get("username"):
+            if creds:
                 client.keep_alive()
         except asyncio.CancelledError:
             break
@@ -69,13 +76,47 @@ class LoginRequest(BaseModel):
 async def get_status():
     """获取当前服务与登录状态"""
     creds = cred_store.load_credentials()
-    has_saved_creds = bool(creds and creds.get("username"))
+    has_saved_creds = bool(creds and (creds.get("username") or creds.get("cookies")))
+    auth_type = creds.get("authType", "password") if creds else "password"
     return {
         "status": "online",
         "hasCredentials": has_saved_creds,
+        "authType": auth_type,
         "username": client.username if has_saved_creds else "",
         "isLoggedIn": client.is_logged_in,
         "studentName": client.student_name,
+    }
+
+@app.get("/api/auth/qrcode/new")
+async def create_sso_qrcode():
+    """获取四川大学统一身份认证 (竹云 IDaaS) 微信/微川大扫码登录二维码"""
+    try:
+        data = client.start_sso_qrcode()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取统一认证二维码失败: {str(e)}")
+
+@app.get("/api/auth/qrcode/status")
+async def check_sso_qrcode_status(code: str = Query(..., description="临时二维码标识")):
+    """轮询检查微信/微川大扫码状态并完成自动登录与凭证持久化"""
+    status, msg, data = client.check_sso_qrcode(code)
+    if status == "SUCCESS":
+        # 扫码成功！持久化保存会话与用户信息 (长期免登录)
+        cred_store.save_session_credentials(
+            cookies=data.get("cookies", {}),
+            username=data.get("username", ""),
+            student_name=data.get("studentName", ""),
+            auth_type="sso_qrcode"
+        )
+        return {
+            "status": "SUCCESS",
+            "message": msg,
+            "studentName": data.get("studentName", ""),
+            "username": data.get("username", "")
+        }
+    return {
+        "status": status,
+        "message": msg
     }
 
 
@@ -111,16 +152,26 @@ async def logout():
 
 
 def ensure_authenticated():
-    """保活检查：若未登录则自动使用存储的凭据静默登录"""
+    """保活检查：若未登录则自动使用存储的凭据或持久化会话静默登录"""
     if client.is_logged_in:
         return
     creds = cred_store.load_credentials()
     if not creds:
-        raise HTTPException(status_code=401, detail="尚未配置教务系统学号与密码，请先在面板中登录")
-    client.update_credentials(creds.get("username", ""), creds.get("password", ""))
-    ok, msg = client.login()
-    if not ok:
+        raise HTTPException(status_code=401, detail="尚未配置教务系统账号凭据，请先在面板中登录")
+    # 优先载入已保存的 Session Cookies
+    if creds.get("cookies"):
+        if client.load_session_cookies(creds["cookies"]):
+            client.username = creds.get("username", "")
+            client.student_name = creds.get("studentName", "")
+            return
+    # 若失效或为账密凭据，则尝试账密静默重连
+    if creds.get("username") and creds.get("password"):
+        client.update_credentials(creds.get("username", ""), creds.get("password", ""))
+        ok, msg = client.login()
+        if ok:
+            return
         raise HTTPException(status_code=401, detail=f"自动登录教务处失败: {msg}")
+    raise HTTPException(status_code=401, detail="当前会话已失效，请重新扫码或输入密码登录")
 
 
 @app.get("/api/schedule")
