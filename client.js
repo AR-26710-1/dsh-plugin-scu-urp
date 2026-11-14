@@ -2588,7 +2588,7 @@ window.__ModuleLoader__.load({
 
       if (data) {
         // 1. 已完成历史课程
-        (data.completedCourses || []).forEach(c => {
+        ;(data.completedCourses || []).forEach(c => {
           const isRetake = retakeCourseIds.includes(c.id)
           const score = isRetake ? (simScores[c.id] ?? c.score) : c.score
           const gpa = getGpa(score)
@@ -2600,10 +2600,10 @@ window.__ModuleLoader__.load({
             simReqWeightedScore += score * c.credit
             simReqWeightedGpa += gpa * c.credit
           }
-        })
+        });
 
         // 2. 本学期进行中在读课程 (默认全部参与模拟)
-        (data.inProgressCourses || []).forEach(c => {
+        ;(data.inProgressCourses || []).forEach(c => {
           const score = simScores[c.id] ?? 85.0
           const gpa = getGpa(score)
           simTotalCredit += c.credit
@@ -2614,10 +2614,10 @@ window.__ModuleLoader__.load({
             simReqWeightedScore += score * c.credit
             simReqWeightedGpa += gpa * c.credit
           }
-        })
+        });
 
         // 3. 勾选参与模拟的方案待修课程
-        (data.pendingCourses || []).forEach(c => {
+        ;(data.pendingCourses || []).forEach(c => {
           if (activePendingIds.includes(c.id)) {
             const score = simScores[c.id] ?? 85.0
             const gpa = getGpa(score)
@@ -2630,7 +2630,7 @@ window.__ModuleLoader__.load({
               simReqWeightedGpa += gpa * c.credit
             }
           }
-        })
+        });
 
         // 4. 自选追加课程
         customCourses.forEach(c => {
@@ -2705,17 +2705,17 @@ window.__ModuleLoader__.load({
       const allDisplayCourses = []
       if (data) {
         // 进行中课程
-        (data.inProgressCourses || []).forEach(c => {
+        ;(data.inProgressCourses || []).forEach(c => {
           allDisplayCourses.push({ ...c, currentSimScore: simScores[c.id] ?? 85.0 })
-        })
+        });
         // 方案待修课程
-        (data.pendingCourses || []).forEach(c => {
+        ;(data.pendingCourses || []).forEach(c => {
           allDisplayCourses.push({
             ...c,
             currentSimScore: simScores[c.id] ?? 85.0,
             isIncludedInSim: activePendingIds.includes(c.id),
           })
-        })
+        });
         // 自选追加课程
         customCourses.forEach(c => {
           allDisplayCourses.push({
@@ -2723,15 +2723,15 @@ window.__ModuleLoader__.load({
             currentSimScore: c.score,
             isCustom: true,
           })
-        })
+        });
         // 已完成课程
-        (data.completedCourses || []).forEach(c => {
+        ;(data.completedCourses || []).forEach(c => {
           allDisplayCourses.push({
             ...c,
             currentSimScore: simScores[c.id] ?? c.score,
             isRetake: retakeCourseIds.includes(c.id),
           })
-        })
+        });
       }
 
       const filteredCourses = allDisplayCourses.filter(c => {
@@ -2750,6 +2750,39 @@ window.__ModuleLoader__.load({
       const reqTotalCreditNum = data?.requiredTotalCredits || 165.0
       const currentSimTotalEarnedCredit = completedCreditNum + inProgressCreditNum + customCourses.reduce((acc, c) => acc + c.credit, 0)
       const creditProgressPct = reqTotalCreditNum > 0 ? Math.min(100, Math.round((currentSimTotalEarnedCredit / reqTotalCreditNum) * 100)) : 0
+
+      if (loading && !data) {
+        return h('div', {
+          style: {
+            textAlign: 'center',
+            padding: '70px 20px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+          },
+        },
+          h('div', { style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', borderRadius: '24px', background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.08))', marginBottom: '16px' } },
+            h(CompassIcon, { size: 24 })
+          ),
+          h('div', { style: { fontSize: '15px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '正在读取培养方案大纲与学业数据...'),
+          h('div', { style: { fontSize: '12px', marginTop: '6px' } }, '正在从教务系统同步培养方案节点与已修课程，首次载入约需 1~2 秒')
+        )
+      }
+
+      if (error && !data) {
+        return h('div', {
+          style: {
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#ef4444',
+          },
+        },
+          h('div', { style: { fontSize: '15px', fontWeight: 600, marginBottom: '8px' } }, '获取培养方案失败'),
+          h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '18px' } }, error),
+          h('button', {
+            style: { ...S.btnPrimary, padding: '6px 18px' },
+            onClick: () => fetchStudyPlan(false),
+          }, '重新尝试载入')
+        )
+      }
 
       return h('div', null,
         // 1. 顶部方案标题与状态横幅
@@ -2772,7 +2805,7 @@ window.__ModuleLoader__.load({
             h('div', null,
               h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
                 h('span', { style: { fontSize: '15px', fontWeight: 700 } }, data?.programName || '四川大学培养方案'),
-                data && h('span', { style: S.badge }, `${data.college} · ${data.grade}`),
+                data && (data.college || data.grade) && h('span', { style: S.badge }, [data.college, data.grade].filter(Boolean).join(' · ')),
                 cacheNotice && h('span', {
                   style: {
                     fontSize: '11px',
@@ -2807,7 +2840,7 @@ window.__ModuleLoader__.load({
         ),
 
         // 2. 模拟器核心 KPI 概览看板 (高频动态联动)
-        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' } },
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '18px' } },
           // 卡片 1: 模拟未来总均分
           h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center', borderTop: '3px solid #2563eb' } },
             h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: '6px' } },
