@@ -181,26 +181,49 @@ class SCUUrpClient:
                 )
 
                 resp_text = login_resp.text
-                if "退出系统" in resp_text or "/student/" in login_resp.url or "top_img" in resp_text:
+                final_url = login_resp.url
+
+                # 1. 登录成功判断
+                if "退出系统" in resp_text or "/student/" in final_url or "top_img" in resp_text:
                     self.is_logged_in = True
-                    # 尝试从主界面抽取学生姓名
                     name_match = re.search(r'class="userName"[^>]*>([^<]+)<', resp_text)
                     if name_match:
                         self.student_name = name_match.group(1).strip()
                     return True, "登录成功"
 
-                if "验证码错误" in resp_text or "验证码" in resp_text:
+                # 2. 从重定向 URL 中的 errorCode 参数精准提取错误类型
+                error_code_match = re.search(r'[?&]errorCode=([^&#]+)', final_url)
+                error_code = error_code_match.group(1) if error_code_match else ""
+
+                # 3. 从页面 alert 提示框中提取教务处真实提示文字
+                alert_text = ""
+                alert_match = re.search(r'class="[^"]*alert[^"]*"[^>]*>(?:[\s\S]*?<strong>[^<]*</strong>)?\s*([^<]+)', resp_text)
+                if alert_match:
+                    alert_text = alert_match.group(1).strip()
+
+                # 精确密码错误诊断（避免被宽泛的“验证码”字样误判为验证码错误）
+                if error_code == "badCredentials" or "用户密码错误" in alert_text or "密码错误" in resp_text:
+                    return False, "教务系统提示: 用户密码错误，请检查学号与密码（注意：综合教务系统密码可能与学校统一认证密码不同）"
+
+                if error_code == "accountLocked" or "锁定" in alert_text:
+                    return False, f"教务系统提示: 账号已被锁定 ({alert_text or '请稍后再试或联系教务管理员'})"
+
+                if error_code == "badCaptcha" or "验证码错误" in alert_text:
                     if attempt < max_retries:
                         time.sleep(0.3)
                         continue
                     return False, "验证码识别错误，重试超限"
 
-                if "用户名或密码错误" in resp_text:
-                    return False, "用户名或密码错误，请检查学号与密码"
-
-                if "token校验失败" in resp_text:
+                if "token校验失败" in resp_text or error_code == "invalidToken":
                     time.sleep(0.3)
                     continue
+
+                # 兜底返回真实服务端 alert
+                if alert_text:
+                    return False, f"教务系统提示: {alert_text}"
+
+                if attempt >= max_retries:
+                    return False, "登录未能成功，请检查学号与密码是否正确"
 
             except Exception as e:
                 if attempt >= max_retries:
