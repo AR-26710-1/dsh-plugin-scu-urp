@@ -186,6 +186,8 @@ window.__ModuleLoader__.load({
     const LibraryIcon = createSvgIcon(['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'], [], [{ x1: 12, y1: 6, x2: 12, y2: 14 }])
     const UsersIcon = createSvgIcon(['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'], [{ cx: 9, cy: 7, r: 4 }])
     const SnowflakeIcon = createSvgIcon([], [], [{ x1: 12, y1: 2, x2: 12, y2: 22 }, { x1: 2, y1: 12, x2: 22, y2: 12 }, { x1: 4.93, y1: 4.93, x2: 19.07, y2: 19.07 }, { x1: 19.07, y1: 4.93, x2: 4.93, y2: 19.07 }])
+    const ExternalLinkIcon = createSvgIcon(['M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6', 'M15 3h6v6'], [], [{ x1: 10, y1: 14, x2: 21, y2: 3 }])
+    const ShieldIcon = createSvgIcon(['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'])
     const SearchIcon = createSvgIcon(['M21 21l-4.35-4.35'], [{ cx: 11, cy: 11, r: 8 }])
     const CheckSquareIcon = createSvgIcon(['M9 11l3 3L22 4', 'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'])
     const SquareIcon = createSvgIcon([], [], [], [{ x: 3, y: 3, w: 18, h: 18, rx: 2 }])
@@ -3465,6 +3467,60 @@ window.__ModuleLoader__.load({
                 onClick: handleLogout,
               }, '退出登录')
             )
+          )
+        ),
+
+        // 官方统一身份认证 (SSO) 与微信扫码快捷通道
+        h('div', {
+          style: {
+            ...S.card,
+            marginTop: '16px',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+          },
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' } },
+            h(ShieldIcon, { size: 16 }),
+            h('h3', { style: { margin: 0, fontSize: '15px', fontWeight: 600 } }, '四川大学统一身份认证 (SSO)')
+          ),
+          h('p', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px', lineHeight: 1.6 } },
+            '进入学校竹云 IDaaS 官方认证中心，支持【微信 / 微川大扫码登录】、【短信动态码登录】及统一身份密码重置。'
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' } },
+            h('button', {
+              type: 'button',
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 600,
+                padding: '6px 14px',
+                borderColor: 'var(--dsw-alias-border, rgba(125, 125, 125, 0.25))',
+              },
+              onClick: () => {
+                if (typeof window !== 'undefined' && window.open) {
+                  window.open('https://id.scu.edu.cn/enduser/sp/sso/scdxplugin_jwt23?enterpriseId=scdx&target_url=index', '_blank')
+                }
+              },
+            },
+              h(ExternalLinkIcon, { size: 13 }),
+              '前往统一身份认证 (扫码登录/改密)'
+            ),
+            h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '官方域名: id.scu.edu.cn')
+          ),
+          h('div', {
+            style: {
+              marginTop: '12px',
+              padding: '8px 10px',
+              borderRadius: '6px',
+              background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))',
+              fontSize: '11px',
+              color: 'var(--dsw-alias-text-sub, #71717a)',
+              lineHeight: 1.5,
+            },
+          },
+            '提示：统一身份认证平台为网页外部认证。日常使用建议在上表单输入学号与密码并记住凭据，即可享受插件全天自动无感登录与 0ms 极速秒开。'
           )
         )
       )
