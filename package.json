@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "DeepSeek Harness 四川大学教务系统 (URP) 插件：左侧边栏自动登录与课表、成绩、考试安排快速可视化查询",
+  "icon": "./icon.svg",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
