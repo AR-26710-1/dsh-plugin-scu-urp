@@ -1,14 +1,19 @@
 # DeepSeek Harness 四川大学教务系统 (URP) 插件 — 项目架构与工程说明书
 
-本文档用于完整记录本项目的**技术架构、工程目录组织、核心模块实现、关键文件路径清单、前后端数据流转、接口清单及后续演进规划**，便于长期维护与二次开发。
+本文档用于完整记录本项目的**技术架构、工程目录组织、核心模块实现、关键文件路径清单、前后端数据流转、接口清单、图标设计规范及分支版本体系**，便于长期维护与二次开发。
 
 ---
 
 ## 1. 项目概览
 
-本项目是专为 **DeepSeek Harness (DSH)** 打造的四川大学综合教务系统（URP）深度集成插件，具备两大核心能力：
-1. **左侧二级抽屉可视化看板 (Client UI)**：以无干扰、现代化的侧边抽屉面板呈现，集成了课表、作业待办、成绩分析、培养方案全景大纲与未来均分测算模拟器、考试日程、空闲自习室六大核心模块，采用极简莫兰迪色系与单色镂空简笔画 SVG 图标（Feather 规范），全中文交互且亮暗主题自适应。
-2. **对话式 Agent 智能工具链 (Cordis Tools)**：向大语言模型开放 5 大核心工具（查课表、查成绩、查考场、查自习室、查培养方案与学业进展），学生在主对话窗口输入自然语言，AI 即可精准检索并给出建议。
+本项目是专为 **DeepSeek Harness (DSH)** 深度打造的四川大学综合教务系统（URP）全功能集成插件，具备两大核心能力：
+
+1. **左侧全局面板与主工作区看板 (Client UI)**：
+   - 遵循 DSH 官方 `dsh-plugin-guide.md` 标准，挂载至左侧全局面板列表（`sidebar.panellist`），采用**四川大学官方精美矢量校徽**作为主图标，点击后在主工作区（`main` 插槽）以沉浸式宽屏面板展现。
+   - 包含六大核心模块：**课表与随堂待办**、**成绩绩点与保研分析**、**培养方案全景大纲与均分测算模拟器**、**考试安排倒计时**、**多校区空闲教室与考研自习室**、**账号凭据与全自动保活设置**。
+   - 视觉规范：极简莫兰迪色系、单色镂空简笔画 SVG 图标（Feather 规范）、四川大学官方矢量校徽，无大红大绿杂色，深度自适应 DSH 亮暗主题。
+2. **对话式 Agent 智能工具链 (Cordis Tools)**：
+   - 向宿主大模型安全注册 5 大核心学业工具（查课表、查成绩、查考场、查自习室、查培养方案与学业进展）。学生在任意主对话窗口中输入自然语言，AI 助手即可调用本地工具精准感知并给出专业学业建议。
 
 ---
 
@@ -17,27 +22,29 @@
 ```mermaid
 flowchart TD
     subgraph DSH["DeepSeek Harness (宿主环境)"]
-        subgraph FrontEnd["前端界面 (client.js)"]
-            Drawer["侧边二级抽屉主容器 (App)"]
-            Nav["顶部导航 Tab (课表/成绩/培养方案/考试/自习室/设置)"]
+        subgraph FrontEnd["前端主界面 (client.js)"]
+            SidebarBtn["左侧边栏全局入口 (ScuIcon 四川大学官方校徽)"]
+            MainView["主工作区容器 (ScuMainView)"]
+            TabBar["顶部主导航栏 (课表/成绩/培养方案/考试/自习室/设置)"]
             
-            TabSchedule["子页面 1: 课表与作业待办看板"]
-            TabGrades["子页面 2: 成绩绩点与保研分析"]
-            TabPlan["子页面 3: 培养方案全景与均分测算模拟器"]
-            TabExams["子页面 4: 考试倒计时与考场指引"]
-            TabRooms["子页面 5: 空闲教室与考研自习室"]
-            TabSettings["子页面 6: 账号凭据与保活设置"]
+            TabSchedule["Tab 1: 课表日程与随堂作业待办"]
+            TabGrades["Tab 2: 成绩绩点分析与保研必修切换"]
+            TabPlan["Tab 3: 培养方案大纲与均分测算模拟器"]
+            TabExams["Tab 4: 考试倒计时与考场座位指引"]
+            TabRooms["Tab 5: 多校区空闲教室与考研自习室"]
+            TabSettings["Tab 6: 学号密码硬件加密与保活设置"]
             
-            Drawer --> Nav
-            Nav --> TabSchedule
-            Nav --> TabGrades
-            Nav --> TabPlan
-            Nav --> TabExams
-            Nav --> TabRooms
-            Nav --> TabSettings
+            SidebarBtn -->|点击展开| MainView
+            MainView --> TabBar
+            TabBar --> TabSchedule
+            TabBar --> TabGrades
+            TabBar --> TabPlan
+            TabBar --> TabExams
+            TabBar --> TabRooms
+            TabBar --> TabSettings
             
-            Cache["前端本地秒开缓存 (SCU_CACHE / Stale-While-Revalidate)"]
-            TodoStore["待办数据管理器 (SCU_TODO_STORE)"]
+            Cache["前端本地秒开缓存 (SCU_CACHE / SWR 机制)"]
+            TodoStore["随堂待办双向持久化 (SCU_TODO_STORE)"]
             
             TabSchedule <--> Cache
             TabSchedule <--> TodoStore
@@ -47,24 +54,24 @@ flowchart TD
             TabRooms <--> Cache
         end
         
-        subgraph AgentTools["Agent 智能工具通道 (index.js)"]
-            T1["scu_get_schedule (课表查询)"]
-            T2["scu_get_grades (成绩与绩点分析)"]
-            T3["scu_get_study_plan (培养方案与均分测算)"]
-            T4["scu_get_exams (考试日程查询)"]
-            T5["scu_get_free_classrooms (空闲教室与自习室)"]
+        subgraph AgentTools["Agent 自然语言智能工具链 (index.js)"]
+            T1["scu_get_schedule (课表与今日日程)"]
+            T2["scu_get_grades (全量成绩与保研GPA)"]
+            T3["scu_get_study_plan (培养方案与学业进度)"]
+            T4["scu_get_exams (期末与阶段考试安排)"]
+            T5["scu_get_free_classrooms (多校区空闲自习室)"]
         end
     end
 
-    subgraph Backend["本地 Python 桥接服务 (127.0.0.1:48080)"]
+    subgraph Backend["本地 Python 适配服务 (127.0.0.1:48080)"]
         FastAPI["FastAPI 路由网关 (server/app.py)"]
         CORS["跨域预检中间件 (CORSMiddleware)"]
-        Heartbeat["后台自动心跳保活协程 (_heartbeat_loop)"]
-        Client["URP 协议引擎 (server/urp_client.py)"]
-        OCR["ddddocr 验证码识别引擎"]
-        Store["凭据硬件加密存储 (server/crypto_store.py)"]
-        ICS["RFC 5545 日历导出引擎 (server/calendar_exporter.py)"]
-        TodosData["作业待办持久化文件 (data/todos.json)"]
+        Heartbeat["常驻后台心跳保活协程 (_heartbeat_loop)"]
+        Client["四川大学教务协议爬取引擎 (server/urp_client.py)"]
+        OCR["ddddocr 验证码本地神经网络识别"]
+        Store["本设备硬件特征加密存储 (server/crypto_store.py)"]
+        ICS["RFC 5545 手机日历导出引擎 (server/calendar_exporter.py)"]
+        TodosData["作业待办持久化 JSON (data/todos.json)"]
         
         FastAPI --> CORS
         FastAPI --> Heartbeat
@@ -75,122 +82,106 @@ flowchart TD
         Client --> OCR
     end
 
-    subgraph Remote["四川大学教务与身份体系"]
+    subgraph Remote["四川大学教务系统与网络体系"]
         URP["综合教务系统 (zhjw.scu.edu.cn)"]
         SSO["统一身份认证中心 (id.scu.edu.cn)"]
     end
 
-    FrontEnd -->|HTTP / CORS 跨域请求| FastAPI
-    AgentTools -->|HTTP Fetch| FastAPI
-    Client -->|Session 连接 / 绕过系统代理 (trust_env=False)| URP
-    Client -.->|SSO 接口探针与官网跳转| SSO
+    FrontEnd -->|HTTP / CORS 本地请求| FastAPI
+    AgentTools -->|HTTP Fetch 调用| FastAPI
+    Client -->|HTTP 协议通信 / trust_env=False 绕过系统代理| URP
+    Client -.->|竹云 IDaaS 协议探针 / 官网直达通道| SSO
 ```
 
 ---
 
-## 3. 关键文件路径清单
+## 3. 关键文件与工程组织
 
-| 模块类别 | 文件名与绝对链接 | 编程语言 | 核心职责说明 |
+| 模块类别 | 文件名与绝对链接 | 语言/规范 | 核心职责说明 |
 | :--- | :--- | :---: | :--- |
-| **插件主控** | [index.js](file:///d:/antigravaty/scu教务处/index.js) | JavaScript | 向 DSH 注册常驻侧边栏抽屉 Slot、矢量图标、并向 LLM 注册 5 大自然语言工具 |
-| **前端看板** | [client.js](file:///d:/antigravaty/scu教务处/client.js) | JavaScript (React) | 单文件纯前端架构：六大核心 Tab 视图、莫兰迪色系、单色 Feather SVG、秒开缓存引擎与模拟测算引擎 |
-| **后端网关** | [server/app.py](file:///d:/antigravaty/scu教务处/server/app.py) | Python (FastAPI) | 本地 HTTP 网关 (48080 端口)、CORS 跨域、心跳协程 `_heartbeat_loop`、RESTful API 汇总 |
-| **教务协议** | [server/urp_client.py](file:///d:/antigravaty/scu教务处/server/urp_client.py) | Python | 四川大学综合教务处爬取与逆向通信引擎、验证码 OCR、MD5动态哈希、竹云 SSO 接口协议探查 |
-| **安全存储** | [server/crypto_store.py](file:///d:/antigravaty/scu教务处/server/crypto_store.py) | Python (Fernet) | 基于本设备硬件特征（UUID + 用户名）加盐生成密钥，对学号、密码与 Session Cookie 进行对称加密持久化 |
-| **日历导出** | [server/calendar_exporter.py](file:///d:/antigravaty/scu教务处/server/calendar_exporter.py) | Python | RFC 5545 标准 iCalendar (.ics) 日历导出引擎，支持双校区不同作息分钟级换算与课前闹钟注入 |
-| **待办数据** | [data/todos.json](file:///d:/antigravaty/scu教务处/data/todos.json) | JSON | 课程随堂作业、实验报告、备忘事项的双向持久化存储文件 |
-| **依赖声明** | [server/requirements.txt](file:///d:/antigravaty/scu教务处/server/requirements.txt) | 文本 | 后端运行依赖（fastapi, uvicorn, httpx, ddddocr, cryptography 等） |
-| **启动脚本** | [start.bat](file:///d:/antigravaty/scu教务处/start.bat) | Windows Batch | Windows 环境一键免配置启动本地 Python 桥接服务 |
-| **插件配置** | [package.json](file:///d:/antigravaty/scu教务处/package.json) | JSON | Cordis 插件规范定义、版本信息与依赖关系 |
+| **插件主控** | [index.js](file:///d:/antigravaty/scu教务处/index.js) | JavaScript | 遵循 Cordis 规范：托管启动本地 Python 服务，向 LLM 注册 5 大自然语言工具 |
+| **前端看板** | [client.js](file:///d:/antigravaty/scu教务处/client.js) | JavaScript (React) | 单文件纯前端架构：内置四川大学官方矢量校徽 `ScuIcon`、六大视图、SWR 极速秒开、What-If 均分模拟测算 |
+| **官方图标** | [icon.svg](file:///d:/antigravaty/scu教务处/icon.svg) | SVG 矢量 | 四川大学官方精美矢量校徽（单色设计，自适应深浅色，170×170） |
+| **后端网关** | [server/app.py](file:///d:/antigravaty/scu教务处/server/app.py) | Python (FastAPI) | 本地 HTTP 网关（48080 端口）、CORS 中间件、10 分钟自动心跳保活、12 大核心接口聚合 |
+| **教务协议** | [server/urp_client.py](file:///d:/antigravaty/scu教务处/server/urp_client.py) | Python | 四川大学综合教务处底层接口通信、加盐双重 MD5 密码哈希、验证码识别、课表/成绩/培养方案抓取解析 |
+| **硬件加密** | [server/crypto_store.py](file:///d:/antigravaty/scu教务处/server/crypto_store.py) | Python (Fernet) | 提取本设备硬件特征（UUID + 计算机名）加盐哈希作为密钥，对学号、密码与 Session 进行对称加密持久化 |
+| **日历导出** | [server/calendar_exporter.py](file:///d:/antigravaty/scu教务处/server/calendar_exporter.py) | Python | RFC 5545 标准 iCalendar (.ics) 日历导出，区分江安与望江作息，注入课前 15 分钟提前提醒闹钟 |
+| **待办持久化** | [data/todos.json](file:///d:/antigravaty/scu教务处/data/todos.json) | JSON | 课程随堂作业、实验报告、备忘事项的双向持久化存储文件 |
+| **依赖清单** | [server/requirements.txt](file:///d:/antigravaty/scu教务处/server/requirements.txt) | 文本 | 后端必备依赖（fastapi, uvicorn, requests, ddddocr, cryptography 等） |
+| **包清单声明** | [package.json](file:///d:/antigravaty/scu教务处/package.json) | JSON | DSH 插件清单规范：声明包名称、入口文件、`icon: "./icon.svg"` 顶层图标与 `./icon` 导出映射 |
+| **补丁配置** | [cordis.patch.yml](file:///d:/antigravaty/scu教务处/cordis.patch.yml) | YAML | Cordis 容器层服务补丁与插件作用域配置 |
+| **启动脚本** | [start.bat](file:///d:/antigravaty/scu教务处/start.bat) | Windows 批处理 | Windows 环境下自动探测 Python 3.12 解释器并一键启动后端服务 |
 | **架构文档** | [PROJECT_STRUCTURE.md](file:///d:/antigravaty/scu教务处/PROJECT_STRUCTURE.md) | Markdown | 本文档：项目全套架构、已完成模块、关键路径与后续演进清单 |
 | **接口手册** | [URP_API_SPEC.md](file:///d:/antigravaty/scu教务处/URP_API_SPEC.md) | Markdown | 四川大学综合教务处底层的原始逆向接口与字段对照手册 |
 
 ---
 
-## 4. 已完成模块全景功能
+## 4. 六大核心业务模块功能详解
 
-### 4.1 课表模块 (`ScheduleView`) 与系统日历导出
-- **周网格与列表双模呈现**：
-  - 支持“全学期”及第 1~20 教学周动态切换；
-  - 自动高亮当天所在的周几，并用彩色脉冲标出距离最近的一门课程；
-  - 自动过滤线上课程/未排课，并在卡片下方设立专属专区展示。
-- **四川大学官方作息时间对齐**：
-  - 严格依照四川大学教务处官网发布的作息时间表，区分**江安校区**与**望江/华西校区**；
-  - 课程弹窗内精准标注起止分钟数（例如江安第 1 节 08:15 开始，望江第 1 节 08:00 开始）。
-- **标准手机系统日历导出引擎 ([server/calendar_exporter.py](file:///d:/antigravaty/scu教务处/server/calendar_exporter.py))**：
-  - 支持一键导出标准 `.ics` 文件，可在 iOS 日历、小米/华为/OPPO/vivo、Google Calendar 中直接导入；
-  - 包含课前 15 分钟闹钟提醒、授课教师、校区、教学楼、具体教室；
-  - 根据课程校区自动选取对应时刻表，做到分钟级精确映射。
+### 4.1 课表模块 (`ScheduleView`) 与手机日历导出
+- **周网格与清单双视图**：
+  - 支持“全学期（全部周次）”以及第 1~20 教学周动态切换；
+  - 自动根据当前系统星期与节次高亮今日课程，并在卡片上标出进行中/下一节课；
+  - 自动识别并归纳未排定具体时间的地学实习、线上网课、讨论课至专属卡片。
+- **川大官方作息时间对齐**：
+  - 严格匹配四川大学教务处官网作息时间表，区分**江安校区**（第 1 节 08:15 开始）与**望江/华西校区**（第 1 节 08:00 开始）；
+  - 课程弹窗内精准展示作息起止时间（如 `08:15 ~ 09:55`）。
+- **标准手机日历导出 ([server/calendar_exporter.py](file:///d:/antigravaty/scu教务处/server/calendar_exporter.py))**：
+  - 一键导出标准 `.ics` 文件，可在 iOS 日历、小米/华为/OPPO/vivo、Google Calendar 中直接导入；
+  - 包含课前 15 分钟闹钟提醒、任课教师、校区、教学楼、具体教室。
 
-### 4.2 课程随堂备忘与作业待办系统 (`SCU_TODO_STORE`)
-- **双重持久化保障**：前端 `localStorage` 与本地后端 [data/todos.json](file:///d:/antigravaty/scu教务处/data/todos.json) 双向同步，无论刷新页面、换浏览器还是重启服务，待办绝不丢失。
+### 4.2 课程随堂作业与备忘待办系统 (`SCU_TODO_STORE`)
+- **双轨持久化**：前端 `localStorage` 与本地后端 [data/todos.json](file:///d:/antigravaty/scu教务处/data/todos.json) 实时双向同步，确保重启电脑或重载插件数据不丢失。
 - **课程卡片动态角标**：在网格视图和列表视图的课程卡片右上角，若有未完成作业，自动呈现红底徽章（如 `1待办`）。
-- **课程专属详情输入**：点击课程卡片打开详情，直接在弹窗内输入作业或备忘，支持一键勾选完成（打勾加中划线）与删除。
-- **全学期作业总览抽屉 (`showTodoDrawer`)**：在课表顶部设常驻入口，一键展开全学期所有课程待办清单，支持“全部 / 待完成 / 已完成”筛选，并能直接跨课程快速添加新作业。
+- **随堂记录与全学期总览**：
+  - 点击单门课程弹窗可直接添加、勾选完成（打勾加中划线）与删除作业；
+  - 顶部常驻“作业待办”抽屉按钮，支持按“全部 / 待完成 / 已完成”进行统一总览。
 
 ### 4.3 成绩绩点看板与保研必修加权分析 (`GradesView`)
-- **自动折算 GPA**：支持五级等级制（A/A-/B+...）与百分制双轨自动折算。
-- **保研口径切换**：一键在“全部成绩”与“必修成绩（保研标准）”之间无缝切换，实时重新计算加权平均分与加权 GPA。
-- **成绩单 Excel/CSV 导出**：支持一键下载标准 CSV 格式成绩单，方便个人备份与学业规划。
+- **自动折算加权 GPA**：自动提取历史全量出分，支持等级制（A/A-/B+...）与百分制双轨自动换算。
+- **保研必修分项切换**：一键在“全部成绩”与“必修成绩（保研标准）”之间无缝切换，实时重新计算加权平均分与加权 GPA。
+- **CSV 成绩单导出**：支持一键导出标准格式的成绩单 CSV 文件，便于个人归档。
 
 ### 4.4 培养方案全景大纲与未来均分/GPA预测模拟器 (`StudyPlanView`)
-- **川大官方培养方案大纲对齐**：
-  - 自动逆向加载教务处官方培养方案树与课程属性；
-  - 清晰标注专业方向、毕业要求总学分（如强基计划 165.0 学分）与当前学分完成度百分比动态进度条。
-- **三态课程全景梳理**：
-  - **已修已出分课程 (已修)**：展示历史出分、等级与基准 GPA；支持勾选“假设刷分”模拟重修对均分的提升幅度。
-  - **在读修读中课程 (修读中)**：展示当前学期选课与学分属性；默认纳入模拟模型，提供微型滑块（Slider）拖拽或数字输入框实时调分。
-  - **方案待修读课程 (未修)**：展示大三、大四待修课程；支持一键“+ 加入模拟测算”并输入预期分。
-- **双轨均分与 GPA 实时测算联动模型 (What-If Engine)**：
-  - **未来预期总加权均分**：$$\frac{\sum (\text{学分}_i \times \text{分数}_i)}{\sum \text{学分}_i}$$
-  - **未来保研必修均分**：$$\frac{\sum_{\text{必修}} (\text{学分}_i \times \text{分数}_i)}{\sum_{\text{必修}} \text{学分}_i}$$
-  - **加权 GPA**：基于四川大学官方分段映射（95分=4.0, 90分=3.8, 85分=3.6, 80分=3.2...）实时加权。
-  - **变动徽章 ($\pm\Delta$)**：实时呈现相比历史已出分基准的拉动或拉低幅度（如 `+0.42` / `-0.18`）。
-- **批量预设与自选追加**：
-  - 提供“全按80分 / 85分 / 90分 / 95分”快捷批量预设与一键恢复默认；
-  - 支持追加自定义选修/科研课程模拟。
+- **官方培养方案树对齐**：
+  - 自动抓取教务处官方专业培养方案，清晰标注毕业要求总学分（如 165.0 学分）与当前已修学分百分比动态进度条。
+- **已修 / 修读中 / 未修三态课程梳理**：
+  - **已修课程**：支持勾选“假设刷分”，模拟重修对总均分的提分效果；
+  - **修读中课程**：默认纳入模拟模型，提供数字输入与微型 Slider 滑块实时调分；
+  - **未修课程**：展示大三、大四待修大纲，支持一键“+ 加入模拟”并设定预期成绩。
+- **双轨加权均分与 GPA 实时计算引擎 (What-If Engine)**：
+  - 动态计算未来预期总加权均分、保研必修均分与综合 GPA；
+  - 实时显示相比当前基准的变动幅度徽章（如 `+0.35` / `-0.12`）。
 
 ### 4.5 考试日程倒计时 (`ExamsView`)
-- 自动提取期末与阶段性考试日程，计算倒计时天数；
-- 标注考场校区、教学楼、考室号与个人具体座位号。
+- 自动提取期末与阶段性考试日程，计算距今剩余倒计时天数；
+- 完整显示考试校区、教学楼、具体考场及个人座位号。
 
-### 4.6 空闲教室与考研自习室 (`ClassroomsView`)
-- **双校区官方教学作息自适应**：
-  - 望江/华西校区：第 1 节 08:00 开始，下午 14:00 开始，晚上 19:30 开始；
-  - 江安校区：第 1 节 08:15 开始，下午 13:50 开始，晚上 19:20 开始；
-  - 切换校区时，所有时间胶囊、大时段文字均自动匹配。
-- **图形化多维筛选**：
+### 4.6 多校区空闲教室与考研自习室 (`ClassroomsView`)
+- **三校区自适应作息**：望江校区、江安校区、华西校区教学楼字典与时间自适应。
+- **多维图形化筛选**：
   - 4 个大时段 Pill：全天 (1~12节)、上午 (1~4节)、下午 (5~9节)、晚上 (10~12节)；
-  - 12 个微型双行时间胶囊：上行节次，下行起始时间，高亮选中态与当前进行中节次虚线提示；
-  - 快速过滤：全天空闲教室、所选时段空闲、空调研讨配置；
-  - 1~12 节全天占用矩阵条与点击查看详情弹窗，展示连续空闲节数。
+  - 12 个微型双行时间胶囊（节次 + 时钟区间），带当前实时进行中小节虚线标识；
+  - 快速过滤空调研讨配置、全天空闲；提供 1~12 节全天占用矩阵色条。
 
-### 4.7 账号安全凭据与全天心跳保活引擎 (`SettingsView`)
-- **技术探查结论**：四川大学统一身份认证（`id.scu.edu.cn`）采用竹云 IDaaS 私有协议，其二维码仅支持官方【智慧川大 APP】内部扫码，未开通公共微信 OAuth。因此微信扫码会弹出未经解密的 JSON 字典 `{"authKey":"...","info":"..."}`。
-- **最佳接入设计**：采用“**学号密码直接登录 + 本地硬件特征加盐对称加密持久化 + 10 分钟自动保活**”机制：
-  1. 用户只需在 Harness 内输入一次学号与综合教务密码；
-  2. 系统通过 [server/crypto_store.py](file:///d:/antigravaty/scu教务处/server/crypto_store.py) 基于本地硬件特征进行 Fernet 对称加密，安全隔离；
-  3. 后端 [server/app.py](file:///d:/antigravaty/scu教务处/server/app.py) 启动常驻 `_heartbeat_loop` 协程，每 10 分钟自动向教务网发送轻量心跳探针，并在超时时自动无感重连；
-  4. 关闭插件或电脑重启后，首屏 **0 毫秒静默开箱即用**，免去反复输入与扫码繁琐。
-  5. 设置面板保留了统一身份认证官网的直达通道，便于学生在官网找回或重置教务密码。
-
-### 4.8 极速秒开缓存引擎 (`SCU_CACHE / Stale-While-Revalidate`)
-- 课表、成绩、培养方案、考试日程首次获取后自动写入前端缓存；
-- 再次打开面板时 **0 毫秒首屏瞬开**，后台静默拉取最新数据无缝更新；
-- 遇教务网维护或网络偶发波动时优雅降级展示快照，附带上次拉取时间注脚。
+### 4.7 账号凭据加盐加密与全天保活 (`SettingsView`)
+- **技术探查结论**：四川大学统一身份认证中心（`id.scu.edu.cn`）采用竹云 IDaaS 私有协议，移动端二维码仅供官方【智慧川大 APP】内部扫码，未开放公共微信扫码协议。
+- **最佳接入设计**：
+  - 学号与密码输入一次后，通过 [server/crypto_store.py](file:///d:/antigravaty/scu教务处/server/crypto_store.py) 基于本设备硬件特征加盐对称加密存储；
+  - 后端常驻 `_heartbeat_loop` 协程每 10 分钟发送探针保活，断线自动静默重连，首屏 **0 毫秒静默开箱即用**。
 
 ---
 
 ## 5. 后端 RESTful 接口清单 (127.0.0.1:48080)
 
-| 路径 | 方法 | 描述 | 关键参数 / 返回格式 |
+| 路径 | 方法 | 职责说明 | 请求/返回格式 |
 | :--- | :---: | :--- | :--- |
 | `/api/status` | GET | 查询本地服务健康状态与当前教务登录态 | 返回 `{ status, hasCredentials, username, isLoggedIn, studentName }` |
 | `/api/login` | POST | 提交学号密码执行登录并持久化加密凭据 | Body: `{ username, password, remember }` |
 | `/api/logout` | POST | 清除本地保存的凭据与教务 Session | 返回 `{ success, message }` |
 | `/api/schedule` | GET | 获取当前学期全量课表与教学周分布 | 返回 `{ semesterId, totalCourses, courses: [...] }` |
 | `/api/grades` | GET | 获取全量成绩、各学期统计与加权 GPA | 返回 `{ grades, terms, termStats, totalCredits, gpa }` |
-| `/api/program/scheme` | GET | 获取官方培养方案、学分完成度与待修课程 | 返回 `{ programName, requiredTotalCredits, completedCourses, inProgressCourses, pendingCourses, baseStats }` |
+| `/api/program/scheme` | GET | 获取官方培养方案、学分完成度与课程大纲 | 返回 `{ programName, requiredTotalCredits, completedCourses, inProgressCourses, pendingCourses, baseStats }` |
 | `/api/exams` | GET | 获取已排定的期末/阶段考试日程 | 返回 `{ exams: [...] }` |
 | `/api/schedule/export-ics` | GET | 导出全学期课表为 RFC 5545 .ics 日历 | Query: `startMonday`, `alarmMinutes`, `campus` |
 | `/api/grades/export-csv` | GET | 导出成绩单为 CSV/Excel 文件 | Query: `onlyRequired`, `download` |
@@ -201,7 +192,7 @@ flowchart TD
 
 ---
 
-## 6. 对话 Agent 自然语言工具链 (Cordis 规范)
+## 6. 对话 Agent 自然语言智能工具链 (Cordis Tools)
 
 向 DeepSeek Harness 主对话注册了 5 个核心工具，让 AI 具备直接感知学业数据的能力：
 
@@ -223,16 +214,10 @@ flowchart TD
 
 ---
 
-## 7. 后续演进路线与下一步工作建议 (Next Steps)
+## 7. 分支管理与版本体系 (Git Branches)
 
-1. **教务处学期教学质量评价（一键/半自动辅助评教）**：
-   - 每学期末教务系统要求完成数十门课程与教师的问卷测评方可查看成绩；
-   - 可在插件内接入自动填充“非常满意”及合理客观评价语的辅助脚本，提升期末出分查看效率。
-2. **多专业/辅修/双学位培养方案树比对**：
-   - 扩展培养方案树，支持转专业同学查看原专业与现专业已认定学分的差异，以及辅修双学位同学的双轨学分统计。
-3. **选课前瞻与学长课程口碑建议（结合 Agent 知识库）**：
-   - 在每年选课季，通过 Agent 工具或侧边栏选课专区，支持基于往年选课大纲、考核方式（闭卷/开卷/大作业/论文）进行智能推荐与排课冲突预检。
-4. **离网离线 PWA / Local Storage 完整冷启动优化**：
-   - 进一步完善离线数据持久化，在完全无网络、校园网断连或教务处服务器维护期间，前端抽屉能完整浏览历史全套成绩单、过往学期课表和个人学业档案。
-5. **打包与一键分发脚本（独立免安装自启动增强）**：
-   - 编写针对 Windows / macOS 的极简自启动服务封装脚本，使其在系统开机时无感驻留后台，实现插拔即用的极致用户体验。
+| 分支名 | 当前状态 | 定位与说明 |
+| :--- | :---: | :--- |
+| **`feature/new-ele-plan`** | **当前所在分支** | 新方案开发专属分支。基于电费系统制作之前的纯净节点建立，完全剔除了旧版电费系统的实验代码与网络依赖，保留了四川大学官方精美矢量校徽优化，工作区保持绝对纯净。 |
+| **`master`** | 主线分支 | 停留在基准节点 `468ab64`（*docs: 完整更新项目架构设计、已完成模块清单与后续演化规划*）。 |
+| **`archive/ele-system-v1`** | 封存归档分支 | 永久封存了基于 Edge 外部唤起与 OAuth 凭据同步的第一版电费系统实现、所有抓包分析脚本与端到端 CUA 自动化测试脚本（提交节点 `1293eff`），日后若需参考可随时检出。 |
