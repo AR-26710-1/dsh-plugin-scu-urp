@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "SCU URP & Electricity Assistant",
-    "description": "DeepSeek Harness plugin for Sichuan University: unified SSO auto-login, timetable schedule, grades, exams, free classrooms, and dual-mode dormitory electricity balance"
+    "title": "SCU URP & Microservices Assistant",
+    "description": "DeepSeek Harness plugin for Sichuan University: unified SSO auto-login, timetable schedule, grades, exams, free classrooms, and campus microservices hub (dormitory electricity, campus card, network services, etc.)"
   }
 }

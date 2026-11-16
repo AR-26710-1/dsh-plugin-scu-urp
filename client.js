@@ -222,6 +222,13 @@ window.__ModuleLoader__.load({
     const KeyIcon = createSvgIcon(['M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5a6 6 0 1 0-2.5 7.5L2 23l4-1 1-4 3-1 2 2 8-8z'])
     const EyeIcon = createSvgIcon(['M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'], [{ cx: 12, cy: 12, r: 3 }])
     const EyeOffIcon = createSvgIcon(['M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'], [], [{ x1: 1, y1: 1, x2: 23, y2: 23 }])
+    const ArrowLeftIcon = createSvgIcon(['M19 12H5', 'M12 19l-7-7 7-7'])
+    const ChevronRightIcon = createSvgIcon(['M9 18l6-6-6-6'])
+    const CreditCardIcon = createSvgIcon(['M1 10h22'], [], [], [{ x: 1, y: 4, w: 22, h: 16, rx: 2 }])
+    const WifiIcon = createSvgIcon(['M5 12.55a11 11 0 0 1 14.08 0', 'M1.42 9a16 16 0 0 1 21.16 0', 'M8.53 16.11a6 6 0 0 1 6.95 0'], [{ cx: 12, cy: 20, r: 1 }])
+    const ActivityIcon = createSvgIcon(['M22 12h-4l-3 9L9 3l-3 9H2'])
+    const TruckIcon = createSvgIcon(['M1 3h15v13H1z', 'M16 8h4l3 3v5h-7V8z'], [{ cx: 5.5, cy: 18.5, r: 2.5 }, { cx: 18.5, cy: 18.5, r: 2.5 }])
+    const WrenchIcon = createSvgIcon(['M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'])
 
     // ================== 本地极速秒开缓存管理器 (Stale-While-Revalidate) ==================
     const SCU_CACHE = {
@@ -3365,11 +3372,160 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ================== 子页面 7：宿舍电费实时查询与换房向导 (纯白极简风格) ==================
-    function ElectricityView({ onRequireLogin }) {
-      const [loading, setLoading] = useState(true)
+    // ================== 微服务全景清单与元数据配置 (基于 WFW_API_SPEC 规范) ==================
+    const MICRO_SERVICES_CATALOG = [
+      {
+        id: 'electricity',
+        name: '宿舍电费',
+        category: 'life',
+        categoryLabel: '校园生活',
+        icon: ZapIcon,
+        status: 'online',
+        statusText: '实时在线',
+        desc: '空调与照明双回路实时抄表、川大基准电费预估、低电量预警与自由宿舍换绑',
+        features: [
+          '双模独立抄表：空调动力回路与宿舍照明回路分别计量与单独结算',
+          '川大官方基准核算：严格按照四川大学 0.5464 元/度官方基准电价折算',
+          '三级宿舍换房向导：支持望江、江安、华西校区任意楼栋与房间一键自由换绑',
+          '用电安全预警：剩余电量低于 10 度即时醒目预警，避免夜间或假期断电'
+        ],
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
+      },
+      {
+        id: 'card',
+        name: '校园一卡通',
+        category: 'life',
+        categoryLabel: '校园生活',
+        icon: CreditCardIcon,
+        status: 'planned',
+        statusText: '规划中',
+        desc: '实体卡与虚拟卡余额核对、食堂超市消费流水明细与微川大充值记录',
+        features: [
+          '双钱包架构查询：主卡物理钱包余额与微服务线上补助/电子账户余额对账',
+          '多场景消费流水：望江、江安、华西各食堂档口、校车刷卡、开水房明细',
+          '官方圈存通道：基于一卡通微服务直连微信支付与银联快捷充值',
+          '卡片安全托管：支持实体校园卡在线紧急临时挂失与解挂服务'
+        ],
+        badgeColor: '#71717a',
+        badgeBg: 'rgba(125, 125, 125, 0.08)',
+        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        url: 'https://payapp.scu.edu.cn/rfid/views/index.html',
+        apiEndpoint: '/mashupapp/wap/new-real/card-balance'
+      },
+      {
+        id: 'network',
+        name: '校园网服务',
+        category: 'network',
+        categoryLabel: '网络信息化',
+        icon: WifiIcon,
+        status: 'planned',
+        statusText: '规划中',
+        desc: '校园有线与无线宽带账户状态、在线终端设备列表、一键强制下线与套餐资费',
+        features: [
+          '宽带账户体检：实时查询校园网账户余额、订购套餐与当月计费周期',
+          '终端连接透视：查询当前登录 SCU-Wireless 及宿舍千兆网口的设备 MAC 与 IP',
+          '设备下线控制：超出 3 台设备配额时一键踢出陌生或离线终端，秒级释放配额',
+          '自助充值转接：对接四川大学信息中心校园网自助充值结算网关'
+        ],
+        badgeColor: '#71717a',
+        badgeBg: 'rgba(125, 125, 125, 0.08)',
+        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        url: 'https://wfw.scu.edu.cn/wap/material?id=560',
+        apiEndpoint: '/mashupapp/wap/real/network-status'
+      },
+      {
+        id: 'sports',
+        name: '体育场馆预约',
+        category: 'life',
+        categoryLabel: '校园生活',
+        icon: ActivityIcon,
+        status: 'planned',
+        statusText: '规划中',
+        desc: '望江、江安、华西校区室内外羽毛球馆、网球场、游泳馆实时场次余量与预约',
+        features: [
+          '三校区场馆总览：覆盖江安二号运动场、望江体育中心、华西东区羽毛球场等',
+          '场次余量透视：按时段查看当天与未来 3 天的空余场地数量',
+          '在线预约锁单：调用场馆预约中枢 API 快速选场锁单',
+          '入场凭证核验：生成场馆核销动态二维码，管理个人履约记录'
+        ],
+        badgeColor: '#71717a',
+        badgeBg: 'rgba(125, 125, 125, 0.08)',
+        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        url: 'http://cgzx.scu.edu.cn/venue/',
+        apiEndpoint: '/mashupapp/wap/real/venue-booking'
+      },
+      {
+        id: 'bus',
+        name: '校车时刻与校历',
+        category: 'public',
+        categoryLabel: '综合便民',
+        icon: TruckIcon,
+        status: 'planned',
+        statusText: '规划中',
+        desc: '望江-江安校际往返班车时刻表、发车倒计时与四川大学官方学期校历日程',
+        features: [
+          '校车动态班次：区分工作日与节假日班次，自动匹配当前时间最近发车班次',
+          '发车倒计时：提供距离下一班校车发车的精准剩余分钟数计算',
+          '乘车乘车点导航：望江行政楼/北门发车点与江安二号运动场/青春广场发车点定位',
+          '官方校历检索：本学期教学周进度、校庆日、寒暑假及国家法定调休一览'
+        ],
+        badgeColor: '#71717a',
+        badgeBg: 'rgba(125, 125, 125, 0.08)',
+        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        url: 'https://wfw.scu.edu.cn/wap/material?id=557',
+        apiEndpoint: '/site/polymerization/calendar-bus'
+      },
+      {
+        id: 'lostfound',
+        name: '校园失物招领',
+        category: 'public',
+        categoryLabel: '综合便民',
+        icon: SearchIcon,
+        status: 'planned',
+        statusText: '规划中',
+        desc: '全校遗失物品线上登记、拾得物特征检索与校园一卡通拾获精准匹配认领',
+        features: [
+          '失物登记与检索：按校区、物品类型（证件、电子设备、钥匙衣物）快速发布与检索',
+          '一卡通专属匹配：捡到校园卡输入卡号，系统通过学工学号中枢精准通知物主',
+          '官方认领点导航：保卫处巡逻队值班室、教学楼物业前台存放点电话与地址',
+          '招领互助广场：师生即时留言与认领进度状态跟踪'
+        ],
+        badgeColor: '#71717a',
+        badgeBg: 'rgba(125, 125, 125, 0.08)',
+        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        url: 'https://wfw.scu.edu.cn/site/applicationSquare/index?sid=21',
+        apiEndpoint: '/site/polymerization/lost-found'
+      },
+      {
+        id: 'repairs',
+        name: '后勤综合微报修',
+        category: 'public',
+        categoryLabel: '综合便民',
+        icon: WrenchIcon,
+        status: 'planned',
+        statusText: '规划中',
+        desc: '宿舍水电门窗故障、公共教学设施损坏极速线上报障、师傅进度跟踪与评价',
+        features: [
+          '一键报障提单：预设宿舍照明跳闸、水龙头渗漏、空调漏氟、门锁损坏等常见故障',
+          '维修师傅调度：实时查看接单维修师傅姓名、联系电话与预估上门时段',
+          '工单进度全链路：从派单、接单、上门维修到完工验收状态实时推流',
+          '服务闭环评价：维修质量满意度打分，支持拍照上传复核'
+        ],
+        badgeColor: '#71717a',
+        badgeBg: 'rgba(125, 125, 125, 0.08)',
+        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        url: 'https://zhhq.scu.edu.cn/loginapp',
+        apiEndpoint: '/mashupapp/wap/real/logistics-repair'
+      }
+    ]
+
+    // ================== 微服务子页面：宿舍电费实时查询与换房向导 (纯白极简风格) ==================
+    function ElectricityDetailView({ onRequireLogin, onBack, initialData, onDataUpdate }) {
+      const [loading, setLoading] = useState(!initialData)
       const [refreshing, setRefreshing] = useState(false)
-      const [eleData, setEleData] = useState(null)
+      const [eleData, setEleData] = useState(initialData || null)
       const [errorMsg, setErrorMsg] = useState('')
       const [lastUpdated, setLastUpdated] = useState('')
 
@@ -3400,6 +3556,7 @@ window.__ModuleLoader__.load({
             throw new Error(d.detail || '获取电费信息失败')
           }
           setEleData(d)
+          if (onDataUpdate) onDataUpdate(d)
           setLastUpdated(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
         } catch (err) {
           setErrorMsg(err.message || '网络连接异常')
@@ -3407,11 +3564,16 @@ window.__ModuleLoader__.load({
           setLoading(false)
           setRefreshing(false)
         }
-      }, [onRequireLogin])
+      }, [onRequireLogin, onDataUpdate])
 
       useEffect(() => {
-        fetchElectricity()
-      }, [fetchElectricity])
+        if (!initialData) {
+          fetchElectricity()
+        } else {
+          // 有初始数据时，后台静默校准一次
+          fetchElectricity(true)
+        }
+      }, [fetchElectricity, initialData])
 
       // 打开换房向导并预拉取校区
       const handleOpenSwitchModal = async () => {
@@ -3502,7 +3664,7 @@ window.__ModuleLoader__.load({
       }
 
       // 渲染电量卡片辅助函数
-      const renderFeeCard = (title, icon, data, fallbackLabel) => {
+      const renderFeeCard = (title, icon, data) => {
         const balance = data?.balance !== undefined && data?.balance !== null ? data.balance : null
         const price = data?.price || 0.5464
         const estimatedCost = balance !== null ? (balance * price).toFixed(2) : '--'
@@ -3568,25 +3730,91 @@ window.__ModuleLoader__.load({
         )
       }
 
-      if (loading) {
-        return h('div', { style: { textAlign: 'center', padding: '60px 0', color: 'var(--dsw-alias-text-sub, #71717a)' } },
-          h('div', { style: { fontSize: '14px', fontWeight: 500 } }, '正在拉取四川大学宿舍电费最新数据...'),
-          h('div', { style: { fontSize: '12px', marginTop: '6px' } }, '自动复用统一身份认证会话，无需二次登录')
+      if (loading && !eleData) {
+        return h('div', null,
+          onBack && h('div', { style: { marginBottom: '16px' } },
+            h('button', {
+              style: { ...S.btnSecondary, display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' },
+              onClick: onBack
+            }, h(ArrowLeftIcon, { size: 14 }), '返回微服务大厅')
+          ),
+          h('div', { style: { textAlign: 'center', padding: '60px 0', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+            h('div', { style: { fontSize: '14px', fontWeight: 500 } }, '正在拉取四川大学宿舍电费最新数据...'),
+            h('div', { style: { fontSize: '12px', marginTop: '6px' } }, '自动复用统一身份认证会话，无需二次登录')
+          )
         )
       }
 
-      if (errorMsg) {
-        return h('div', { style: { ...S.card, padding: '32px', textAlign: 'center', maxWidth: '520px', margin: '40px auto' } },
-          h('div', { style: { color: '#ef4444', fontSize: '15px', fontWeight: 600, marginBottom: '8px' } }, '拉取电费数据失败'),
-          h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '20px' } }, errorMsg),
-          h('button', {
-            style: S.btnPrimary,
-            onClick: () => fetchElectricity()
-          }, '重新拉取')
+      if (errorMsg && !eleData) {
+        return h('div', null,
+          onBack && h('div', { style: { marginBottom: '16px' } },
+            h('button', {
+              style: { ...S.btnSecondary, display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' },
+              onClick: onBack
+            }, h(ArrowLeftIcon, { size: 14 }), '返回微服务大厅')
+          ),
+          h('div', { style: { ...S.card, padding: '32px', textAlign: 'center', maxWidth: '520px', margin: '40px auto' } },
+            h('div', { style: { color: '#ef4444', fontSize: '15px', fontWeight: 600, marginBottom: '8px' } }, '拉取电费数据失败'),
+            h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '20px' } }, errorMsg),
+            h('button', {
+              style: S.btnPrimary,
+              onClick: () => fetchElectricity()
+            }, '重新拉取')
+          )
         )
       }
 
       return h('div', null,
+        // 顶部微服务极简导航返回栏
+        onBack && h('div', {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '16px',
+            paddingBottom: '12px',
+            borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }
+        },
+          h('button', {
+            style: {
+              ...S.btnSecondary,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              padding: '6px 12px',
+              cursor: 'pointer',
+            },
+            onClick: onBack,
+          },
+            h(ArrowLeftIcon, { size: 14 }),
+            '返回微服务大厅'
+          ),
+          h('div', {
+            style: {
+              fontSize: '12px',
+              color: 'var(--dsw-alias-text-sub, #71717a)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }
+          },
+            h('span', null, '微服务大厅 / 宿舍用电详情看板'),
+            eleData?.cusName ? h('span', {
+              style: {
+                padding: '2px 8px',
+                borderRadius: '4px',
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
+                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                fontSize: '11px',
+              }
+            }, `${eleData.cusName} (${eleData.cusNo || ''})`) : null
+          )
+        ),
+
         // 顶部宿舍房间与快捷操作栏
         h('div', {
           style: {
@@ -3620,7 +3848,7 @@ window.__ModuleLoader__.load({
                 eleData?.roomDisplay || '已绑定宿舍房间'
               ),
               h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                `绑定身份: ${eleData?.cusName || ''} (${eleData?.cusNo || ''}) · ${lastUpdated ? `更新于 ${lastUpdated}` : '已同步'}`
+                `绑定身份: ${eleData?.cusName || ''} (${eleData?.cusNo || ''}) · ${lastUpdated ? `更新于 ${lastUpdated}` : '已同步最新度数'}`
               )
             )
           ),
@@ -3666,8 +3894,8 @@ window.__ModuleLoader__.load({
             marginBottom: '20px',
           }
         },
-          renderFeeCard('空调动力用电', h(SnowflakeIcon, { size: 17 }), eleData?.air, '空调'),
-          renderFeeCard('宿舍照明用电', h(ZapIcon, { size: 17 }), eleData?.light, '照明')
+          renderFeeCard('空调动力用电', h(SnowflakeIcon, { size: 17 }), eleData?.air),
+          renderFeeCard('宿舍照明用电', h(ZapIcon, { size: 17 }), eleData?.light)
         ),
 
         // 纯白极简温馨提示卡片
@@ -3799,6 +4027,443 @@ window.__ModuleLoader__.load({
         )
       )
     }
+
+    // ================== 子页面 7：四川大学校园微服务大厅 (纯白极简卡片架构) ==================
+    function ServicesView({ onRequireLogin }) {
+      const [subView, setSubView] = useState('hub') // 'hub' | 'electricity'
+      const [eleData, setEleData] = useState(null)
+      const [eleLoading, setEleLoading] = useState(true)
+      const [activeCategory, setActiveCategory] = useState('all') // 'all' | 'life' | 'network' | 'public'
+      const [activeModalApp, setActiveModalApp] = useState(null)
+      const [hoveredCardId, setHoveredCardId] = useState(null)
+
+      // 微服务大厅初始化静默拉取电费概要数据
+      useEffect(() => {
+        let isCancelled = false
+        const prefetchElectricity = async () => {
+          try {
+            const resp = await fetch(`${SERVICE_URL}/api/electricity/status`)
+            if (resp.status === 401) {
+              return onRequireLogin()
+            }
+            if (resp.ok) {
+              const d = await resp.json()
+              if (!isCancelled) setEleData(d)
+            }
+          } catch {} finally {
+            if (!isCancelled) setEleLoading(false)
+          }
+        }
+        prefetchElectricity()
+        return () => { isCancelled = true }
+      }, [onRequireLogin])
+
+      // 若当前进入子页面（如电费详情）
+      if (subView === 'electricity') {
+        return h(ElectricityDetailView, {
+          onRequireLogin,
+          initialData: eleData,
+          onBack: () => setSubView('hub'),
+          onDataUpdate: (newEle) => setEleData(newEle),
+        })
+      }
+
+      // 过滤分类应用
+      const filteredServices = MICRO_SERVICES_CATALOG.filter(item => {
+        if (activeCategory === 'all') return true
+        return item.category === activeCategory
+      })
+
+      // 分类筛选列表
+      const categories = [
+        { key: 'all', label: '全部服务 (7)' },
+        { key: 'life', label: '校园生活 (3)' },
+        { key: 'network', label: '网络信息化 (1)' },
+        { key: 'public', label: '综合便民 (3)' },
+      ]
+
+      return h('div', null,
+        // 微服务大厅顶部概览条
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '20px 24px',
+            borderRadius: '12px',
+            marginBottom: '18px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }
+        },
+          h('div', null,
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h('div', {
+                style: {
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(GridIcon, { size: 16 })),
+              h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园微服务大厅')
+            ),
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              '基于四川大学统一身份认证 SSO 单点直达 · 深度聚合全校高频生活、网络与公共便民服务'
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('span', {
+              style: {
+                fontSize: '11px',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                fontWeight: 500,
+                background: 'rgba(16, 185, 129, 0.08)',
+                color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }
+            },
+              h('span', { style: { display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' } }),
+              '统一认证 SSO 已就绪'
+            )
+          )
+        ),
+
+        // 分类标签胶囊筛选栏
+        h('div', {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '18px',
+            overflowX: 'auto',
+            paddingBottom: '4px',
+          }
+        },
+          categories.map(cat => {
+            const isSelected = activeCategory === cat.key
+            return h('button', {
+              key: cat.key,
+              style: {
+                padding: '5px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: isSelected ? 600 : 400,
+                cursor: 'pointer',
+                background: isSelected ? 'var(--dsw-alias-text, #18181b)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
+                color: isSelected ? 'var(--dsw-alias-bg, #ffffff)' : 'var(--dsw-alias-text, inherit)',
+                border: isSelected ? '1px solid transparent' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+              },
+              onClick: () => setActiveCategory(cat.key),
+            }, cat.label)
+          })
+        ),
+
+        // 核心微服务卡片网格
+        h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
+            gap: '16px',
+            marginBottom: '24px',
+          }
+        },
+          filteredServices.map(srv => {
+            const isEle = srv.id === 'electricity'
+            const isHovered = hoveredCardId === srv.id
+            const IconComp = srv.icon
+
+            return h('div', {
+              key: srv.id,
+              style: {
+                ...S.card,
+                padding: '20px',
+                borderRadius: '12px',
+                background: 'var(--dsw-alias-bg-card, #ffffff)',
+                border: isHovered
+                  ? '1px solid var(--dsw-alias-text, rgba(0, 0, 0, 0.3))'
+                  : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+                boxShadow: isHovered
+                  ? '0 6px 18px rgba(0, 0, 0, 0.06)'
+                  : '0 2px 8px rgba(0, 0, 0, 0.02)',
+                transform: isHovered ? 'translateY(-2px)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: '210px',
+              },
+              onMouseEnter: () => setHoveredCardId(srv.id),
+              onMouseLeave: () => setHoveredCardId(null),
+              onClick: () => {
+                if (isEle) {
+                  setSubView('electricity')
+                } else {
+                  setActiveModalApp(srv)
+                }
+              }
+            },
+              // 卡片上半部
+              h('div', null,
+                // 标头行：图标、名称与状态徽章
+                h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' } },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                    h('div', {
+                      style: {
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        background: isEle ? 'rgba(16, 185, 129, 0.08)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                        color: isEle ? '#10b981' : 'var(--dsw-alias-text, inherit)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }
+                    }, h(IconComp, { size: 18 })),
+                    h('div', null,
+                      h('div', { style: { fontSize: '15px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, srv.name),
+                      h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, srv.categoryLabel)
+                    )
+                  ),
+                  h('span', {
+                    style: {
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontWeight: 500,
+                      background: srv.badgeBg,
+                      color: srv.badgeColor,
+                      border: `1px solid ${srv.badgeBorder}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }
+                  },
+                    h('span', { style: { display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: srv.badgeColor } }),
+                    srv.statusText
+                  )
+                ),
+
+                // 描述
+                h('p', {
+                  style: {
+                    fontSize: '12px',
+                    color: 'var(--dsw-alias-text-sub, #71717a)',
+                    lineHeight: 1.5,
+                    margin: '0 0 14px 0',
+                  }
+                }, srv.desc),
+
+                // 电费专属微缩概览指标 (若为电费卡片)
+                isEle && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(MapPinIcon, { size: 12 }),
+                      eleData?.roomDisplay || (eleLoading ? '正在同步宿舍...' : '已绑定宿舍')
+                    ),
+                    eleData?.air?.balance !== undefined && eleData?.light?.balance !== undefined && (
+                      (eleData.air.balance < 10 || eleData.light.balance < 10)
+                        ? h('span', { style: { fontSize: '10px', color: '#ef4444', fontWeight: 600 } }, '⚠️ 电量偏低')
+                        : h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, '● 电量充足')
+                    )
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, `空调: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        eleData?.air?.balance !== undefined ? `${eleData.air.balance.toFixed(2)} 度` : (eleLoading ? '...' : '--')
+                      )
+                    ),
+                    h('span', null, `照明: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        eleData?.light?.balance !== undefined ? `${eleData.light.balance.toFixed(2)} 度` : (eleLoading ? '...' : '--')
+                      )
+                    )
+                  )
+                ),
+
+                // 其它微服务规划亮点微标签
+                !isEle && h('div', {
+                  style: {
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                    marginBottom: '14px',
+                  }
+                },
+                  srv.features.slice(0, 2).map((feat, idx) => h('span', {
+                    key: idx,
+                    style: {
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.06))',
+                    }
+                  }, feat.split('：')[0]))
+                )
+              ),
+
+              // 卡片底部操作栏 (纯白极简)
+              h('div', {
+                style: {
+                  paddingTop: '12px',
+                  borderTop: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  color: isHovered ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
+                  fontWeight: 500,
+                }
+              },
+                h('span', null, isEle ? '进入详细看板与换房' : '查看功能规划与规范'),
+                h(ChevronRightIcon, { size: 14 })
+              )
+            )
+          })
+        ),
+
+        // 规划中微服务详情说明弹窗 (纯白极简规范)
+        activeModalApp && h('div', {
+          style: {
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(2px)',
+          },
+          onClick: () => setActiveModalApp(null),
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '480px',
+              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            // 弹窗头部
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                h('div', {
+                  style: {
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }
+                }, h(activeModalApp.icon, { size: 18 })),
+                h('div', null,
+                  h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: 600 } }, `${activeModalApp.name} (微服务)`),
+                  h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    `${activeModalApp.categoryLabel} · 规范对接中`
+                  )
+                )
+              ),
+              h('span', {
+                style: {
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontWeight: 500,
+                  background: activeModalApp.badgeBg,
+                  color: activeModalApp.badgeColor,
+                  border: `1px solid ${activeModalApp.badgeBorder}`,
+                }
+              }, activeModalApp.statusText)
+            ),
+
+            // 业务描述
+            h('p', {
+              style: {
+                fontSize: '13px',
+                color: 'var(--dsw-alias-text-sub, #71717a)',
+                lineHeight: 1.5,
+                margin: '0 0 16px 0',
+              }
+            }, activeModalApp.desc),
+
+            // 核心能力规划列表
+            h('div', {
+              style: {
+                padding: '14px 16px',
+                borderRadius: '8px',
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                marginBottom: '20px',
+              }
+            },
+              h('div', { style: { fontSize: '12px', fontWeight: 600, marginBottom: '8px' } }, '📋 核心业务能力与接入规划:'),
+              h('ul', { style: { margin: 0, paddingLeft: '18px', fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', lineHeight: 1.6 } },
+                activeModalApp.features.map((feat, i) => h('li', { key: i, style: { marginBottom: '4px' } }, feat))
+              )
+            ),
+
+            // 弹窗操作栏
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '10px' } },
+              activeModalApp.url && h('a', {
+                href: activeModalApp.url,
+                target: '_blank',
+                rel: 'noopener noreferrer',
+                style: {
+                  ...S.btnSecondary,
+                  padding: '7px 16px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  textDecoration: 'none',
+                  fontSize: '12px',
+                }
+              },
+                h(ExternalLinkIcon, { size: 13 }),
+                '访问官方网页版'
+              ),
+              h('button', {
+                type: 'button',
+                style: { ...S.btnPrimary, padding: '7px 20px' },
+                onClick: () => setActiveModalApp(null)
+              }, '关闭')
+            )
+          )
+        )
+      )
+    }
+
+    // 保持对旧引用兼容
+    const ElectricityView = ServicesView
 
     // ================== 子页面 6：四川大学统一身份认证与凭据管理 (纯白极简风格) ==================
     function SettingsView({ onLoginSuccess, onLogoutSuccess, isLoggedIn, studentName, hasCreds }) {
@@ -4433,11 +5098,11 @@ window.__ModuleLoader__.load({
               '空闲自习室'
             ),
             h('button', {
-              style: S.tabBtn(activeTab === 'electricity'),
-              onClick: () => setActiveTab('electricity'),
+              style: S.tabBtn(activeTab === 'services' || activeTab === 'electricity'),
+              onClick: () => setActiveTab('services'),
             },
-              h(ZapIcon, { size: 14, style: { marginRight: '6px' } }),
-              '宿舍电费'
+              h(GridIcon, { size: 14, style: { marginRight: '6px' } }),
+              '微服务'
             ),
             h('button', {
               style: S.tabBtn(activeTab === 'settings'),
@@ -4471,7 +5136,7 @@ window.__ModuleLoader__.load({
                   activeTab === 'studyPlan' && h(StudyPlanView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'exams' && h(ExamsView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'classrooms' && h(ClassroomsView, { onRequireLogin: () => setActiveTab('settings') }),
-                  activeTab === 'electricity' && h(ElectricityView, { onRequireLogin: () => setActiveTab('settings') })
+                  (activeTab === 'services' || activeTab === 'electricity') && h(ServicesView, { onRequireLogin: () => setActiveTab('settings') })
                 )
           )
         )

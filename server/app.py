@@ -374,9 +374,9 @@ def ensure_authenticated():
     raise HTTPException(status_code=401, detail="当前会话已失效，请重新登录")
 
 
-def ensure_electricity_authenticated():
-    """确保电费系统会话已就绪，若未就绪自动使用统一凭据静默激活"""
-    if ele_client.is_logged_in and ele_client.cus_no:
+def ensure_electricity_authenticated(force_refresh: bool = False):
+    """确保电费系统会话已就绪，若未就绪或过期自动使用统一凭据静默激活"""
+    if not force_refresh and ele_client.is_logged_in and ele_client.cus_no:
         return
     creds = cred_store.load_credentials()
     if not creds:
@@ -384,8 +384,8 @@ def ensure_electricity_authenticated():
 
     auth_type = creds.get("authType", "unified_sso")
 
-    # 优先恢复已保存的电费 cookies
-    if creds.get("eleCookies") and creds.get("cusNo"):
+    # 非强制刷新时，优先尝试恢复已保存的电费 cookies
+    if not force_refresh and creds.get("eleCookies") and creds.get("cusNo"):
         ele_client.set_credentials(creds["cusNo"], creds.get("cusName", ""), creds.get("eleCookies"))
         if ele_client.is_logged_in:
             return
@@ -397,6 +397,13 @@ def ensure_electricity_authenticated():
             ok_ele, msg_ele, e_data = auth_hub.activate_electricity_session(token)
             if ok_ele:
                 ele_client.update_session(e_data["session"], e_data.get("cusNo") or creds["username"], e_data.get("cusName", ""))
+                try:
+                    creds["eleCookies"] = e_data["session"].cookies.get_dict()
+                    creds["cusNo"] = e_data.get("cusNo") or creds["username"]
+                    creds["cusName"] = e_data.get("cusName", "")
+                    cred_store.save_credentials(creds)
+                except Exception:
+                    pass
                 return
             raise HTTPException(status_code=500, detail=f"激活电费会话失败: {msg_ele}")
         except Exception as e:
@@ -412,6 +419,13 @@ async def get_electricity_status_api():
     """获取当前宿舍的空调电费与照明电费数据 (自动利用统一认证凭据免二次登录)"""
     ensure_electricity_authenticated()
     data = ele_client.query_electricity()
+    if not data.get("success"):
+        # 远端会话可能已过期，尝试使用已保存统一凭据静默重签一次
+        try:
+            ensure_electricity_authenticated(force_refresh=True)
+            data = ele_client.query_electricity()
+        except Exception:
+            pass
     if not data.get("success"):
         raise HTTPException(status_code=500, detail=data.get("message") or "获取电费信息失败")
     return data
