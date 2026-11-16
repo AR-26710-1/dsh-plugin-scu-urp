@@ -36,6 +36,8 @@ ENV/
 .credentials.json
 .session.cache
 *.secret
+ele_session.json
+*.session.json
 
 # IDE & OS
 .vscode/

@@ -24,10 +24,16 @@ class CredentialStore:
         self.file_path = file_path
         self.fernet = Fernet(_get_machine_key())
 
-    def save_credentials(self, username: str, password: str, remember: bool = True) -> bool:
-        """加密并保存学号与密码"""
+    def save_credentials(self, username: str, password: str, remember: bool = True, auth_type: str = "unified_sso", student_name: str = "") -> bool:
+        """加密并保存学号与密码 (支持 unified_sso 统一认证或 legacy_urp 原生教务)"""
         try:
-            raw_data = json.dumps({"username": username, "password": password, "remember": remember, "authType": "password"}).encode("utf-8")
+            raw_data = json.dumps({
+                "username": username,
+                "password": password,
+                "remember": remember,
+                "authType": auth_type,
+                "studentName": student_name
+            }).encode("utf-8")
             encrypted = self.fernet.encrypt(raw_data)
             with open(self.file_path, "wb") as f:
                 f.write(encrypted)
@@ -36,13 +42,16 @@ class CredentialStore:
             print(f"[CryptoStore] 保存凭据失败: {e}")
             return False
 
-    def save_session_credentials(self, cookies: dict, username: str = "", student_name: str = "", auth_type: str = "sso_qrcode") -> bool:
+    def save_session_credentials(self, cookies: dict, username: str = "", student_name: str = "", auth_type: str = "unified_sso_qrcode", cus_no: str = "", cus_name: str = "", ele_cookies: Optional[dict] = None) -> bool:
         """加密并保存扫码授权获取的持久化会话凭据与用户信息"""
         try:
             raw_data = json.dumps({
                 "username": username,
                 "studentName": student_name,
                 "cookies": cookies,
+                "cusNo": cus_no,
+                "cusName": cus_name,
+                "eleCookies": ele_cookies or {},
                 "authType": auth_type,
                 "remember": True
             }).encode("utf-8")

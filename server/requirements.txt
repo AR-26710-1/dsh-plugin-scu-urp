@@ -4,3 +4,4 @@ requests>=2.31.0
 ddddocr>=1.4.11
 cryptography>=41.0.0
 pydantic>=2.0.0
+gmssl>=3.2.2

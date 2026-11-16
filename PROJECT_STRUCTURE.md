@@ -102,7 +102,9 @@ flowchart TD
 | **插件主控** | [index.js](file:///d:/antigravaty/scu教务处/index.js) | JavaScript | 遵循 Cordis 规范：托管启动本地 Python 服务，向 LLM 注册 5 大自然语言工具 |
 | **前端看板** | [client.js](file:///d:/antigravaty/scu教务处/client.js) | JavaScript (React) | 单文件纯前端架构：内置四川大学官方矢量校徽 `ScuIcon`、六大视图、SWR 极速秒开、What-If 均分模拟测算 |
 | **官方图标** | [icon.svg](file:///d:/antigravaty/scu教务处/icon.svg) | SVG 矢量 | 四川大学官方精美矢量校徽（单色设计，自适应深浅色，170×170） |
-| **后端网关** | [server/app.py](file:///d:/antigravaty/scu教务处/server/app.py) | Python (FastAPI) | 本地 HTTP 网关（48080 端口）、CORS 中间件、10 分钟自动心跳保活、12 大核心接口聚合 |
+| **后端网关** | [server/app.py](file:///d:/antigravaty/scu教务处/server/app.py) | Python (FastAPI) | 本地 HTTP 网关（48080 端口）、CORS 中间件、多模态认证路由、10 分钟双系统保活聚合 |
+| **认证中枢** | [server/auth_hub.py](file:///d:/antigravaty/scu教务处/server/auth_hub.py) | Python | 四川大学竹云 IDaaS 统一身份认证中枢：国密 SM2 自动过验证码登录、动态扫码、URP 与电费双向会话无缝派发 |
+| **电费客户端** | [server/ele_client.py](file:///d:/antigravaty/scu教务处/server/ele_client.py) | Python | 四川大学宿舍电费 API 客户端：空调/照明双电量聚合、校区/楼栋/单元/房间层级字典与换房绑定 |
 | **教务协议** | [server/urp_client.py](file:///d:/antigravaty/scu教务处/server/urp_client.py) | Python | 四川大学综合教务处底层接口通信、加盐双重 MD5 密码哈希、验证码识别、课表/成绩/培养方案抓取解析 |
 | **硬件加密** | [server/crypto_store.py](file:///d:/antigravaty/scu教务处/server/crypto_store.py) | Python (Fernet) | 提取本设备硬件特征（UUID + 计算机名）加盐哈希作为密钥，对学号、密码与 Session 进行对称加密持久化 |
 | **日历导出** | [server/calendar_exporter.py](file:///d:/antigravaty/scu教务处/server/calendar_exporter.py) | Python | RFC 5545 标准 iCalendar (.ics) 日历导出，区分江安与望江作息，注入课前 15 分钟提前提醒闹钟 |
@@ -116,7 +118,7 @@ flowchart TD
 
 ---
 
-## 4. 六大核心业务模块功能详解
+## 4. 七大核心业务模块功能详解
 
 ### 4.1 课表模块 (`ScheduleView`) 与手机日历导出
 - **周网格与清单双视图**：
@@ -170,15 +172,37 @@ flowchart TD
   - 学号与密码输入一次后，通过 [server/crypto_store.py](file:///d:/antigravaty/scu教务处/server/crypto_store.py) 基于本设备硬件特征加盐对称加密存储；
   - 后端常驻 `_heartbeat_loop` 协程每 10 分钟发送探针保活，断线自动静默重连，首屏 **0 毫秒静默开箱即用**。
 
+### 4.8 宿舍电费实时查询与换房向导 (`ElectricityView`)
+- **纯白极简双模电费卡片**：
+  - 纯白悬浮极简卡片，左侧【空调动力用电】、右侧【宿舍照明用电】；
+  - 38px 醒目大字号展示剩余可用电量（度），依据基准电价（0.5464 元/度）实时折算预估余额；
+  - 智能电量预警：低于 10 度时自动切换为柔和红色预警状态（防止夜间断电），正常时呈现绿色充足状态。
+- **当前绑定宿舍概览 Banner**：
+  - 顶部自动呈现当前绑定的校区、楼栋、单元、房间号及身份学号；
+  - 支持一键无感刷新拉取最新读数，记录精确刷新时间戳。
+- **三级级联换房向导弹窗**：
+  - 望江、华西、江安三校区楼栋层级字典自动联动拉取；
+  - 智能识别单元配置，输入房间号一键校验并切换绑定，秒级生效。
+- **官方微服务充值通道指引**：
+  - 清晰指引【微川大】服务号一卡通购电与【智慧川大 APP】线上充值方式。
+
 ---
 
 ## 5. 后端 RESTful 接口清单 (127.0.0.1:48080)
 
 | 路径 | 方法 | 职责说明 | 请求/返回格式 |
 | :--- | :---: | :--- | :--- |
-| `/api/status` | GET | 查询本地服务健康状态与当前教务登录态 | 返回 `{ status, hasCredentials, username, isLoggedIn, studentName }` |
-| `/api/login` | POST | 提交学号密码执行登录并持久化加密凭据 | Body: `{ username, password, remember }` |
-| `/api/logout` | POST | 清除本地保存的凭据与教务 Session | 返回 `{ success, message }` |
+| `/api/status` | GET | 查询本地服务健康状态、统一认证态与各子系统登录态 | 返回 `{ status, hasCredentials, authType, username, isLoggedIn, studentName, electricity }` |
+| `/api/auth/login` | POST | 统一身份认证登录 (默认 unified_sso，可选 legacy_urp) | Body: `{ username, password, authType, remember }` |
+| `/api/auth/qrcode/new` | GET | 获取竹云 IDaaS 动态二维码 (微川大/智慧川大扫码) | 返回 `{ code, qrcode, expiresIn }` |
+| `/api/auth/qrcode/status` | GET | 轮询统一认证扫码状态，扫码通过后自动打通教务与电费 | Query: `code` |
+| `/api/electricity/status` | GET | 自动复用统一凭据免密查询当前宿舍空调与照明电费 | 返回 `{ success, air, light, roomDisplay, cusNo, cusName }` |
+| `/api/electricity/campuses` | GET | 获取宿舍电费校区列表 (望江、华西、江安) | 返回 `{ campuses: [...] }` |
+| `/api/electricity/buildings` | GET | 根据校区代码获取楼栋字典列表 | Query: `schoolCode` |
+| `/api/electricity/units` | GET | 根据校区与楼栋代码获取单元字典列表 | Query: `schoolCode`, `regCode` |
+| `/api/electricity/verify-room` | POST | 校验并一键切换绑定宿舍房间 | Body: `{ schoolCode, regCode, unitCode, roomNo }` |
+| `/api/login` | POST | 兼容旧版登录入口 (自动重定向至多模态认证) | Body: `{ username, password, remember }` |
+| `/api/logout` | POST | 清除本地保存的凭据与各系统 Session | 返回 `{ success, message }` |
 | `/api/schedule` | GET | 获取当前学期全量课表与教学周分布 | 返回 `{ semesterId, totalCourses, courses: [...] }` |
 | `/api/grades` | GET | 获取全量成绩、各学期统计与加权 GPA | 返回 `{ grades, terms, termStats, totalCredits, gpa }` |
 | `/api/program/scheme` | GET | 获取官方培养方案、学分完成度与课程大纲 | 返回 `{ programName, requiredTotalCredits, completedCourses, inProgressCourses, pendingCourses, baseStats }` |
@@ -194,11 +218,11 @@ flowchart TD
 
 ## 6. 对话 Agent 自然语言智能工具链 (Cordis Tools)
 
-向 DeepSeek Harness 主对话注册了 5 个核心工具，让 AI 具备直接感知学业数据的能力：
+向 DeepSeek Harness 主对话注册了 7 个核心工具，让 AI 具备直接感知学业与校园生活数据的能力：
 
 1. `scu_get_schedule`:
    - 描述：查询四川大学当前学期课程表或今日日程。
-   - 参数：`day` (1~7 周几), `week` (1~20 教学周)。
+   - 参数：`filterToday` (是否仅查询今日日程)。
 2. `scu_get_grades`:
    - 描述：查询课程成绩、各学期加权平均分及综合 GPA。
    - 参数：`term` (学期), `onlyRequired` (是否仅统计保研必修课)。
@@ -210,7 +234,13 @@ flowchart TD
    - 参数：无。
 5. `scu_get_free_classrooms`:
    - 描述：查询四川大学望江、江安、华西校区空闲自习教室与考研教室。
-   - 参数：`campus` (校区), `building` (教学楼), `date` (日期), `timeSlot` (时段 1~12)。
+   - 参数：`campus` (校区), `building` (教学楼), `date` (日期), `session` (节次), `timeSlot` (时段)。
+6. `scu_export_calendar`:
+   - 描述：将全学期课表导出为标准手机日历文件 (.ics / iCalendar 格式)。
+   - 参数：`startDate` (开学周一日期), `alarmMinutes` (提前提醒分钟数)。
+7. `scu_get_electricity`:
+   - 描述：查询当前绑定宿舍的实时电费账单（空调与照明电量、预估余额、单价及房间位置）。
+   - 参数：无。
 
 ---
 

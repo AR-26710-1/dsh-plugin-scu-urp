@@ -218,6 +218,8 @@ window.__ModuleLoader__.load({
     const TrendingUpIcon = createSvgIcon(['M23 6l-9.5 9.5-5-5L1 18'], [], [{ x1: 17, y1: 6, x2: 23, y2: 6 }, { x1: 23, y1: 6, x2: 23, y2: 12 }])
     const AwardIcon = createSvgIcon(['M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'M8.21 13.89L7 23l5-3 5 3-1.21-9.12'])
     const BookOpenIcon = createSvgIcon(['M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z', 'M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'])
+    const ZapIcon = createSvgIcon(['M13 2L3 14h9l-1 8 10-12h-9l1-8z'])
+    const KeyIcon = createSvgIcon(['M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5a6 6 0 1 0-2.5 7.5L2 23l4-1 1-4 3-1 2 2 8-8z'])
 
     // ================== 本地极速秒开缓存管理器 (Stale-While-Revalidate) ==================
     const SCU_CACHE = {
@@ -3361,34 +3363,536 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // ================== 子页面 6：教务处账号与凭据管理（本地加密与自动心跳保活） ==================
+    // ================== 子页面 7：宿舍电费实时查询与换房向导 (纯白极简风格) ==================
+    function ElectricityView({ onRequireLogin }) {
+      const [loading, setLoading] = useState(true)
+      const [refreshing, setRefreshing] = useState(false)
+      const [eleData, setEleData] = useState(null)
+      const [errorMsg, setErrorMsg] = useState('')
+      const [lastUpdated, setLastUpdated] = useState('')
+
+      // 换房弹窗相关状态
+      const [showSwitchModal, setShowSwitchModal] = useState(false)
+      const [campuses, setCampuses] = useState([])
+      const [buildings, setBuildings] = useState([])
+      const [units, setUnits] = useState([])
+      const [selCampus, setSelCampus] = useState('')
+      const [selBuilding, setSelBuilding] = useState('')
+      const [selUnit, setSelUnit] = useState('')
+      const [inputRoom, setInputRoom] = useState('')
+      const [switchLoading, setSwitchLoading] = useState(false)
+      const [switchMsg, setSwitchMsg] = useState('')
+
+      // 获取电费数据
+      const fetchElectricity = useCallback(async (isSilent = false) => {
+        if (!isSilent) setLoading(true)
+        else setRefreshing(true)
+        setErrorMsg('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/electricity/status`)
+          if (resp.status === 401) {
+            return onRequireLogin()
+          }
+          const d = await resp.json()
+          if (!resp.ok) {
+            throw new Error(d.detail || '获取电费信息失败')
+          }
+          setEleData(d)
+          setLastUpdated(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+        } catch (err) {
+          setErrorMsg(err.message || '网络连接异常')
+        } finally {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }, [onRequireLogin])
+
+      useEffect(() => {
+        fetchElectricity()
+      }, [fetchElectricity])
+
+      // 打开换房向导并预拉取校区
+      const handleOpenSwitchModal = async () => {
+        setShowSwitchModal(true)
+        setSwitchMsg('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/electricity/campuses`)
+          if (resp.ok) {
+            const d = await resp.json()
+            const camps = d.campuses || []
+            setCampuses(camps)
+            if (camps.length > 0) {
+              setSelCampus(camps[0].code)
+              loadBuildings(camps[0].code)
+            }
+          }
+        } catch {}
+      }
+
+      // 拉取楼栋
+      const loadBuildings = async (schoolCode) => {
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/electricity/buildings?schoolCode=${encodeURIComponent(schoolCode)}`)
+          if (resp.ok) {
+            const d = await resp.json()
+            const blds = d.buildings || []
+            setBuildings(blds)
+            if (blds.length > 0) {
+              setSelBuilding(blds[0].code)
+              loadUnits(schoolCode, blds[0].code)
+            } else {
+              setSelBuilding('')
+              setUnits([])
+              setSelUnit('')
+            }
+          }
+        } catch {}
+      }
+
+      // 拉取单元
+      const loadUnits = async (schoolCode, regCode) => {
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/electricity/units?schoolCode=${encodeURIComponent(schoolCode)}&regCode=${encodeURIComponent(regCode)}`)
+          if (resp.ok) {
+            const d = await resp.json()
+            const unts = d.units || []
+            setUnits(unts)
+            if (unts.length > 0) {
+              setSelUnit(unts[0].code)
+            } else {
+              setSelUnit('')
+            }
+          }
+        } catch {}
+      }
+
+      // 提交换房
+      const handleConfirmSwitch = async (e) => {
+        e.preventDefault()
+        if (!selCampus || !selBuilding || !inputRoom.trim()) {
+          return setSwitchMsg('请完整选择校区、楼栋并填写房间号')
+        }
+        setSwitchLoading(true)
+        setSwitchMsg('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/electricity/verify-room`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              schoolCode: selCampus,
+              regCode: selBuilding,
+              unitCode: selUnit,
+              roomNo: inputRoom.trim()
+            })
+          })
+          const d = await resp.json()
+          if (!resp.ok) {
+            throw new Error(d.detail || '换房绑定失败，请核对房间信息')
+          }
+          setShowSwitchModal(false)
+          setInputRoom('')
+          fetchElectricity(true)
+        } catch (err) {
+          setSwitchMsg(err.message || '换房异常')
+        } finally {
+          setSwitchLoading(false)
+        }
+      }
+
+      // 渲染电量卡片辅助函数
+      const renderFeeCard = (title, icon, data, fallbackLabel) => {
+        const balance = data?.balance !== undefined && data?.balance !== null ? data.balance : null
+        const price = data?.price || 0.5464
+        const estimatedCost = balance !== null ? (balance * price).toFixed(2) : '--'
+        const isLow = balance !== null && balance < 10
+
+        return h('div', {
+          style: {
+            ...S.card,
+            padding: '24px',
+            borderRadius: '12px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            minHeight: '190px',
+          }
+        },
+          h('div', null,
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                icon,
+                h('span', { style: { fontSize: '15px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, title)
+              ),
+              balance !== null && h('span', {
+                style: {
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontWeight: 500,
+                  background: isLow ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                  color: isLow ? '#ef4444' : '#10b981',
+                  border: isLow ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(16, 185, 129, 0.25)',
+                }
+              }, isLow ? '⚠️ 剩余电量偏低' : '● 电量充足')
+            ),
+            h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '6px' } },
+              h('span', { style: { fontSize: '38px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)', letterSpacing: '-0.5px' } },
+                balance !== null ? balance.toFixed(2) : '--'
+              ),
+              h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '度 (kWh)')
+            ),
+            h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              `预估剩余金额: `,
+              h('strong', { style: { color: 'var(--dsw-alias-text, inherit)', fontWeight: 600 } }, `¥ ${estimatedCost}`)
+            )
+          ),
+          h('div', {
+            style: {
+              paddingTop: '14px',
+              borderTop: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '11px',
+              color: 'var(--dsw-alias-text-sub, #71717a)',
+            }
+          },
+            h('span', null, `川大官方基准电价`),
+            h('span', { style: { fontWeight: 500 } }, `${price.toFixed(4)} 元/度`)
+          )
+        )
+      }
+
+      if (loading) {
+        return h('div', { style: { textAlign: 'center', padding: '60px 0', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+          h('div', { style: { fontSize: '14px', fontWeight: 500 } }, '正在拉取四川大学宿舍电费最新数据...'),
+          h('div', { style: { fontSize: '12px', marginTop: '6px' } }, '自动复用统一身份认证会话，无需二次登录')
+        )
+      }
+
+      if (errorMsg) {
+        return h('div', { style: { ...S.card, padding: '32px', textAlign: 'center', maxWidth: '520px', margin: '40px auto' } },
+          h('div', { style: { color: '#ef4444', fontSize: '15px', fontWeight: 600, marginBottom: '8px' } }, '拉取电费数据失败'),
+          h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '20px' } }, errorMsg),
+          h('button', {
+            style: S.btnPrimary,
+            onClick: () => fetchElectricity()
+          }, '重新拉取')
+        )
+      }
+
+      return h('div', null,
+        // 顶部宿舍房间与快捷操作栏
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+            h('div', {
+              style: {
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }
+            }, h(MapPinIcon, { size: 18 })),
+            h('div', null,
+              h('div', { style: { fontSize: '15px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } },
+                eleData?.roomDisplay || '已绑定宿舍房间'
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                `绑定身份: ${eleData?.cusName || ''} (${eleData?.cusNo || ''}) · ${lastUpdated ? `更新于 ${lastUpdated}` : '已同步'}`
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                fontSize: '12px',
+                padding: '6px 14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              },
+              onClick: () => fetchElectricity(true),
+              disabled: refreshing,
+            },
+              h(RefreshIcon, { size: 13 }),
+              refreshing ? '正在刷新...' : '刷新电费'
+            ),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                fontSize: '12px',
+                padding: '6px 14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              },
+              onClick: handleOpenSwitchModal,
+            },
+              h(Edit3Icon, { size: 13 }),
+              '切换宿舍'
+            )
+          )
+        ),
+
+        // 双模核心电费卡片栅格
+        h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '18px',
+            marginBottom: '20px',
+          }
+        },
+          renderFeeCard('空调动力用电', h(SnowflakeIcon, { size: 17 }), eleData?.air, '空调'),
+          renderFeeCard('宿舍照明用电', h(ZapIcon, { size: 17 }), eleData?.light, '照明')
+        ),
+
+        // 纯白极简温馨提示卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            fontSize: '12px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            lineHeight: 1.6,
+          }
+        },
+          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 宿舍用电与充值说明'),
+          h('div', null, '1. 电费不足 10 度时微服务系统将触发低电量预警，为防止夜间断电，建议在电量低于 10 度前及时充值。'),
+          h('div', null, '2. 充值通道：可微信关注【微川大】服务号 -> 点击【校园一卡通】-> 选择【宿舍购电】，或登录手机端【智慧川大 APP】线上充值。'),
+          h('div', null, '3. 如需查询其它校区或他人寝室电量，可点击右上角【切换宿舍】选择目标楼栋房间一键查看。')
+        ),
+
+        // 快捷换房模态弹窗 (纯白极简规范)
+        showSwitchModal && h('div', {
+          style: {
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(2px)',
+          },
+          onClick: () => setShowSwitchModal(false),
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '440px',
+              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            h('h3', { style: { margin: '0 0 6px 0', fontSize: '16px', fontWeight: 600 } }, '切换宿舍房间'),
+            h('p', { style: { margin: '0 0 16px 0', fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+              '选择目标校区、楼栋与房间号，系统将自动校验并切换绑定当前宿舍。'
+            ),
+
+            switchMsg && h('div', {
+              style: {
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                marginBottom: '14px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+              }
+            }, switchMsg),
+
+            h('form', { onSubmit: handleConfirmSwitch },
+              // 校区选择
+              h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: 500 } }, '选择校区'),
+              h('select', {
+                style: { ...S.input, marginBottom: '12px' },
+                value: selCampus,
+                onChange: (e) => {
+                  setSelCampus(e.target.value)
+                  loadBuildings(e.target.value)
+                }
+              },
+                campuses.map(c => h('option', { key: c.code, value: c.code }, c.name))
+              ),
+
+              // 楼栋选择
+              h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: 500 } }, '选择楼栋'),
+              h('select', {
+                style: { ...S.input, marginBottom: '12px' },
+                value: selBuilding,
+                onChange: (e) => {
+                  setSelBuilding(e.target.value)
+                  loadUnits(selCampus, e.target.value)
+                }
+              },
+                buildings.map(b => h('option', { key: b.code, value: b.code }, b.name))
+              ),
+
+              // 单元选择 (部分楼栋无单元)
+              units.length > 0 && h(React.Fragment, null,
+                h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: 500 } }, '选择单元'),
+                h('select', {
+                  style: { ...S.input, marginBottom: '12px' },
+                  value: selUnit,
+                  onChange: (e) => setSelUnit(e.target.value)
+                },
+                  units.map(u => h('option', { key: u.code, value: u.code }, u.name))
+                )
+              ),
+
+              // 房间号输入
+              h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: 500 } }, '房间号 (如 1527 或 101c)'),
+              h('input', {
+                style: { ...S.input, marginBottom: '20px' },
+                type: 'text',
+                placeholder: '例如 1527',
+                value: inputRoom,
+                onChange: (e) => setInputRoom(e.target.value)
+              }),
+
+              // 按钮组
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '10px' } },
+                h('button', {
+                  type: 'button',
+                  style: { ...S.btnSecondary, padding: '7px 16px' },
+                  onClick: () => setShowSwitchModal(false)
+                }, '取消'),
+                h('button', {
+                  type: 'submit',
+                  style: { ...S.btnPrimary, padding: '7px 20px' },
+                  disabled: switchLoading
+                }, switchLoading ? '正在校验并绑定...' : '确认绑定')
+              )
+            )
+          )
+        )
+      )
+    }
+
+    // ================== 子页面 6：四川大学统一身份认证与凭据管理 (纯白极简风格) ==================
     function SettingsView({ onLoginSuccess, onLogoutSuccess, isLoggedIn, studentName, hasCreds }) {
+      const [authTab, setAuthTab] = useState('unified') // 'unified' | 'qrcode' | 'legacy'
       const [username, setUsername] = useState('')
       const [password, setPassword] = useState('')
       const [remember, setRemember] = useState(true)
       const [submitting, setSubmitting] = useState(false)
       const [msg, setMsg] = useState({ text: '', isError: false })
 
+      // 扫码登录专用状态
+      const [qrCodeData, setQrCodeData] = useState(null)
+      const [qrLoading, setQrLoading] = useState(false)
+      const [qrStatusText, setQrStatusText] = useState('')
+      const pollTimerRef = useRef(null)
+
+      // 拉取动态二维码
+      const fetchNewQrCode = useCallback(async () => {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+        setQrLoading(true)
+        setQrStatusText('正在获取统一认证动态二维码...')
+        setMsg({ text: '', isError: false })
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/auth/qrcode/new`)
+          const data = await resp.json()
+          if (!resp.ok) throw new Error(data.detail || '获取二维码失败')
+          setQrCodeData(data)
+          setQrStatusText('等待微川大或智慧川大 APP 扫码确认...')
+          startPolling(data.code)
+        } catch (err) {
+          setQrStatusText(`获取失败: ${err.message}`)
+        } finally {
+          setQrLoading(false)
+        }
+      }, [])
+
+      // 轮询扫码状态
+      const startPolling = (code) => {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+        pollTimerRef.current = setInterval(async () => {
+          try {
+            const resp = await fetch(`${SERVICE_URL}/api/auth/qrcode/status?code=${encodeURIComponent(code)}`)
+            const data = await resp.json()
+            if (data.status === 'SUCCESS') {
+              clearInterval(pollTimerRef.current)
+              setQrStatusText('统一认证扫码成功！教务与电费系统已无缝打通')
+              setMsg({ text: '扫码成功！已同步关联教务处与宿舍电费', isError: false })
+              onLoginSuccess(data.studentName || data.username)
+            } else if (data.status === 'EXPIRED') {
+              clearInterval(pollTimerRef.current)
+              setQrStatusText('二维码已失效，请点击刷新')
+            } else {
+              setQrStatusText(data.message || '等待微川大或智慧川大 APP 扫码确认...')
+            }
+          } catch {
+            // 网络微抖动忽略
+          }
+        }, 2000)
+      }
+
+      // 当切换到扫码 Tab 时自动拉取二维码
+      useEffect(() => {
+        if (authTab === 'qrcode') {
+          fetchNewQrCode()
+        } else {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+        }
+        return () => {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+        }
+      }, [authTab, fetchNewQrCode])
+
+      // 统一表单登录处理
       const handleLogin = async (e) => {
         e.preventDefault()
-        if (!username || !password) return setMsg({ text: '请填写学号和教务系统密码', isError: true })
+        if (!username || !password) {
+          return setMsg({ text: '请填写学号与密码', isError: true })
+        }
         setSubmitting(true)
         setMsg({ text: '', isError: false })
         try {
-          const resp = await fetch(`${SERVICE_URL}/api/login`, {
+          const authType = authTab === 'unified' ? 'unified_sso' : 'legacy_urp'
+          const resp = await fetch(`${SERVICE_URL}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, remember }),
+            body: JSON.stringify({ username, password, authType, remember }),
           })
           const d = await resp.json()
           if (!resp.ok) {
-            setMsg({ text: d.detail || '登录失败，请检查账号密码', isError: true })
+            setMsg({ text: d.detail || '认证失败，请检查账号密码', isError: true })
           } else {
-            setMsg({ text: '登录成功！已基于主机密钥加密保存凭据并启动长效保活。', isError: false })
+            setMsg({ text: d.message || '登录成功！已基于主机密钥加密保存凭据。', isError: false })
             onLoginSuccess(d.studentName || username)
           }
         } catch (err) {
-          setMsg({ text: `连接后端服务失败: ${err.message}`, isError: true })
+          setMsg({ text: `连接本地服务失败: ${err.message}`, isError: true })
         } finally {
           setSubmitting(false)
         }
@@ -3400,65 +3904,135 @@ window.__ModuleLoader__.load({
         } finally {
           setUsername('')
           setPassword('')
-          setMsg({ text: '已成功退出登录并清除本地凭据缓存。', isError: false })
+          setMsg({ text: '已清除本地保存的凭据并退出所有系统。', isError: false })
           onLogoutSuccess()
         }
       }
 
-      return h('div', { style: { maxWidth: '520px', margin: '0 auto' } },
-        // 1. 已登录在线状态卡片
+      return h('div', { style: { maxWidth: '540px', margin: '0 auto' } },
+        // 1. 已登录在线状态卡片 (极简纯白)
         isLoggedIn && h('div', {
           style: {
             ...S.card,
-            padding: '16px 20px',
+            padding: '18px 22px',
             borderRadius: '10px',
-            marginBottom: '18px',
-            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+            marginBottom: '20px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
           },
         },
           h('div', null,
-            h('div', { style: { fontSize: '14px', fontWeight: 700 } }, `当前已登录: ${studentName || '川大学生'}`),
-            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              '凭据已加密保存，后台心跳探针持续保活，打开 Harness 即可 0ms 首屏瞬开'
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h('span', { style: S.statusDot(true) }),
+              h('span', { style: { fontSize: '14px', fontWeight: 600 } }, `当前已登录: ${studentName || '川大学生'}`)
+            ),
+            h('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
+              h('span', {
+                style: {
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  fontWeight: 500,
+                },
+              }, '● 教务系统已就绪'),
+              h('span', {
+                style: {
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  fontWeight: 500,
+                },
+              }, '● 宿舍电费已连通')
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '6px' } },
+              '凭据基于本设备硬件特征加密存储，全天候静默心跳保活'
             )
           ),
           h('button', {
             style: {
               ...S.btnSecondary,
               color: '#ef4444',
-              borderColor: 'rgba(239, 68, 68, 0.3)',
+              borderColor: 'rgba(239, 68, 68, 0.25)',
+              padding: '6px 12px',
+              fontSize: '12px',
             },
             onClick: handleLogout,
           }, '退出当前登录')
         ),
 
-        // 2. 主登录卡片 (直接在 Harness 内长效免密登录)
-        h('div', { style: S.card },
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' } },
-            h(UserIcon, { size: 18 }),
-            h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: 700 } }, '教务处账号接入')
+        // 2. 主登录卡片 (纯白极简多模态切换)
+        h('div', { style: { ...S.card, padding: '24px' } },
+          // 头部标题
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' } },
+            h(ShieldIcon, { size: 19 }),
+            h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: 600 } }, '四川大学统一身份认证接入')
           ),
           h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '18px', lineHeight: 1.5 } },
-            '在 Harness 内直接验证并登录。系统将自动加密保存凭据，全天候静默心跳保活，长期免重复输入。'
+            '采用竹云 IDaaS 统一认证枢纽，一次登录即可全量打通综合教务处与宿舍电费查询，全天候长效免二次登录。'
           ),
 
           // 提示消息
           msg.text && h('div', {
             style: {
-              padding: '10px 12px',
+              padding: '10px 14px',
               borderRadius: '6px',
               fontSize: '13px',
               marginBottom: '16px',
-              background: msg.isError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+              background: msg.isError ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
               color: msg.isError ? '#ef4444' : '#10b981',
+              border: msg.isError ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
             },
           }, msg.text),
 
-          // 学号密码表单
-          h('form', { onSubmit: handleLogin },
+          // 多模态切换 Tab 栏 (极简药丸组)
+          h('div', {
+            style: {
+              display: 'flex',
+              gap: '4px',
+              background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
+              padding: '4px',
+              borderRadius: '8px',
+              marginBottom: '20px',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            },
+          },
+            h('button', {
+              type: 'button',
+              style: S.tabBtn(authTab === 'unified'),
+              onClick: () => { setAuthTab('unified'); setMsg({ text: '', isError: false }) },
+            },
+              h(KeyIcon, { size: 13, style: { marginRight: '6px' } }),
+              '统一认证账密 (推荐)'
+            ),
+            h('button', {
+              type: 'button',
+              style: S.tabBtn(authTab === 'qrcode'),
+              onClick: () => { setAuthTab('qrcode'); setMsg({ text: '', isError: false }) },
+            },
+              h(QrCodeIcon, { size: 13, style: { marginRight: '6px' } }),
+              '手机动态扫码'
+            ),
+            h('button', {
+              type: 'button',
+              style: S.tabBtn(authTab === 'legacy'),
+              onClick: () => { setAuthTab('legacy'); setMsg({ text: '', isError: false }) },
+            },
+              h(UserIcon, { size: 13, style: { marginRight: '6px' } }),
+              '教务处旧密码'
+            )
+          ),
+
+          // 模式 1: 统一身份认证账密登录
+          authTab === 'unified' && h('form', { onSubmit: handleLogin },
             h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '川大学号'),
             h('input', {
               style: S.input,
@@ -3467,28 +4041,122 @@ window.__ModuleLoader__.load({
               value: username,
               onChange: (e) => setUsername(e.target.value),
             }),
-            h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '综合教务系统密码'),
+            h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '统一身份认证密码'),
             h('input', {
               style: S.input,
               type: 'password',
-              placeholder: '四川大学综合教务系统密码',
+              placeholder: '四川大学统一身份认证密码 (id.scu.edu.cn)',
               value: password,
               onChange: (e) => setPassword(e.target.value),
             }),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px', lineHeight: 1.4 } },
+              '💡 本地轻量神经网络毫秒级自动识别图形验证码，无需手动输入；采用国密 SM2 非对称加密传输。'
+            ),
             h('label', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '20px', cursor: 'pointer' } },
               h('input', {
                 type: 'checkbox',
                 checked: remember,
                 onChange: (e) => setRemember(e.target.checked),
               }),
-              '记住凭据并在本地硬件安全加密存储（全天自动保活免登录）'
+              '记住凭据并在本地硬件加密存储（全天自动保活免登录）'
             ),
             h('div', { style: { display: 'flex', gap: '10px' } },
               h('button', {
                 type: 'submit',
                 style: { ...S.btnPrimary, flex: 1 },
                 disabled: submitting,
-              }, submitting ? '正在验证教务处登录...' : (isLoggedIn ? '更新已保存的账号凭据' : '立即登录并开启长期免密')),
+              }, submitting ? '正在加密验证并打通教务与电费...' : (isLoggedIn ? '更新已保存的统一认证凭据' : '一键登录并打通全部系统')),
+              isLoggedIn && h('button', {
+                type: 'button',
+                style: S.btnSecondary,
+                onClick: handleLogout,
+              }, '退出登录')
+            )
+          ),
+
+          // 模式 2: 手机动态扫码登录
+          authTab === 'qrcode' && h('div', { style: { textAlign: 'center', padding: '10px 0' } },
+            qrLoading
+              ? h('div', { style: { padding: '40px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } }, '正在获取竹云 IDaaS 动态二维码...')
+              : qrCodeData && qrCodeData.qrcode
+                ? h('div', null,
+                    h('div', {
+                      style: {
+                        display: 'inline-block',
+                        padding: '12px',
+                        background: '#ffffff',
+                        borderRadius: '10px',
+                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)',
+                        border: '1px solid rgba(0, 0, 0, 0.08)',
+                        marginBottom: '14px',
+                      },
+                    },
+                      h('img', {
+                        src: qrCodeData.qrcode,
+                        alt: '统一认证动态二维码',
+                        style: { width: '160px', height: '160px', display: 'block' },
+                      })
+                    ),
+                    h('div', { style: { fontSize: '13px', fontWeight: 500, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } },
+                      qrStatusText
+                    ),
+                    h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '16px' } },
+                      '请打开手机【微川大】微信服务号或【智慧川大 APP】扫码授权'
+                    ),
+                    h('button', {
+                      type: 'button',
+                      style: { ...S.btnSecondary, fontSize: '12px', padding: '5px 14px' },
+                      onClick: fetchNewQrCode,
+                    },
+                      h(RefreshIcon, { size: 12, style: { marginRight: '5px' } }),
+                      '刷新二维码'
+                    )
+                  )
+                : h('div', null,
+                    h('p', { style: { color: '#ef4444', fontSize: '13px' } }, qrStatusText),
+                    h('button', {
+                      type: 'button',
+                      style: S.btnSecondary,
+                      onClick: fetchNewQrCode,
+                    }, '重新生成二维码')
+                  )
+          ),
+
+          // 模式 3: 教务处独立旧密码登录 (兼容通道)
+          authTab === 'legacy' && h('form', { onSubmit: handleLogin },
+            h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '川大学号'),
+            h('input', {
+              style: S.input,
+              type: 'text',
+              placeholder: '例如 2024xxxxxxx',
+              value: username,
+              onChange: (e) => setUsername(e.target.value),
+            }),
+            h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '综合教务系统专属密码'),
+            h('input', {
+              style: S.input,
+              type: 'password',
+              placeholder: '四川大学综合教务处独立密码',
+              value: password,
+              onChange: (e) => setPassword(e.target.value),
+            }),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px', lineHeight: 1.4 } },
+              '⚠️ 此通道仅登录教务处本系统，不自动绑定宿舍电费系统；如需同时使用电费功能，建议使用【统一认证账密】或【动态扫码】。'
+            ),
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '20px', cursor: 'pointer' } },
+              h('input', {
+                type: 'checkbox',
+                checked: remember,
+                onChange: (e) => setRemember(e.target.checked),
+              }),
+              '记住凭据并在本地硬件加密存储'
+            ),
+            h('div', { style: { display: 'flex', gap: '10px' } },
+              h('button', {
+                type: 'submit',
+                style: { ...S.btnPrimary, flex: 1 },
+                disabled: submitting,
+              }, submitting ? '正在验证教务处登录...' : '仅登录教务处'),
               isLoggedIn && h('button', {
                 type: 'button',
                 style: S.btnSecondary,
@@ -3498,21 +4166,21 @@ window.__ModuleLoader__.load({
           )
         ),
 
-        // 3. 官方统一身份认证 (SSO) 备用通道与密码指引
+        // 3. 官方统一身份认证 (SSO) 找回指引
         h('div', {
           style: {
             ...S.card,
             marginTop: '16px',
-            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
-            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.02))',
           },
         },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' } },
-            h(ShieldIcon, { size: 15 }),
-            h('h4', { style: { margin: 0, fontSize: '13px', fontWeight: 600 } }, '不清楚教务系统密码？官方统一认证找回指引')
+            h(ShieldIcon, { size: 14 }),
+            h('h4', { style: { margin: 0, fontSize: '13px', fontWeight: 600 } }, '忘记统一认证密码？官方重置找回指引')
           ),
           h('p', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '12px', lineHeight: 1.6 } },
-            '川大综合教务系统（zhjw.scu.edu.cn）的密码可能与统一身份认证平台（id.scu.edu.cn）不同。若提示密码错误，您可点击下方直达学校官网，通过短信验证或网页单点登录后重置教务密码，随后在 Harness 内输入一次即可永久免密使用。'
+            '川大统一身份认证密码是您在学校统一认证平台（id.scu.edu.cn）使用的密码。若忘记密码，可点击下方直达学校官网，通过手机短信验证码快速找回重置。'
           ),
           h('button', {
             type: 'button',
@@ -3523,16 +4191,16 @@ window.__ModuleLoader__.load({
               gap: '6px',
               fontSize: '12px',
               padding: '5px 12px',
-              fontWeight: 600,
+              fontWeight: 500,
             },
             onClick: () => {
               if (typeof window !== 'undefined' && window.open) {
-                window.open('https://id.scu.edu.cn/enduser/sp/sso/scdxplugin_jwt23?enterpriseId=scdx&target_url=index', '_blank')
+                window.open('https://id.scu.edu.cn/frontend/login#/find_pwd', '_blank')
               }
             },
           },
             h(ExternalLinkIcon, { size: 13 }),
-            '前往四川大学统一身份认证官网 (id.scu.edu.cn)'
+            '前往四川大学统一认证找回密码 (id.scu.edu.cn)'
           )
         )
       )
@@ -3582,7 +4250,7 @@ window.__ModuleLoader__.load({
                 h(ScuIcon, { size: 24 }),
                 h('h1', { style: S.title }, '四川大学教务系统 (URP)')
               ),
-              h('div', { style: S.subTitle }, '全自动登录 · 课表日程 · 全量成绩与 GPA 统计 · 培养方案与均分测算 · 考试安排 · 空闲自习室')
+              h('div', { style: S.subTitle }, '全自动登录 · 课表日程 · 全量成绩与 GPA 统计 · 培养方案与均分测算 · 考试安排 · 空闲自习室 · 宿舍电费')
             ),
             h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
               h('div', { style: { display: 'flex', alignItems: 'center', fontSize: '13px' } },
@@ -3639,6 +4307,13 @@ window.__ModuleLoader__.load({
               '空闲自习室'
             ),
             h('button', {
+              style: S.tabBtn(activeTab === 'electricity'),
+              onClick: () => setActiveTab('electricity'),
+            },
+              h(ZapIcon, { size: 14, style: { marginRight: '6px' } }),
+              '宿舍电费'
+            ),
+            h('button', {
               style: S.tabBtn(activeTab === 'settings'),
               onClick: () => setActiveTab('settings'),
             },
@@ -3669,7 +4344,8 @@ window.__ModuleLoader__.load({
                   activeTab === 'grades' && h(GradesView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'studyPlan' && h(StudyPlanView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'exams' && h(ExamsView, { onRequireLogin: () => setActiveTab('settings') }),
-                  activeTab === 'classrooms' && h(ClassroomsView, { onRequireLogin: () => setActiveTab('settings') })
+                  activeTab === 'classrooms' && h(ClassroomsView, { onRequireLogin: () => setActiveTab('settings') }),
+                  activeTab === 'electricity' && h(ElectricityView, { onRequireLogin: () => setActiveTab('settings') })
                 )
           )
         )

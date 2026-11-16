@@ -1,6 +1,13 @@
 """
-DeepSeek Harness - 四川大学教务系统 (URP) 本地适配器服务
-运行于本地 127.0.0.1:48080，桥接 DeepSeek Harness 插件与教务处
+DeepSeek Harness - 四川大学教务系统 (URP) 与宿舍电费本地适配器服务
+运行于本地 127.0.0.1:48080，桥接 DeepSeek Harness 插件与四川大学统一身份认证
+
+核心能力：
+- 竹云 IDaaS 统一身份认证中枢调度 (Auth Hub)
+- 国密 SM2 自动过验证码登录 + 动态扫码登录
+- 一次统一认证，教务系统 (URP) 与宿舍电费系统 (SCU Electricity) 双向自动激活并零二次登录
+- 保留教务系统原生独立密码登录作为向后兼容通道
+- 10 分钟自动静默保活与全天候透明重连
 """
 import asyncio
 import os
@@ -14,32 +21,74 @@ from typing import Optional, List, Dict, Any
 
 from crypto_store import CredentialStore
 from urp_client import SCUUrpClient
+from ele_client import ele_client
+from auth_hub import auth_hub
 from calendar_exporter import generate_ics
 
 cred_store = CredentialStore()
 client = SCUUrpClient()
 
-# 启动时自动检查是否有持久化的本地凭据或已保存会话
-initial_creds = cred_store.load_credentials()
-if initial_creds:
-    if initial_creds.get("cookies"):
-        # 优先载入已保存的持久化 Cookie 并验证有效性
-        client.load_session_cookies(initial_creds["cookies"])
-        if client.is_logged_in:
-            client.username = initial_creds.get("username", "")
-            client.student_name = initial_creds.get("studentName", "")
-    elif initial_creds.get("username") and initial_creds.get("password"):
-        client.update_credentials(initial_creds.get("username", ""), initial_creds.get("password", ""))
+
+def init_credentials_on_startup():
+    """启动时自动检查是否有持久化的本地凭据或已保存会话并尝试静默恢复"""
+    initial_creds = cred_store.load_credentials()
+    if not initial_creds:
+        return
+
+    auth_type = initial_creds.get("authType", "unified_sso")
+    username = initial_creds.get("username", "")
+    password = initial_creds.get("password", "")
+    student_name = initial_creds.get("studentName", "")
+    cus_no = initial_creds.get("cusNo", "")
+    cus_name = initial_creds.get("cusName", "")
+
+    if auth_type == "unified_sso" and username and password:
+        client.username = username
+        client.student_name = student_name
+        ele_client.cus_no = cus_no or username
+        ele_client.cus_name = cus_name or student_name
+    elif auth_type == "unified_sso_qrcode":
+        if initial_creds.get("cookies"):
+            client.load_session_cookies(initial_creds["cookies"])
+            client.username = username
+            client.student_name = student_name
+        if initial_creds.get("eleCookies"):
+            ele_client.set_credentials(cus_no, cus_name, initial_creds.get("eleCookies"))
+    elif auth_type == "legacy_urp":
+        if initial_creds.get("cookies"):
+            client.load_session_cookies(initial_creds["cookies"])
+        if username and password:
+            client.update_credentials(username, password)
+        client.username = username
+        client.student_name = student_name
+
+
+init_credentials_on_startup()
 
 
 async def _heartbeat_loop():
-    """后台轻量心跳探针，每 10 分钟检测并保活教务处 Session，支持密码与扫码会话长效保活"""
+    """后台轻量心跳探针，每 10 分钟检测并保活教务处与电费系统 Session"""
     while True:
         try:
             await asyncio.sleep(600)
             creds = cred_store.load_credentials()
             if creds:
-                client.keep_alive()
+                auth_type = creds.get("authType", "unified_sso")
+                if auth_type == "unified_sso" and creds.get("username") and creds.get("password"):
+                    # 若会话失效，自动通过统一认证静默刷新
+                    if not client.verify_session_alive():
+                        try:
+                            token = auth_hub.login_by_password(creds["username"], creds["password"])
+                            ok_urp, _, u_data = auth_hub.activate_urp_session(token)
+                            if ok_urp:
+                                client.update_session(u_data["session"], u_data["username"], u_data["studentName"])
+                            ok_ele, _, e_data = auth_hub.activate_electricity_session(token)
+                            if ok_ele:
+                                ele_client.update_session(e_data["session"], e_data["cusNo"], e_data["cusName"])
+                        except Exception:
+                            pass
+                else:
+                    client.keep_alive()
         except asyncio.CancelledError:
             break
         except Exception:
@@ -48,15 +97,14 @@ async def _heartbeat_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动后台保活循环
     task = asyncio.create_task(_heartbeat_loop())
     yield
     task.cancel()
 
 
-app = FastAPI(title="SCU URP Harness Bridge", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="SCU URP & Electricity Harness Bridge", version="2.0.0", lifespan=lifespan)
 
-# 启用 CORS 允许 Harness 客户端或 Webview 跨域访问
+# 启用 CORS 允许 Harness 客户端跨域访问
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -69,15 +117,17 @@ app.add_middleware(
 class LoginRequest(BaseModel):
     username: str
     password: str
+    authType: str = "unified_sso"  # "unified_sso" (统一认证，推荐) | "legacy_urp" (教务独立密码)
     remember: bool = True
 
 
 @app.get("/api/status")
 async def get_status():
-    """获取当前服务与登录状态"""
+    """获取当前服务与各子系统登录状态"""
     creds = cred_store.load_credentials()
     has_saved_creds = bool(creds and (creds.get("username") or creds.get("cookies")))
-    auth_type = creds.get("authType", "password") if creds else "password"
+    auth_type = creds.get("authType", "unified_sso") if creds else "unified_sso"
+    
     return {
         "status": "online",
         "hasCredentials": has_saved_creds,
@@ -85,70 +135,180 @@ async def get_status():
         "username": client.username if has_saved_creds else "",
         "isLoggedIn": client.is_logged_in,
         "studentName": client.student_name,
+        "electricity": {
+            "isLoggedIn": ele_client.is_logged_in,
+            "cusNo": ele_client.cus_no,
+            "cusName": ele_client.cus_name
+        }
     }
+
+
+# ================== 统一身份认证扫码登录通道 ==================
 
 @app.get("/api/auth/qrcode/new")
 async def create_sso_qrcode():
-    """获取四川大学统一身份认证 (竹云 IDaaS) 微信/微川大扫码登录二维码"""
+    """获取四川大学统一身份认证 (竹云 IDaaS) 动态二维码 (微川大 / 智慧川大 APP 扫码)"""
     try:
-        data = client.start_sso_qrcode()
+        data = auth_hub.start_qrcode_session()
         return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取统一认证二维码失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取统一认证动态二维码失败: {str(e)}")
+
 
 @app.get("/api/auth/qrcode/status")
 async def check_sso_qrcode_status(code: str = Query(..., description="临时二维码标识")):
-    """轮询检查微信/微川大扫码状态并完成自动登录与凭证持久化"""
-    status, msg, data = client.check_sso_qrcode(code)
-    if status == "SUCCESS":
-        # 扫码成功！持久化保存会话与用户信息 (长期免登录)
+    """
+    轮询检查统一认证扫码状态
+    扫码确认后自动并行换取教务处与电费系统会话，实现零二次登录
+    """
+    status, msg, access_token = auth_hub.check_qrcode_status(code)
+    if status == "SUCCESS" and access_token:
+        # 1. 激活教务处会话
+        ok_urp, msg_urp, u_data = auth_hub.activate_urp_session(access_token)
+        if ok_urp:
+            client.update_session(u_data["session"], u_data["username"], u_data["studentName"])
+
+        # 2. 激活电费系统会话
+        ok_ele, msg_ele, e_data = auth_hub.activate_electricity_session(access_token)
+        if ok_ele:
+            ele_client.update_session(e_data["session"], e_data["cusNo"], e_data["cusName"])
+
+        # 3. 持久化存储两套会话凭据
         cred_store.save_session_credentials(
-            cookies=data.get("cookies", {}),
-            username=data.get("username", ""),
-            student_name=data.get("studentName", ""),
-            auth_type="sso_qrcode"
+            cookies=u_data.get("cookies", {}),
+            username=u_data.get("username", "") or e_data.get("cusNo", ""),
+            student_name=u_data.get("studentName", "") or e_data.get("cusName", ""),
+            auth_type="unified_sso_qrcode",
+            cus_no=e_data.get("cusNo", ""),
+            cus_name=e_data.get("cusName", ""),
+            ele_cookies=e_data.get("cookies", {})
         )
+
         return {
             "status": "SUCCESS",
-            "message": msg,
-            "studentName": data.get("studentName", ""),
-            "username": data.get("username", "")
+            "message": "统一身份认证扫码成功，已自动关联教务处与宿舍电费！",
+            "studentName": client.student_name or ele_client.cus_name,
+            "username": client.username or ele_client.cus_no,
+            "electricity": {
+                "cusNo": ele_client.cus_no,
+                "cusName": ele_client.cus_name
+            }
         }
+
     return {
         "status": status,
         "message": msg
     }
 
 
+# ================== 统一身份认证与教务登录入口 ==================
+
 @app.post("/api/login")
-async def login(req: LoginRequest):
-    """手动登录或保存新凭据"""
-    client.update_credentials(req.username, req.password)
-    ok, msg = client.login()
-    if not ok:
-        raise HTTPException(status_code=400, detail=msg)
+@app.post("/api/auth/login")
+async def login_api(req: LoginRequest):
+    """
+    多模态统一登录接口：
+    1. 默认 authType="unified_sso" (统一身份认证，国密 SM2 + 本地自动识别验证码，一键打通教务与电费)
+    2. 可选 authType="legacy_urp" (教务系统原生独立密码，兼容旧习惯)
+    """
+    username = req.username.strip()
+    password = req.password.strip()
 
-    if req.remember:
-        cred_store.save_credentials(req.username, req.password, remember=True)
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="学号或密码不能为空")
+
+    if req.authType == "unified_sso":
+        try:
+            # 1. 登录统一认证并换取 access_token
+            access_token = auth_hub.login_by_password(username, password)
+            
+            # 2. 自动并行激活教务处会话
+            ok_urp, msg_urp, u_data = auth_hub.activate_urp_session(access_token)
+            if ok_urp:
+                client.update_session(u_data["session"], u_data.get("username") or username, u_data.get("studentName", ""))
+            
+            # 3. 自动并行激活电费系统会话
+            ok_ele, msg_ele, e_data = auth_hub.activate_electricity_session(access_token)
+            if ok_ele:
+                ele_client.update_session(e_data["session"], e_data.get("cusNo") or username, e_data.get("cusName", ""))
+
+            student_name = client.student_name or ele_client.cus_name or username
+
+            # 4. 记住凭据 (硬件特征加密保存)
+            if req.remember:
+                cred_store.save_credentials(
+                    username=username,
+                    password=password,
+                    remember=True,
+                    auth_type="unified_sso",
+                    student_name=student_name
+                )
+            else:
+                cred_store.clear_credentials()
+
+            return {
+                "success": True,
+                "authType": "unified_sso",
+                "message": "统一身份认证成功！教务处与电费系统已无缝打通",
+                "studentName": student_name,
+                "username": username,
+                "urpReady": client.is_logged_in,
+                "electricityReady": ele_client.is_logged_in,
+                "cusNo": ele_client.cus_no,
+                "cusName": ele_client.cus_name
+            }
+        except RuntimeError as re_err:
+            raise HTTPException(status_code=400, detail=str(re_err))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"统一身份认证系统通信异常: {str(e)}")
+
+    elif req.authType == "legacy_urp":
+        # 原教务处独立密码通道 (向后兼容)
+        client.update_credentials(username, password)
+        ok, msg = client.login()
+        if not ok:
+            raise HTTPException(status_code=400, detail=f"教务系统原生登录失败: {msg}")
+
+        if req.remember:
+            cred_store.save_credentials(
+                username=username,
+                password=password,
+                remember=True,
+                auth_type="legacy_urp",
+                student_name=client.student_name
+            )
+        else:
+            cred_store.clear_credentials()
+
+        return {
+            "success": True,
+            "authType": "legacy_urp",
+            "message": "教务系统原生登录成功",
+            "studentName": client.student_name,
+            "username": client.username,
+            "urpReady": True,
+            "electricityReady": False
+        }
+
     else:
-        cred_store.clear_credentials()
-
-    return {
-        "success": True,
-        "message": "登录成功",
-        "studentName": client.student_name,
-    }
+        raise HTTPException(status_code=400, detail=f"不支持的认证类型: {req.authType}")
 
 
 @app.post("/api/logout")
 async def logout():
-    """清除凭据与会话"""
+    """清除本地保存的凭据与各系统会话"""
     cred_store.clear_credentials()
     client.update_credentials("", "")
     client.is_logged_in = False
     client.student_name = ""
     client.session.cookies.clear()
-    return {"success": True, "message": "已清除本地凭据与会话"}
+
+    ele_client.cus_no = ""
+    ele_client.cus_name = ""
+    ele_client.is_logged_in = False
+    ele_client.session.cookies.clear()
+
+    return {"success": True, "message": "已成功清除本地凭据并退出所有系统"}
 
 
 def ensure_authenticated():
@@ -157,22 +317,138 @@ def ensure_authenticated():
         return
     creds = cred_store.load_credentials()
     if not creds:
-        raise HTTPException(status_code=401, detail="尚未配置教务系统账号凭据，请先在面板中登录")
+        raise HTTPException(status_code=401, detail="尚未配置账号凭据，请先在面板中完成统一认证")
+
+    auth_type = creds.get("authType", "unified_sso")
+
     # 优先载入已保存的 Session Cookies
     if creds.get("cookies"):
         if client.load_session_cookies(creds["cookies"]):
             client.username = creds.get("username", "")
             client.student_name = creds.get("studentName", "")
             return
-    # 若失效或为账密凭据，则尝试账密静默重连
+
+    # 若为统一认证账密凭据，执行自动静默登录与双向激活
+    if auth_type == "unified_sso" and creds.get("username") and creds.get("password"):
+        try:
+            token = auth_hub.login_by_password(creds["username"], creds["password"])
+            ok_urp, _, u_data = auth_hub.activate_urp_session(token)
+            if ok_urp:
+                client.update_session(u_data["session"], u_data.get("username") or creds["username"], u_data.get("studentName", ""))
+            ok_ele, _, e_data = auth_hub.activate_electricity_session(token)
+            if ok_ele:
+                ele_client.update_session(e_data["session"], e_data.get("cusNo") or creds["username"], e_data.get("cusName", ""))
+            return
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"统一认证静默续期失败: {str(e)}，请重新登录")
+
+    # 若为旧教务账密凭据
     if creds.get("username") and creds.get("password"):
         client.update_credentials(creds.get("username", ""), creds.get("password", ""))
         ok, msg = client.login()
         if ok:
             return
         raise HTTPException(status_code=401, detail=f"自动登录教务处失败: {msg}")
-    raise HTTPException(status_code=401, detail="当前会话已失效，请重新扫码或输入密码登录")
 
+    raise HTTPException(status_code=401, detail="当前会话已失效，请重新登录")
+
+
+def ensure_electricity_authenticated():
+    """确保电费系统会话已就绪，若未就绪自动使用统一凭据静默激活"""
+    if ele_client.is_logged_in and ele_client.cus_no:
+        return
+    creds = cred_store.load_credentials()
+    if not creds:
+        raise HTTPException(status_code=401, detail="尚未完成统一身份认证，无法查询宿舍电费")
+
+    auth_type = creds.get("authType", "unified_sso")
+
+    # 优先恢复已保存的电费 cookies
+    if creds.get("eleCookies") and creds.get("cusNo"):
+        ele_client.set_credentials(creds["cusNo"], creds.get("cusName", ""), creds.get("eleCookies"))
+        if ele_client.is_logged_in:
+            return
+
+    # 若为统一认证账密，自动静默激活电费系统
+    if auth_type == "unified_sso" and creds.get("username") and creds.get("password"):
+        try:
+            token = auth_hub.login_by_password(creds["username"], creds["password"])
+            ok_ele, msg_ele, e_data = auth_hub.activate_electricity_session(token)
+            if ok_ele:
+                ele_client.update_session(e_data["session"], e_data.get("cusNo") or creds["username"], e_data.get("cusName", ""))
+                return
+            raise HTTPException(status_code=500, detail=f"激活电费会话失败: {msg_ele}")
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"统一认证登录电费系统失败: {str(e)}")
+
+    raise HTTPException(status_code=401, detail="电费会话未就绪，请在设置中通过统一身份认证登录")
+
+
+# ================== 宿舍电费查询业务 API ==================
+
+@app.get("/api/electricity/status")
+async def get_electricity_status_api():
+    """获取当前宿舍的空调电费与照明电费数据 (自动利用统一认证凭据免二次登录)"""
+    ensure_electricity_authenticated()
+    data = ele_client.query_electricity()
+    if not data.get("success"):
+        raise HTTPException(status_code=500, detail=data.get("message") or "获取电费信息失败")
+    return data
+
+
+@app.get("/api/electricity/campuses")
+async def get_electricity_campuses():
+    """获取电费系统的校区列表"""
+    ensure_electricity_authenticated()
+    datas = ele_client.get_campuses()
+    return {"campuses": datas}
+
+
+@app.get("/api/electricity/buildings")
+async def get_electricity_buildings(schoolCode: str = Query(..., description="校区代码")):
+    """根据校区代码获取楼栋列表"""
+    ensure_electricity_authenticated()
+    datas = ele_client.get_buildings(schoolCode)
+    return {"buildings": datas}
+
+
+@app.get("/api/electricity/units")
+async def get_electricity_units(
+    schoolCode: str = Query(..., description="校区代码"),
+    regCode: str = Query(..., description="楼栋代码")
+):
+    """根据校区与楼栋代码获取单元列表"""
+    ensure_electricity_authenticated()
+    datas = ele_client.get_units(schoolCode, regCode)
+    return {"units": datas}
+
+
+@app.post("/api/electricity/verify-room")
+async def verify_room_api(payload: dict = Body(...)):
+    """校验并切换绑定到新宿舍房间"""
+    ensure_electricity_authenticated()
+    school_code = payload.get("schoolCode", "")
+    reg_code = payload.get("regCode", "")
+    unit_code = payload.get("unitCode", "")
+    room_no = payload.get("roomNo", "")
+
+    if not school_code or not reg_code or not room_no:
+        raise HTTPException(status_code=400, detail="校区、楼栋与房间号均不能为空")
+
+    ok, msg = ele_client.verify_room(school_code, reg_code, unit_code, room_no)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    # 切换成功后立即拉取一次最新电量
+    latest = ele_client.query_electricity()
+    return {
+        "success": True,
+        "message": msg,
+        "electricity": latest
+    }
+
+
+# ================== 教务处核心业务 API ==================
 
 @app.get("/api/schedule")
 async def get_schedule():
@@ -253,7 +529,6 @@ async def export_grades_csv(
         if onlyRequired:
             grades = [g for g in grades if g.get("isRequired")]
 
-        # 生成 CSV，带 \ufeff (UTF-8 BOM)，确保 Windows Excel 打开不乱码
         rows = ["序号,学期,课程代码,课程名称,学分,课程性质,是否必修,成绩,等级,绩点,未通过原因"]
         for idx, g in enumerate(grades, 1):
             name_clean = f'"{g.get("name", "")}"' if "," in g.get("name", "") else g.get("name", "")
@@ -347,7 +622,8 @@ def _save_todos(todos: List[Dict[str, Any]]) -> bool:
             json.dump(todos, f, ensure_ascii=False, indent=2)
         return True
     except Exception:
-        return False
+        pass
+    return False
 
 @app.get("/api/todos")
 async def get_todos_api():

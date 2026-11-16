@@ -85,6 +85,16 @@ class SCUUrpClient:
         self.password = password
         self.is_logged_in = False
 
+    def update_session(self, session: requests.Session, username: str = "", student_name: str = ""):
+        """从统一认证中枢注入已登录的 requests.Session 与用户信息"""
+        self.session.cookies.clear()
+        self.session.cookies.update(session.cookies)
+        self.is_logged_in = True
+        if username:
+            self.username = username
+        if student_name:
+            self.student_name = student_name
+
     def _get_cookie_safe(self, name: str) -> str:
         """安全读取 Cookie，避免 requests 抛出 CookieConflictError"""
         for cookie in self.session.cookies:

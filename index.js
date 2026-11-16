@@ -5,6 +5,7 @@
  */
 
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -55,7 +56,7 @@ export function apply(ctx, config) {
 
           if (process.platform === 'win32') {
             try {
-              if (path.isAbsolute(defaultPy312)) {
+              if (fs.existsSync(defaultPy312)) {
                 pyBin = defaultPy312
                 pyArgs = [serverScript]
               }
@@ -481,6 +482,64 @@ export function apply(ctx, config) {
         return { success: true, data }
       } catch (e) {
         return { success: false, error: `无法连接到本地教务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 7. 注册宿舍电费查询工具
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_electricity',
+    description: '查询四川大学当前绑定宿舍的实时电费与剩余电量（包含空调动力用电与宿舍照明用电）、预估剩余金额、基准电价及当前房间位置。',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(_args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询宿舍电费失败: ${value.error}` }]
+        }
+        const d = value.data
+        const air = d.air || {}
+        const light = d.light || {}
+        const airBal = air.balance !== undefined && air.balance !== null ? air.balance.toFixed(2) : '--'
+        const lightBal = light.balance !== undefined && light.balance !== null ? light.balance.toFixed(2) : '--'
+        const airCost = air.balance !== undefined && air.balance !== null ? (air.balance * (air.price || 0.5464)).toFixed(2) : '--'
+        const lightCost = light.balance !== undefined && light.balance !== null ? (light.balance * (light.price || 0.5464)).toFixed(2) : '--'
+        
+        let warningText = ''
+        if ((air.balance !== null && air.balance < 10) || (light.balance !== null && light.balance < 10)) {
+          warningText = '\n\n⚠️ **特别提醒**: 部分电量已不足 10 度，请及时通过微川大或智慧川大充值，防止夜间断电。'
+        }
+
+        return [{
+          type: 'text',
+          text: `**川大宿舍电费实时账单 (${d.roomDisplay || '当前宿舍'})**:\n• **绑定身份**: ${d.cusName} (${d.cusNo})\n• **空调动力电费**: **${airBal} 度** (预估剩余 ¥ ${airCost} · 单价 ${air.price || 0.5464} 元/度)\n• **宿舍照明电费**: **${lightBal} 度** (预估剩余 ¥ ${lightCost} · 单价 ${light.price || 0.5464} 元/度)${warningText}\n\n提示: 可在插件左侧看板【宿舍电费】专区中一键刷新或点击【切换宿舍】查询其它寝室。`,
+        }]
+      },
+    },
+    async execute() {
+      try {
+        const resp = await fetch(`${serviceUrl}/api/electricity/status`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地电费后端: ${e.message}` }
       }
     },
   }))
