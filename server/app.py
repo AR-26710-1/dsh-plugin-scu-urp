@@ -143,6 +143,27 @@ async def get_status():
     }
 
 
+@app.get("/api/auth/saved-credentials")
+async def get_saved_credentials():
+    """读取本地基于硬件特征加密安全保存的账号凭据，供前端快捷填入"""
+    creds = cred_store.load_credentials()
+    if not creds:
+        return {"hasSaved": False, "username": "", "password": "", "authType": "unified_sso", "studentName": ""}
+
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    auth_type = creds.get("authType", "unified_sso")
+    student_name = creds.get("studentName", "")
+
+    return {
+        "hasSaved": bool(username and password),
+        "username": username,
+        "password": password,
+        "authType": auth_type,
+        "studentName": student_name
+    }
+
+
 # ================== 统一身份认证扫码登录通道 ==================
 
 @app.get("/api/auth/qrcode/new")

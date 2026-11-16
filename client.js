@@ -220,6 +220,8 @@ window.__ModuleLoader__.load({
     const BookOpenIcon = createSvgIcon(['M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z', 'M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'])
     const ZapIcon = createSvgIcon(['M13 2L3 14h9l-1 8 10-12h-9l1-8z'])
     const KeyIcon = createSvgIcon(['M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5a6 6 0 1 0-2.5 7.5L2 23l4-1 1-4 3-1 2 2 8-8z'])
+    const EyeIcon = createSvgIcon(['M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'], [{ cx: 12, cy: 12, r: 3 }])
+    const EyeOffIcon = createSvgIcon(['M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'], [], [{ x1: 1, y1: 1, x2: 23, y2: 23 }])
 
     // ================== 本地极速秒开缓存管理器 (Stale-While-Revalidate) ==================
     const SCU_CACHE = {
@@ -3806,12 +3808,52 @@ window.__ModuleLoader__.load({
       const [remember, setRemember] = useState(true)
       const [submitting, setSubmitting] = useState(false)
       const [msg, setMsg] = useState({ text: '', isError: false })
+      const [showPassword, setShowPassword] = useState(false)
+
+      // 本地硬件加密记住的凭据与快捷填入
+      const [savedCreds, setSavedCreds] = useState(null)
+      const [autoFillTip, setAutoFillTip] = useState('')
 
       // 扫码登录专用状态
       const [qrCodeData, setQrCodeData] = useState(null)
       const [qrLoading, setQrLoading] = useState(false)
       const [qrStatusText, setQrStatusText] = useState('')
       const pollTimerRef = useRef(null)
+
+      // 挂载时拉取本地基于硬件加密保存的凭据并自动快捷预填
+      useEffect(() => {
+        async function loadSavedCredentials() {
+          try {
+            const resp = await fetch(`${SERVICE_URL}/api/auth/saved-credentials`)
+            if (resp.ok) {
+              const d = await resp.json()
+              if (d.hasSaved && d.username && d.password) {
+                setSavedCreds(d)
+                setUsername(d.username)
+                setPassword(d.password)
+                if (d.authType === 'legacy_urp') {
+                  setAuthTab('legacy')
+                } else {
+                  setAuthTab('unified')
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        loadSavedCredentials()
+      }, [])
+
+      // 一键快捷重新填入已记住的凭据
+      const handleAutoFill = () => {
+        if (savedCreds) {
+          setUsername(savedCreds.username)
+          setPassword(savedCreds.password)
+          if (savedCreds.authType === 'legacy_urp') setAuthTab('legacy')
+          else setAuthTab('unified')
+          setAutoFillTip('已快捷填入已保存的凭据')
+          setTimeout(() => setAutoFillTip(''), 3000)
+        }
+      }
 
       // 拉取动态二维码
       const fetchNewQrCode = useCallback(async () => {
@@ -3889,6 +3931,9 @@ window.__ModuleLoader__.load({
             setMsg({ text: d.detail || '认证失败，请检查账号密码', isError: true })
           } else {
             setMsg({ text: d.message || '登录成功！已基于主机密钥加密保存凭据。', isError: false })
+            if (remember) {
+              setSavedCreds({ username, password, authType, studentName: d.studentName || username })
+            }
             onLoginSuccess(d.studentName || username)
           }
         } catch (err) {
@@ -3904,6 +3949,7 @@ window.__ModuleLoader__.load({
         } finally {
           setUsername('')
           setPassword('')
+          setSavedCreds(null)
           setMsg({ text: '已清除本地保存的凭据并退出所有系统。', isError: false })
           onLogoutSuccess()
         }
@@ -3976,8 +4022,42 @@ window.__ModuleLoader__.load({
             h(ShieldIcon, { size: 19 }),
             h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: 600 } }, '四川大学统一身份认证接入')
           ),
-          h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '18px', lineHeight: 1.5 } },
-            '采用竹云 IDaaS 统一认证枢纽，一次登录即可全量打通综合教务处与宿舍电费查询，全天候长效免二次登录。'
+          h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '16px', lineHeight: 1.5 } },
+            '采用竹云 IDaaS 统一认证枢纽，一次登录即可全量打通综合教务处与宿舍电费查询，支持记住密码与快捷自动填入。'
+          ),
+
+          // 记住密码快捷填入胶囊条
+          savedCreds && h('div', {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              background: 'rgba(16, 185, 129, 0.07)',
+              border: '1px solid rgba(16, 185, 129, 0.22)',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '12px',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h(KeyIcon, { size: 14, style: { color: '#10b981' } }),
+              h('span', null, `已安全记住本设备凭据: `, h('strong', { style: { fontWeight: 600 } }, savedCreds.username)),
+              autoFillTip && h('span', { style: { color: '#10b981', fontWeight: 500, marginLeft: '4px' } }, `✓ ${autoFillTip}`)
+            ),
+            h('button', {
+              type: 'button',
+              style: {
+                ...S.btnSecondary,
+                fontSize: '11px',
+                padding: '4px 10px',
+                borderColor: 'rgba(16, 185, 129, 0.35)',
+                color: '#10b981',
+                background: 'rgba(16, 185, 129, 0.05)',
+                fontWeight: 600,
+              },
+              onClick: handleAutoFill,
+            }, '快捷填入')
           ),
 
           // 提示消息
@@ -4042,13 +4122,36 @@ window.__ModuleLoader__.load({
               onChange: (e) => setUsername(e.target.value),
             }),
             h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '统一身份认证密码'),
-            h('input', {
-              style: S.input,
-              type: 'password',
-              placeholder: '四川大学统一身份认证密码 (id.scu.edu.cn)',
-              value: password,
-              onChange: (e) => setPassword(e.target.value),
-            }),
+            h('div', { style: { position: 'relative', marginBottom: '14px' } },
+              h('input', {
+                style: { ...S.input, marginBottom: 0, paddingRight: '42px' },
+                type: showPassword ? 'text' : 'password',
+                placeholder: '四川大学统一身份认证密码 (id.scu.edu.cn)',
+                value: password,
+                onChange: (e) => setPassword(e.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                style: {
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                title: showPassword ? '隐藏密码' : '显示密码',
+                onClick: () => setShowPassword(!showPassword),
+              },
+                showPassword ? h(EyeOffIcon, { size: 16 }) : h(EyeIcon, { size: 16 })
+              )
+            ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px', lineHeight: 1.4 } },
               '💡 本地轻量神经网络毫秒级自动识别图形验证码，无需手动输入；采用国密 SM2 非对称加密传输。'
             ),
@@ -4058,7 +4161,7 @@ window.__ModuleLoader__.load({
                 checked: remember,
                 onChange: (e) => setRemember(e.target.checked),
               }),
-              '记住凭据并在本地硬件加密存储（全天自动保活免登录）'
+              '记住密码并在本地硬件安全加密存储（下次进入自动快捷填入）'
             ),
             h('div', { style: { display: 'flex', gap: '10px' } },
               h('button', {
@@ -4133,13 +4236,36 @@ window.__ModuleLoader__.load({
               onChange: (e) => setUsername(e.target.value),
             }),
             h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '综合教务系统专属密码'),
-            h('input', {
-              style: S.input,
-              type: 'password',
-              placeholder: '四川大学综合教务处独立密码',
-              value: password,
-              onChange: (e) => setPassword(e.target.value),
-            }),
+            h('div', { style: { position: 'relative', marginBottom: '14px' } },
+              h('input', {
+                style: { ...S.input, marginBottom: 0, paddingRight: '42px' },
+                type: showPassword ? 'text' : 'password',
+                placeholder: '四川大学综合教务处独立密码',
+                value: password,
+                onChange: (e) => setPassword(e.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                style: {
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                title: showPassword ? '隐藏密码' : '显示密码',
+                onClick: () => setShowPassword(!showPassword),
+              },
+                showPassword ? h(EyeOffIcon, { size: 16 }) : h(EyeIcon, { size: 16 })
+              )
+            ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px', lineHeight: 1.4 } },
               '⚠️ 此通道仅登录教务处本系统，不自动绑定宿舍电费系统；如需同时使用电费功能，建议使用【统一认证账密】或【动态扫码】。'
             ),
@@ -4149,7 +4275,7 @@ window.__ModuleLoader__.load({
                 checked: remember,
                 onChange: (e) => setRemember(e.target.checked),
               }),
-              '记住凭据并在本地硬件加密存储'
+              '记住密码并在本地硬件加密存储'
             ),
             h('div', { style: { display: 'flex', gap: '10px' } },
               h('button', {

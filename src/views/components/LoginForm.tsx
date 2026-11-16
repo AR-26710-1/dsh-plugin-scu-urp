@@ -12,6 +12,45 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, savedUsern
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // 本地硬件加密记住的凭据与快捷填入
+  const [savedCreds, setSavedCreds] = useState<{ username: string; password?: string; authType?: string; studentName?: string } | null>(null);
+  const [autoFillTip, setAutoFillTip] = useState('');
+
+  // 挂载时拉取本地已保存的密码凭据
+  useEffect(() => {
+    async function loadSaved() {
+      try {
+        const resp = await fetch('http://127.0.0.1:48080/api/auth/saved-credentials');
+        if (resp.ok) {
+          const d = await resp.json();
+          if (d.hasSaved && d.username && d.password) {
+            setSavedCreds(d);
+            setUsername(d.username);
+            setPassword(d.password);
+            if (d.authType === 'legacy_urp') {
+              setAuthTab('legacy');
+            } else {
+              setAuthTab('unified');
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    loadSaved();
+  }, []);
+
+  const handleAutoFill = () => {
+    if (savedCreds) {
+      setUsername(savedCreds.username);
+      if (savedCreds.password) setPassword(savedCreds.password);
+      if (savedCreds.authType === 'legacy_urp') setAuthTab('legacy');
+      else setAuthTab('unified');
+      setAutoFillTip('已快捷填入已保存的凭据');
+      setTimeout(() => setAutoFillTip(''), 3000);
+    }
+  };
 
   // 扫码登录专用
   const [qrCodeData, setQrCodeData] = useState<{ code: string; qrcode: string } | null>(null);
@@ -89,6 +128,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, savedUsern
       if (!resp.ok) {
         setErrorMsg(data.detail || '认证失败，请检查账号密码');
       } else {
+        if (remember) {
+          setSavedCreds({ username, password, authType, studentName: data.studentName || username });
+        }
         onLoginSuccess(data.studentName || username);
       }
     } catch (err: any) {
@@ -102,8 +144,44 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, savedUsern
     <div className="scu-card" style={{ marginTop: '20px', padding: '20px' }}>
       <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 600 }}>四川大学统一身份认证接入</h3>
       <p style={{ fontSize: '12px', color: 'var(--scu-text-sub)', marginBottom: '16px', lineHeight: 1.5 }}>
-        通过统一认证中枢，一次登录即可全量打通综合教务处与宿舍电费系统，本地硬件加密存储，长期免二次登录。
+        通过统一认证中枢，一次登录即可全量打通综合教务处与宿舍电费系统，本地硬件加密存储，支持记住密码与快捷自动填入。
       </p>
+
+      {/* 记住密码快捷填入胶囊条 */}
+      {savedCreds && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          background: 'rgba(16, 185, 129, 0.08)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          fontSize: '12px'
+        }}>
+          <div>
+            <span>已安全记住本设备凭据: <strong>{savedCreds.username}</strong></span>
+            {autoFillTip && <span style={{ color: '#10b981', marginLeft: '6px' }}>✓ {autoFillTip}</span>}
+          </div>
+          <button
+            type="button"
+            onClick={handleAutoFill}
+            style={{
+              padding: '3px 8px',
+              fontSize: '11px',
+              borderRadius: '4px',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              background: 'transparent',
+              color: '#10b981',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            快捷填入
+          </button>
+        </div>
+      )}
 
       {errorMsg && (
         <div style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.08)', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', marginBottom: '14px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
@@ -151,13 +229,33 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, savedUsern
 
           <div className="scu-form-group">
             <label className="scu-form-label">统一身份认证密码</label>
-            <input
-              className="scu-input"
-              type="password"
-              placeholder="统一身份认证平台密码 (id.scu.edu.cn)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                className="scu-input"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="统一身份认证平台密码 (id.scu.edu.cn)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ paddingRight: '40px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  color: 'var(--scu-text-sub)'
+                }}
+              >
+                {showPassword ? '隐藏' : '显示'}
+              </button>
+            </div>
           </div>
 
           <div style={{ fontSize: '11px', color: 'var(--scu-text-sub)', marginBottom: '14px', lineHeight: 1.4 }}>
@@ -172,7 +270,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, savedUsern
               onChange={(e) => setRemember(e.target.checked)}
             />
             <label htmlFor="rememberMe" style={{ fontSize: '12px', color: 'var(--scu-text-sub)', cursor: 'pointer' }}>
-              记住凭据并在本地硬件安全加密存储（全天自动保活免登录）
+              记住密码并在本地硬件安全加密存储（下次自动快捷填入）
             </label>
           </div>
 
@@ -227,13 +325,33 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, savedUsern
 
           <div className="scu-form-group">
             <label className="scu-form-label">教务系统专属密码</label>
-            <input
-              className="scu-input"
-              type="password"
-              placeholder="四川大学综合教务系统独立密码"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                className="scu-input"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="四川大学综合教务系统独立密码"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ paddingRight: '40px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  color: 'var(--scu-text-sub)'
+                }}
+              >
+                {showPassword ? '隐藏' : '显示'}
+              </button>
+            </div>
           </div>
 
           <div style={{ fontSize: '11px', color: 'var(--scu-text-sub)', marginBottom: '14px' }}>
