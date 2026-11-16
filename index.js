@@ -439,7 +439,7 @@ export function apply(ctx, config) {
   }))
 
   // 6. 注册培养方案与学分进度查询工具
-  ctx.tools.register(agentScope({
+  ctx.effect(() => ctx.tools.register({
     name: 'scu_get_study_plan',
     description: '查询四川大学培养方案与学业进度、毕业要求总学分完成度、已修课程、在读课程及保研必修/总加权平均分。',
     parameters: {
@@ -540,6 +540,206 @@ export function apply(ctx, config) {
         return { success: true, data }
       } catch (e) {
         return { success: false, error: `无法连接到本地电费后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 8. 注册校园一卡通查询工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_card_info',
+    description: '查询四川大学学生校园一卡通的实时物理卡余额、今日消费总额、近 30 天消费流水笔数与近期档口消费明细（如食堂、校车、超市等）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'integer',
+          description: '可选：返回最近流水明细的最大条数，默认为 5 条，最多 30 条。',
+        },
+        refresh: {
+          type: 'boolean',
+          description: '可选：是否强制穿透缓存从四川大学微服务平台拉取最新数据。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询校园一卡通失败: ${value.error}` }]
+        }
+        const d = value.data
+        const limit = args?.limit || 5
+        const records = (d.records || []).slice(0, limit)
+        
+        let recordListText = ''
+        if (records.length > 0) {
+          const rows = records.map((r, i) => {
+            const isRecharge = r.type && (r.type.includes('充值') || r.type.includes('补助'))
+            const sign = isRecharge ? '+' : '-'
+            return `${i + 1}. **${r.merchant}** · ${r.datetime || `${r.date} ${r.time}`} · ${sign}¥ ${r.amount.toFixed(2)}${r.balance ? ` (余 ¥ ${r.balance})` : ''}`
+          })
+          recordListText = `\n\n**近期消费流水明细 (前 ${records.length} 笔)**:\n` + rows.join('\n')
+        } else {
+          recordListText = '\n\n近期暂无校园卡消费流水。'
+        }
+
+        return [{
+          type: 'text',
+          text: `**川大校园一卡通实时信息**:\n• **实体卡物理余额**: **¥ ${d.balance}** (卡片服务状态: **${d.cardStatus || '正常'}**)\n• **今日在校支出**: **¥ ${d.todaySpent !== undefined ? d.todaySpent.toFixed(2) : '--'}**\n• **近 30 天消费总计**: **¥ ${d.totalSpent !== undefined ? d.totalSpent.toFixed(2) : '--'}** (${d.recordCount || 0} 笔流水 · 统计区间: ${d.dateRange || '近30天'})\n• **最近同步时间**: ${d.lastUpdated || '--'}${recordListText}\n\n提示: 可通过微信【微川大】服务号或手机端【智慧川大 APP】进行在线充值，充值后可在食堂圈存机贴卡补登。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const refreshParam = args.refresh ? '?refresh=true' : ''
+        const resp = await fetch(`${serviceUrl}/api/wfw/card/status${refreshParam}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 9. 注册校园网在线终端状态查询工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_network_status',
+    description: '查询四川大学校园网当前在线终端设备清单、当前并发连接数与上限（通常为 3 台）、各终端分配的内网 IP 与物理 MAC 地址、设备类型推测。',
+    parameters: {
+      type: 'object',
+      properties: {
+        refresh: {
+          type: 'boolean',
+          description: '可选：是否强制穿透缓存实时检测当前在线终端。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(_args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询校园网终端状态失败: ${value.error}` }]
+        }
+        const d = value.data
+        const maxDev = d.maxDevices || 3
+        const isFull = d.deviceCount >= maxDev
+        const quotaNotice = isFull ? '⚠️ **名额已满 (无法接入新终端)**' : '✅ **配额充裕**'
+
+        let deviceListText = ''
+        if (d.devices && d.devices.length > 0) {
+          const rows = d.devices.map((dev, i) => {
+            return `${i + 1}. **${dev.deviceType || '接入终端'}** · IP: \`${dev.ip || '--'}\` · MAC: \`${dev.mac || dev.deviceId}\` · 状态: 在线`
+          })
+          deviceListText = `\n\n**在线终端清单 (${d.devices.length} 台)**:\n` + rows.join('\n')
+        } else {
+          deviceListText = '\n\n当前未检测到在线终端设备。'
+        }
+
+        return [{
+          type: 'text',
+          text: `**川大校园网在线终端监控**:\n• **并发设备数**: **${d.deviceCount || 0} / ${maxDev} 台** (${quotaNotice})\n• **远程踢出权限**: **${d.canOffline ? '支持远程强制下线' : '受限'}**\n• **网络接入环境**: SCU-Wireless / 宿舍有线千兆网口\n• **检测时间**: ${d.lastUpdated || '--'}${deviceListText}\n\n提示: 若因达到 3 台上限无法登录新设备，可指示我调用 \`scu_offline_network_device\` 工具远程下线设备释放名额。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const refreshParam = args.refresh ? '?refresh=true' : ''
+        const resp = await fetch(`${serviceUrl}/api/wfw/network/status${refreshParam}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 10. 注册校园网设备远程强制下线工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_offline_network_device',
+    description: '远程强制下线四川大学校园网中的指定在线终端设备，释放并发连接配额，解决“超出 3 台设备限制导致新设备无法认证上网”的问题。',
+    parameters: {
+      type: 'object',
+      properties: {
+        deviceId: {
+          type: 'string',
+          description: '必填：需要下线的设备 MAC 地址（支持格式如 "FE:05:A9:9B:39:A3" 或 "FE05A99B39A3"）。',
+        },
+        ip: {
+          type: 'string',
+          description: '可选：目标设备的分配 IP 地址。',
+        },
+      },
+      required: ['deviceId'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          message: { type: 'string' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `下线设备失败: ${value.error}` }]
+        }
+        return [{
+          type: 'text',
+          text: `✅ **校园网设备下线成功**:\n• **目标设备 MAC**: \`${args.deviceId}\`${args.ip ? `\n• **目标设备 IP**: \`${args.ip}\`` : ''}\n• **状态**: **已从四川大学校园网强制踢出下线，成功释放 1 个并发连接名额**。\n• **后续**: 您的新电脑或手机现在可以打开 Portal 登录页面进行接入认证。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      if (!args.deviceId) {
+        return { success: false, error: '缺少必须的设备 MAC 地址 (deviceId)' }
+      }
+      try {
+        const cleanMac = args.deviceId.replace(/[:-]/g, '').toUpperCase().trim()
+        const resp = await fetch(`${serviceUrl}/api/wfw/network/offline`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId: cleanMac, ip: args.ip || '' }),
+        })
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, message: data.message || '终端已成功下线' }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
       }
     },
   }))

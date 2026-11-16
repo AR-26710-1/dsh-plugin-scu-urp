@@ -58,12 +58,17 @@
 - **Stale-While-Revalidate 秒开快照**：打开或切换 Tab 时 **0 毫秒首屏秒开**，后台静默增量刷新；断网或教务维护时优雅展示离线快照。
 
 ### 9. 🤖 对话 Agent 智能工具联动 (Cordis Tools)
-主对话框输入自然语言即可自主唤醒工具：
+主对话框输入自然语言即可自主唤醒 10 大核心工具：
 - `scu_get_schedule`: 查课表与今日日程
 - `scu_get_grades`: 查成绩、各学期统计与保研 GPA
 - `scu_get_study_plan`: 查培养方案进度、毕业总学分与待修课程
 - `scu_get_exams`: 查考试安排与考室座位
 - `scu_get_free_classrooms`: 查指定校区、教学楼、时段空闲自习室
+- `scu_export_calendar`: 导出全学期课表为手机日历文件 (.ics)
+- `scu_get_electricity`: 查宿舍空调与照明实时剩余电费及房间位置
+- `scu_get_card_info`: 查校园一卡通实体卡实时余额、今日支出与档口流水明细
+- `scu_get_network_status`: 查校园网在线终端设备列表、并发连接配额与各设备 IP/MAC
+- `scu_offline_network_device`: 远程下线指定校园网在线设备，释放 3 台并发连接限制
 
 ### 10. ⚡ 宿舍电费实时查询与换房绑定 (Electricity Suite)
 - **双模电量实时感知**：一次查询同时获取宿舍的**【空调电费】**与**【照明电费】**实时剩余度数与单价。
@@ -86,12 +91,17 @@ flowchart TD
             Drawer --> TabRooms["🏫 空闲教室 & 考研自习室"]
             Drawer --> TabSettings["🔐 账号凭据 & 保活设置"]
         end
-        subgraph Tools["Agent 对话工具通道 (index.js)"]
+        subgraph Tools["Cordis 智能工具链 (index.js)"]
             T1["scu_get_schedule"]
             T2["scu_get_grades"]
             T3["scu_get_study_plan"]
             T4["scu_get_exams"]
             T5["scu_get_free_classrooms"]
+            T6["scu_export_calendar"]
+            T7["scu_get_electricity"]
+            T8["scu_get_card_info"]
+            T9["scu_get_network_status"]
+            T10["scu_offline_network_device"]
         end
     end
 
