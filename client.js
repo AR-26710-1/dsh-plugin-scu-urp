@@ -3399,20 +3399,20 @@ window.__ModuleLoader__.load({
         category: 'life',
         categoryLabel: '校园生活',
         icon: CreditCardIcon,
-        status: 'planned',
-        statusText: '规划中',
-        desc: '实体卡与虚拟卡余额核对、食堂超市消费流水明细与微川大充值记录',
+        status: 'online',
+        statusText: '实时在线',
+        desc: '实体卡实时物理余额、食堂超市消费流水明细、近30天消费走势与官方充值',
         features: [
-          '双钱包架构查询：主卡物理钱包余额与微服务线上补助/电子账户余额对账',
-          '多场景消费流水：望江、江安、华西各食堂档口、校车刷卡、开水房明细',
-          '官方圈存通道：基于一卡通微服务直连微信支付与银联快捷充值',
-          '卡片安全托管：支持实体校园卡在线紧急临时挂失与解挂服务'
+          '物理卡实时余额：直连川大一卡通中枢，实时读取实体卡物理芯片结余',
+          '全场景明细流水：望江、江安、华西各食堂档口、超市消费与充值完整记录',
+          '消费统计与对账：今日支出汇总、近 30 天消费笔数与每日支出走势核对',
+          '充值与安全服务：聚合微川大、支付宝校园卡官方充值通道与紧急挂失电话'
         ],
-        badgeColor: '#71717a',
-        badgeBg: 'rgba(125, 125, 125, 0.08)',
-        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
         url: 'https://payapp.scu.edu.cn/rfid/views/index.html',
-        apiEndpoint: '/mashupapp/wap/new-real/card-balance'
+        apiEndpoint: '/api/wfw/card/status'
       },
       {
         id: 'network',
@@ -3420,20 +3420,20 @@ window.__ModuleLoader__.load({
         category: 'network',
         categoryLabel: '网络信息化',
         icon: WifiIcon,
-        status: 'planned',
-        statusText: '规划中',
-        desc: '校园有线与无线宽带账户状态、在线终端设备列表、一键强制下线与套餐资费',
+        status: 'online',
+        statusText: '实时在线',
+        desc: '在线终端设备监控、远程一键强制下线、多设备连接数管理与宽带账号体检',
         features: [
-          '宽带账户体检：实时查询校园网账户余额、订购套餐与当月计费周期',
-          '终端连接透视：查询当前登录 SCU-Wireless 及宿舍千兆网口的设备 MAC 与 IP',
-          '设备下线控制：超出 3 台设备配额时一键踢出陌生或离线终端，秒级释放配额',
-          '自助充值转接：对接四川大学信息中心校园网自助充值结算网关'
+          '在线终端透视：实时监测当前登录 SCU-Wireless 及校园有线网的全部设备',
+          '一键强制下线：支持远程踢出指定在线设备，秒级释放并发终端连接数配额',
+          '设备类型识别：智能识别 iPhone、Mac、Windows 笔电及移动设备类型',
+          '连接配额看板：精确呈现已用连接数与上限，避免多设备因超额被拒认证'
         ],
-        badgeColor: '#71717a',
-        badgeBg: 'rgba(125, 125, 125, 0.08)',
-        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
         url: 'https://wfw.scu.edu.cn/wap/material?id=560',
-        apiEndpoint: '/mashupapp/wap/real/network-status'
+        apiEndpoint: '/api/wfw/network/status'
       },
       {
         id: 'sports',
@@ -3986,6 +3986,729 @@ window.__ModuleLoader__.load({
               )
             )
           )
+        )
+      )
+    }
+
+    // ================== 微服务子页面：校园一卡通详情看板 (纯白极简风格) ==================
+    function CardDetailView({ onRequireLogin, onBack, cardData, loading, refreshing, lastUpdated, errorMsg, onRefresh }) {
+      return h('div', null,
+        // 顶部导航行
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onBack,
+            },
+              h(ArrowLeftIcon, { size: 14 }),
+              '返回微服务大厅'
+            ),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园一卡通'),
+                h('span', {
+                  style: {
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    fontWeight: 500,
+                  }
+                }, '● 实时在线')
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                '实体卡实时物理余额 · 食堂超市消费流水 · 消费统计分析'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            lastUpdated && h('span', {
+              style: {
+                fontSize: '11px',
+                color: 'var(--dsw-alias-text-sub, #71717a)',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
+              }
+            }, `最近同步: ${lastUpdated}`),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onRefresh,
+              disabled: refreshing || loading,
+            },
+              h(RefreshIcon, { size: 13, style: { animation: refreshing ? 'spin 1s linear infinite' : 'none' } }),
+              refreshing ? '正在刷新...' : '刷新数据'
+            )
+          )
+        ),
+
+        // 异常提示
+        errorMsg && h('div', {
+          style: {
+            padding: '10px 14px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#ef4444',
+            fontSize: '12px',
+          }
+        }, errorMsg),
+
+        // 纯白极简 4 大指标栅格卡片
+        h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '14px',
+            marginBottom: '20px',
+          }
+        },
+          // 指标 1：物理卡实时余额
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '实体卡物理余额'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(CreditCardIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              cardData?.balance !== undefined ? `¥ ${cardData.balance}` : (loading ? '...' : '--')
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              '卡内物理芯片结余 · 刷卡立结'
+            )
+          ),
+
+          // 指标 2：今日消费支出
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '今日支出'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(ZapIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              cardData?.todaySpent !== undefined ? `¥ ${cardData.todaySpent.toFixed(2)}` : (loading ? '...' : '--')
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              '今日在校餐饮及商户消费'
+            )
+          ),
+
+          // 指标 3：近 30 天消费汇总
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '近 30 天支出'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(ChartIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              cardData?.totalSpent !== undefined ? `¥ ${cardData.totalSpent.toFixed(2)}` : (loading ? '...' : '--')
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              `${cardData?.recordCount || 0} 笔流水记录`
+            )
+          ),
+
+          // 指标 4：卡片状态
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '卡片服务状态'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(CheckCircleIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: '#10b981' } },
+              cardData?.cardStatus || '正常'
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              '实体卡与微服务认证正常'
+            )
+          )
+        ),
+
+        // 近期流水明细列表面板 (纯白极简规范)
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '20px 24px',
+            borderRadius: '12px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            marginBottom: '20px',
+          }
+        },
+          h('div', {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h(ListIcon, { size: 15 }),
+              h('span', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '近期交易流水明细')
+            ),
+            cardData?.dateRange && h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+              `统计周期: ${cardData.dateRange}`
+            )
+          ),
+
+          // 流水记录渲染
+          loading && !cardData?.records?.length ? (
+            h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+              '正在拉取校园一卡通交易记录...'
+            )
+          ) : (!cardData?.records || cardData.records.length === 0) ? (
+            h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+              '近 30 天暂无消费流水记录'
+            )
+          ) : (
+            h('div', {
+              style: {
+                maxHeight: '420px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                paddingRight: '4px',
+              }
+            },
+              cardData.records.map((item, idx) => {
+                const isRecharge = item.type && (item.type.includes('充值') || item.type.includes('补助'))
+                return h('div', {
+                  key: item.id || idx,
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.06))',
+                    transition: 'background 0.15s ease',
+                  }
+                },
+                  // 左侧：图标 + 商户与时间
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                    h('div', {
+                      style: {
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        background: isRecharge ? 'rgba(16, 185, 129, 0.08)' : 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))',
+                        color: isRecharge ? '#10b981' : 'var(--dsw-alias-text, inherit)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }
+                    }, h(CreditCardIcon, { size: 14 })),
+                    h('div', null,
+                      h('div', { style: { fontSize: '13px', fontWeight: 500, color: 'var(--dsw-alias-text, inherit)' } },
+                        item.merchant
+                      ),
+                      h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                        `${item.datetime || `${item.date} ${item.time}`} · ${item.type || '消费'}`
+                      )
+                    )
+                  ),
+
+                  // 右侧：金额与变动后结余
+                  h('div', { style: { textAlign: 'right' } },
+                    h('div', {
+                      style: {
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: isRecharge ? '#10b981' : 'var(--dsw-alias-text, inherit)'
+                      }
+                    },
+                      isRecharge ? `+¥ ${item.amount.toFixed(2)}` : `-¥ ${item.amount.toFixed(2)}`
+                    ),
+                    item.balance && h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                      `余 ¥ ${item.balance}`
+                    )
+                  )
+                )
+              })
+            )
+          )
+        ),
+
+        // 纯白极简温馨提示卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            fontSize: '12px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            lineHeight: 1.6,
+          }
+        },
+          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 校园一卡通使用与充值指南'),
+          h('div', null, '1. 线上充值通道：可微信关注【微川大】官方服务号 -> 点击【校园一卡通】-> 选择【在线充值】，或在手机端【智慧川大 APP】直接充值。'),
+          h('div', null, '2. 支付宝电子校园卡：打开支付宝搜索“四川大学”领取电子校园卡，支持在食堂与超市直接出示动态付款码结算。'),
+          h('div', null, '3. 补登与挂失：线上充值后若实体卡未即时到账，可在食堂或教学楼圈存机贴卡补登；若实体卡遗失，请尽快前往微川大或致电信息化热线 028-85400000 挂失。')
+        )
+      )
+    }
+
+    // ================== 微服务子页面：校园网服务详情看板 (纯白极简风格) ==================
+    function NetworkDetailView({ onRequireLogin, onBack, netData, loading, refreshing, lastUpdated, errorMsg, onRefresh, onOfflineDevice }) {
+      const [offlineLoadingId, setOfflineLoadingId] = useState('')
+
+      const handleOffline = async (dev) => {
+        if (!window.confirm(`确定要强制将终端设备 (MAC: ${dev.mac || dev.deviceId}) 踢下线吗？`)) {
+          return
+        }
+        setOfflineLoadingId(dev.deviceId)
+        try {
+          await onOfflineDevice(dev.deviceId, dev.ip)
+        } finally {
+          setOfflineLoadingId('')
+        }
+      }
+
+      return h('div', null,
+        // 顶部导航行
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onBack,
+            },
+              h(ArrowLeftIcon, { size: 14 }),
+              '返回微服务大厅'
+            ),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园网服务'),
+                h('span', {
+                  style: {
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    fontWeight: 500,
+                  }
+                }, '● 实时在线')
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                '在线终端监控 · 远程一键踢下线 · 连接数配额管理'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            lastUpdated && h('span', {
+              style: {
+                fontSize: '11px',
+                color: 'var(--dsw-alias-text-sub, #71717a)',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
+              }
+            }, `最近检测: ${lastUpdated}`),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onRefresh,
+              disabled: refreshing || loading,
+            },
+              h(RefreshIcon, { size: 13, style: { animation: refreshing ? 'spin 1s linear infinite' : 'none' } }),
+              refreshing ? '正在检测...' : '刷新设备'
+            )
+          )
+        ),
+
+        // 异常提示
+        errorMsg && h('div', {
+          style: {
+            padding: '10px 14px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#ef4444',
+            fontSize: '12px',
+          }
+        }, errorMsg),
+
+        // 核心 3 大指标卡片
+        h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '14px',
+            marginBottom: '20px',
+          }
+        },
+          // 指标 1：当前在线设备数
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '当前在线终端'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(WifiIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              netData?.deviceCount !== undefined ? `${netData.deviceCount} / ${netData.maxDevices || 3} 台` : (loading ? '...' : '--')
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              netData?.deviceCount >= (netData?.maxDevices || 3) ? '⚠️ 已达终端最大并发限制' : '配额充裕 · 允许多终端并网'
+            )
+          ),
+
+          // 指标 2：网络连通性与接入类型
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '校园网络环境'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(CheckCircleIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: '#10b981' } },
+              '连通正常'
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              'SCU-Wireless / 宿舍有线千兆'
+            )
+          ),
+
+          // 指标 3：下线控制权限
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '远程踢出权限'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(ShieldIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              netData?.canOffline ? '支持一键踢出' : '受限'
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              '可秒级释放名额给新设备'
+            )
+          )
+        ),
+
+        // 在线终端设备列表 (纯白极简规范)
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '20px 24px',
+            borderRadius: '12px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            marginBottom: '20px',
+          }
+        },
+          h('div', {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h(LaptopIcon, { size: 15 }),
+              h('span', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '当前在线终端清单')
+            ),
+            h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+              `共 ${netData?.devices?.length || 0} 台设备连接中`
+            )
+          ),
+
+          // 设备列表渲染
+          loading && !netData?.devices?.length ? (
+            h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+              '正在检测当前在线终端...'
+            )
+          ) : (!netData?.devices || netData.devices.length === 0) ? (
+            h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+              '当前未检测到在线终端设备'
+            )
+          ) : (
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+              netData.devices.map((dev, idx) => {
+                const isOperating = offlineLoadingId === dev.deviceId
+                const DevIconComp = dev.icon === 'smartphone' ? SmartphoneIcon : (dev.icon === 'laptop' ? LaptopIcon : WifiIcon)
+                return h('div', {
+                  key: dev.deviceId || idx,
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.06))',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                  }
+                },
+                  // 左侧设备类型与图标
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+                    h('div', {
+                      style: {
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }
+                    }, h(DevIconComp, { size: 16 })),
+                    h('div', null,
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                        h('span', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, dev.deviceType || '接入终端'),
+                        h('span', {
+                          style: {
+                            fontSize: '10px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            color: '#10b981',
+                            fontWeight: 500,
+                          }
+                        }, '在线中')
+                      ),
+                      h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '3px', display: 'flex', gap: '12px' } },
+                        h('span', null, `MAC: ${dev.mac || dev.deviceId}`),
+                        h('span', null, `IP: ${dev.ip || '--'}`)
+                      )
+                    )
+                  ),
+
+                  // 右侧强制下线操作按钮 (纯白极简规范)
+                  h('button', {
+                    style: {
+                      ...S.btnSecondary,
+                      padding: '5px 14px',
+                      fontSize: '12px',
+                      borderRadius: '6px',
+                      color: '#ef4444',
+                      borderColor: 'rgba(239, 68, 68, 0.25)',
+                      background: 'rgba(239, 68, 68, 0.04)',
+                      cursor: isOperating ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease',
+                    },
+                    disabled: isOperating,
+                    onClick: () => handleOffline(dev),
+                  }, isOperating ? '正在下线...' : '强制下线')
+                )
+              })
+            )
+          )
+        ),
+
+        // 纯白极简温馨提示卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            fontSize: '12px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            lineHeight: 1.6,
+          }
+        },
+          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 校园网使用与配额说明'),
+          h('div', null, '1. 并发设备配额限制：四川大学校园网学生默认允许最多 3 台终端并发认证在线。当达到 3 台上限时，新接入的手机或平板将无法打开登录页面。'),
+          h('div', null, '2. 快速释放名额：若离开宿舍或更换新设备，无需返回原设备注销，直接在上方点击【强制下线】即可秒级释放连接名额。'),
+          h('div', null, '3. 网费充值与宽带故障：如需充值网费或变更宽带套餐，可登录信息中心缴费网关；若宿舍有线网口物理不通，可拨打网络故障报修电话 028-85410000。')
         )
       )
     }

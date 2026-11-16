@@ -22,6 +22,7 @@ from typing import Optional, List, Dict, Any
 from crypto_store import CredentialStore
 from urp_client import SCUUrpClient
 from ele_client import ele_client
+from wfw_client import wfw_client
 from auth_hub import auth_hub
 from calendar_exporter import generate_ics
 
@@ -85,6 +86,7 @@ async def _heartbeat_loop():
                             ok_ele, _, e_data = auth_hub.activate_electricity_session(token)
                             if ok_ele:
                                 ele_client.update_session(e_data["session"], e_data["cusNo"], e_data["cusName"])
+                                wfw_client.update_session(e_data["session"])
                         except Exception:
                             pass
                 else:
@@ -139,6 +141,9 @@ async def get_status():
             "isLoggedIn": ele_client.is_logged_in,
             "cusNo": ele_client.cus_no,
             "cusName": ele_client.cus_name
+        },
+        "microservices": {
+            "isReady": True
         }
     }
 
@@ -189,10 +194,11 @@ async def check_sso_qrcode_status(code: str = Query(..., description="临时二�
         if ok_urp:
             client.update_session(u_data["session"], u_data["username"], u_data["studentName"])
 
-        # 2. 激活电费系统会话
+        # 2. 激活电费系统会话与微服务系统
         ok_ele, msg_ele, e_data = auth_hub.activate_electricity_session(access_token)
         if ok_ele:
             ele_client.update_session(e_data["session"], e_data["cusNo"], e_data["cusName"])
+            wfw_client.update_session(e_data["session"])
 
         # 3. 持久化存储两套会话凭据
         cred_store.save_session_credentials(
@@ -248,10 +254,11 @@ async def login_api(req: LoginRequest):
             if ok_urp:
                 client.update_session(u_data["session"], u_data.get("username") or username, u_data.get("studentName", ""))
             
-            # 3. 自动并行激活电费系统会话
+            # 3. 自动并行激活电费系统会话与微服务系统
             ok_ele, msg_ele, e_data = auth_hub.activate_electricity_session(access_token)
             if ok_ele:
                 ele_client.update_session(e_data["session"], e_data.get("cusNo") or username, e_data.get("cusName", ""))
+                wfw_client.update_session(e_data["session"])
 
             student_name = client.student_name or ele_client.cus_name or username
 
@@ -481,6 +488,63 @@ async def verify_room_api(payload: dict = Body(...)):
         "message": msg,
         "electricity": latest
     }
+
+
+# ================== 四川大学微服务 (一卡通与校园网) API ==================
+
+class DeviceOfflineRequest(BaseModel):
+    deviceId: str
+    ip: Optional[str] = ""
+
+
+@app.get("/api/wfw/card/status")
+async def get_wfw_card_status_api(refresh: bool = Query(default=False, description="是否强制刷新")):
+    """获取校园一卡通实时卡内物理余额、今日支出、近30天明细流水与卡片状态"""
+    try:
+        res = wfw_client.get_card_status(force_refresh=refresh)
+        if not res.get("success"):
+            # 若初次返回失败，尝试强制重新静默激活会话
+            res = wfw_client.get_card_status(force_refresh=True)
+        if not res.get("success"):
+            raise HTTPException(status_code=500, detail=res.get("message", "获取一卡通信息失败"))
+        return res
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"拉取一卡通微服务异常: {str(e)}")
+
+
+@app.get("/api/wfw/network/status")
+async def get_wfw_network_status_api(refresh: bool = Query(default=False, description="是否强制刷新")):
+    """获取校园网在线终端列表、连接数配额、分配 IP 与 MAC 地址"""
+    try:
+        res = wfw_client.get_network_status(force_refresh=refresh)
+        if not res.get("success"):
+            res = wfw_client.get_network_status(force_refresh=True)
+        if not res.get("success"):
+            raise HTTPException(status_code=500, detail=res.get("message", "获取校园网设备列表失败"))
+        return res
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"拉取校园网微服务异常: {str(e)}")
+
+
+@app.post("/api/wfw/network/offline")
+async def offline_wfw_device_api(req: DeviceOfflineRequest):
+    """远程下线指定校园网在线终端设备并释放连接数"""
+    if not req.deviceId:
+        raise HTTPException(status_code=400, detail="设备 MAC (deviceId) 不能为空")
+    try:
+        res = wfw_client.offline_device(req.deviceId, req.ip or "")
+        if not res.get("success"):
+            raise HTTPException(status_code=500, detail=res.get("message", "下线终端失败"))
+        return res
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"终端下线操作异常: {str(e)}")
+
 
 
 # ================== 教务处核心业务 API ==================
