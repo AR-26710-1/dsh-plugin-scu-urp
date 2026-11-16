@@ -3522,13 +3522,7 @@ window.__ModuleLoader__.load({
     ]
 
     // ================== 微服务子页面：宿舍电费实时查询与换房向导 (纯白极简风格) ==================
-    function ElectricityDetailView({ onRequireLogin, onBack, initialData, onDataUpdate }) {
-      const [loading, setLoading] = useState(!initialData)
-      const [refreshing, setRefreshing] = useState(false)
-      const [eleData, setEleData] = useState(initialData || null)
-      const [errorMsg, setErrorMsg] = useState('')
-      const [lastUpdated, setLastUpdated] = useState('')
-
+    function ElectricityDetailView({ onRequireLogin, onBack, eleData, loading, refreshing, lastUpdated, errorMsg, onRefresh }) {
       // 换房弹窗相关状态
       const [showSwitchModal, setShowSwitchModal] = useState(false)
       const [campuses, setCampuses] = useState([])
@@ -3540,40 +3534,6 @@ window.__ModuleLoader__.load({
       const [inputRoom, setInputRoom] = useState('')
       const [switchLoading, setSwitchLoading] = useState(false)
       const [switchMsg, setSwitchMsg] = useState('')
-
-      // 获取电费数据
-      const fetchElectricity = useCallback(async (isSilent = false) => {
-        if (!isSilent) setLoading(true)
-        else setRefreshing(true)
-        setErrorMsg('')
-        try {
-          const resp = await fetch(`${SERVICE_URL}/api/electricity/status`)
-          if (resp.status === 401) {
-            return onRequireLogin()
-          }
-          const d = await resp.json()
-          if (!resp.ok) {
-            throw new Error(d.detail || '获取电费信息失败')
-          }
-          setEleData(d)
-          if (onDataUpdate) onDataUpdate(d)
-          setLastUpdated(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-        } catch (err) {
-          setErrorMsg(err.message || '网络连接异常')
-        } finally {
-          setLoading(false)
-          setRefreshing(false)
-        }
-      }, [onRequireLogin, onDataUpdate])
-
-      useEffect(() => {
-        if (!initialData) {
-          fetchElectricity()
-        } else {
-          // 有初始数据时，后台静默校准一次
-          fetchElectricity(true)
-        }
-      }, [fetchElectricity, initialData])
 
       // 打开换房向导并预拉取校区
       const handleOpenSwitchModal = async () => {
@@ -3655,7 +3615,7 @@ window.__ModuleLoader__.load({
           }
           setShowSwitchModal(false)
           setInputRoom('')
-          fetchElectricity(true)
+          if (onRefresh) onRefresh()
         } catch (err) {
           setSwitchMsg(err.message || '换房异常')
         } finally {
@@ -3758,7 +3718,7 @@ window.__ModuleLoader__.load({
             h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '20px' } }, errorMsg),
             h('button', {
               style: S.btnPrimary,
-              onClick: () => fetchElectricity()
+              onClick: () => onRefresh && onRefresh()
             }, '重新拉取')
           )
         )
@@ -3861,8 +3821,10 @@ window.__ModuleLoader__.load({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
+                opacity: refreshing ? 0.7 : 1,
+                cursor: refreshing ? 'not-allowed' : 'pointer',
               },
-              onClick: () => fetchElectricity(true),
+              onClick: () => onRefresh && onRefresh(),
               disabled: refreshing,
             },
               h(RefreshIcon, { size: 13 }),
@@ -4029,42 +3991,83 @@ window.__ModuleLoader__.load({
     }
 
     // ================== 子页面 7：四川大学校园微服务大厅 (纯白极简卡片架构) ==================
+    const ELE_CACHE_EXPIRE_MS = 60 * 60 * 1000 // 1 小时自动缓存有效周期
+
     function ServicesView({ onRequireLogin }) {
       const [subView, setSubView] = useState('hub') // 'hub' | 'electricity'
-      const [eleData, setEleData] = useState(null)
-      const [eleLoading, setEleLoading] = useState(true)
       const [activeCategory, setActiveCategory] = useState('all') // 'all' | 'life' | 'network' | 'public'
       const [activeModalApp, setActiveModalApp] = useState(null)
       const [hoveredCardId, setHoveredCardId] = useState(null)
 
-      // 微服务大厅初始化静默拉取电费概要数据
-      useEffect(() => {
-        let isCancelled = false
-        const prefetchElectricity = async () => {
-          try {
-            const resp = await fetch(`${SERVICE_URL}/api/electricity/status`)
-            if (resp.status === 401) {
-              return onRequireLogin()
-            }
-            if (resp.ok) {
-              const d = await resp.json()
-              if (!isCancelled) setEleData(d)
-            }
-          } catch {} finally {
-            if (!isCancelled) setEleLoading(false)
-          }
+      // 电费数据与 1 小时缓存管理器 (支持秒开与定时刷新)
+      const cachedEle = SCU_CACHE.get('electricity')
+      const [eleData, setEleData] = useState(cachedEle?.data || null)
+      const [lastUpdated, setLastUpdated] = useState(cachedEle?.updatedAt || '')
+      const [eleLoading, setEleLoading] = useState(!cachedEle?.data)
+      const [eleRefreshing, setEleRefreshing] = useState(false)
+      const [eleError, setEleError] = useState('')
+
+      // 核心获取电费函数：force 为 true 时手动强制刷新，否则在 1 小时内直接走缓存
+      const fetchElectricity = useCallback(async (force = false) => {
+        const cache = SCU_CACHE.get('electricity')
+        const now = Date.now()
+
+        // 若非强制刷新，且本地已有缓存且未满 1 小时，直接复用缓存，绝不发重复网络请求
+        if (!force && cache?.data && (now - (cache.timestamp || 0) < ELE_CACHE_EXPIRE_MS)) {
+          setEleData(cache.data)
+          setLastUpdated(cache.updatedAt || '')
+          setEleLoading(false)
+          return
         }
-        prefetchElectricity()
-        return () => { isCancelled = true }
+
+        if (force) setEleRefreshing(true)
+        else setEleLoading(true)
+        setEleError('')
+
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/electricity/status`)
+          if (resp.status === 401) {
+            return onRequireLogin()
+          }
+          const d = await resp.json()
+          if (!resp.ok) {
+            throw new Error(d.detail || '获取电费信息失败')
+          }
+          setEleData(d)
+          const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          setLastUpdated(timeStr)
+          SCU_CACHE.set('electricity', d)
+        } catch (err) {
+          setEleError(err.message || '网络连接异常')
+        } finally {
+          setEleLoading(false)
+          setEleRefreshing(false)
+        }
       }, [onRequireLogin])
+
+      // 挂载时检查：仅在无缓存或已超 1 小时时静默拉取
+      useEffect(() => {
+        fetchElectricity(false)
+
+        // 定时检测：每 10 分钟检测一次，若自然过去超过 1 小时则自动静默刷新一次
+        const timer = setInterval(() => {
+          fetchElectricity(false)
+        }, 10 * 60 * 1000)
+
+        return () => clearInterval(timer)
+      }, [fetchElectricity])
 
       // 若当前进入子页面（如电费详情）
       if (subView === 'electricity') {
         return h(ElectricityDetailView, {
           onRequireLogin,
-          initialData: eleData,
           onBack: () => setSubView('hub'),
-          onDataUpdate: (newEle) => setEleData(newEle),
+          eleData,
+          loading: eleLoading,
+          refreshing: eleRefreshing,
+          lastUpdated,
+          errorMsg: eleError,
+          onRefresh: () => fetchElectricity(true),
         })
       }
 
@@ -4300,6 +4303,21 @@ window.__ModuleLoader__.load({
                         eleData?.light?.balance !== undefined ? `${eleData.light.balance.toFixed(2)} 度` : (eleLoading ? '...' : '--')
                       )
                     )
+                  ),
+                  lastUpdated && h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, `最近抄表: ${lastUpdated}`),
+                    eleRefreshing ? h('span', { style: { color: 'var(--dsw-alias-text, inherit)', fontWeight: 500 } }, '正在同步最新度数...') : h('span', null, '1小时自动校验')
                   )
                 ),
 
