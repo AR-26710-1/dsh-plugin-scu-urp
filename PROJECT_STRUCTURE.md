@@ -221,6 +221,9 @@ flowchart TD
 | `/api/classrooms/free` | GET | 查询指定楼栋、日期、时段空闲教室与 1~12 节矩阵 | Query: `campus`, `building`, `date`, `session`, `timeSlot`, `minCapacity` |
 | `/api/todos` | GET | 读取本地所有课程随堂备忘与作业待办 | 返回 `{ todos: [...] }` |
 | `/api/todos` | POST | 批量保存更新随堂备忘与作业待办 | Body: `{ todos: [...] }` |
+| `/api/wfw/card/status` | GET | 获取校园一卡通物理卡实时余额、今日支出与30天消费明细 | Query: `refresh` |
+| `/api/wfw/network/status` | GET | 获取校园网在线终端列表、在线配额与设备IP/MAC | Query: `refresh` |
+| `/api/wfw/network/offline` | POST | 远程下线指定校园网在线终端设备 | Body: `{ deviceId, ip }` |
 
 ---
 
