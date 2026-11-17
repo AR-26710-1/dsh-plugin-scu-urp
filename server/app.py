@@ -15,8 +15,8 @@ import json
 import html
 from contextlib import asynccontextmanager
 import uvicorn
-from fastapi import FastAPI, HTTPException, Body, Response, Query
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Body, Response, Query, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -29,6 +29,13 @@ from auth_hub import auth_hub
 from calendar_exporter import generate_ics
 from ele_history import record_snapshot, get_electricity_trend
 from card_bookkeeping import analyze_card_records, save_card_note
+from course_grabber import (
+    grabber_manager,
+    PHASE_META,
+    CourseItem,
+    GrabConfig,
+    GrabStatus,
+)
 
 cred_store = CredentialStore()
 client = SCUUrpClient()
@@ -1026,6 +1033,391 @@ async def get_program_scheme_api():
         return client.get_study_plan()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取培养方案数据失败: {str(e)}")
+
+
+# ================== SCU 智能选课与抢课引擎 API ==================
+
+class GrabTaskAddRequest(BaseModel):
+    courseId: str
+    seqNo: str
+    name: str
+    teacher: Optional[str] = ""
+    seatsFree: Optional[int] = 0
+    capacity: Optional[int] = 0
+    classroom: Optional[str] = ""
+    planId: Optional[str] = ""
+    schedule: Optional[str] = ""
+    credit: Optional[float] = 0.0
+    campus: Optional[str] = ""
+    courseCategory: Optional[str] = ""
+    restriction: Optional[str] = ""
+    groupId: Optional[int] = 0
+    raw: Optional[Dict[str, Any]] = None
+
+
+class GrabTasksReorderRequest(BaseModel):
+    orderedKcIds: List[str]
+
+
+class GrabTasksClearRequest(BaseModel):
+    onlyFinished: Optional[bool] = False
+
+
+class GrabConfigUpdateRequest(BaseModel):
+    sleepTime: Optional[float] = None
+    sleepJitter: Optional[float] = None
+    maxFailures: Optional[int] = None
+    phase: Optional[str] = None
+    majorId: Optional[str] = None
+
+
+class GrabScheduledRequest(BaseModel):
+    scheduledTime: str
+
+
+@app.get("/api/grab/phases")
+async def get_grab_phases_api():
+    """获取四川大学支持的选课阶段元数据及当前选定阶段"""
+    phases = list(PHASE_META.values())
+    return {
+        "currentPhase": grabber_manager.config.phase,
+        "phases": phases,
+    }
+
+
+@app.get("/api/grab/major-id")
+async def get_major_id_api(refresh: bool = Query(default=False, description="是否重新从教务处探测")):
+    """获取当前学生的方案计划号 (fajhh)"""
+    ensure_authenticated()
+    major_id = grabber_manager.config.major_id
+    if refresh or not major_id:
+        try:
+            detected = grabber_manager.fetch_major_id(client.session, auto_save=True)
+            if detected:
+                major_id = detected
+        except Exception:
+            pass
+    return {
+        "majorId": major_id or "",
+        "username": client.username,
+        "studentName": client.student_name,
+    }
+
+
+@app.get("/api/grab/search")
+async def search_courses_api(
+    keyword: str = Query(..., description="课程名称或课程号"),
+    phase: str = Query(default="free", description="选课阶段 (free, plan, depart, school)"),
+    majorId: Optional[str] = Query(default=None, description="自定义方案计划号"),
+):
+    """按关键词检索课程列表（含课余量、教师、排课时间、校区、容量等）"""
+    ensure_authenticated()
+    if not keyword.strip():
+        return {"courses": [], "count": 0}
+    try:
+        fajhh = majorId.strip() if majorId else (grabber_manager.config.major_id or "")
+        courses = grabber_manager.search_courses(
+            session=client.session,
+            keyword=keyword,
+            phase=phase,
+            major_id=fajhh,
+        )
+        data = []
+        for c in courses:
+            data.append({
+                "kcId": c.kc_id,
+                "displayId": c.display_id,
+                "courseId": c.course_id,
+                "seqNo": c.seq_no,
+                "name": c.name,
+                "teacher": c.teacher,
+                "seatsFree": c.seats_free,
+                "capacity": c.capacity,
+                "classroom": c.classroom,
+                "planId": c.plan_id,
+                "schedule": c.schedule,
+                "credit": c.credit,
+                "campus": c.campus,
+                "courseCategory": c.course_category,
+                "restriction": c.restriction,
+                "raw": c.raw,
+            })
+        return {
+            "success": True,
+            "keyword": keyword,
+            "phase": phase,
+            "count": len(data),
+            "courses": data,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"检索课程失败: {str(e)}")
+
+
+@app.get("/api/grab/selected")
+async def get_selected_courses_api():
+    """获取当前已选中的课程列表（用于周课表排课与冲突比对）"""
+    ensure_authenticated()
+    try:
+        courses = grabber_manager.get_selected_courses(client.session)
+        return {
+            "success": True,
+            "count": len(courses),
+            "courses": courses,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取已选课程列表失败: {str(e)}")
+
+
+@app.get("/api/grab/tasks")
+async def get_grab_tasks_api():
+    """获取当前抢课任务队列（含各任务状态、尝试次数、备选组 ID）"""
+    tasks_data = []
+    with grabber_manager._lock:
+        for t in grabber_manager.tasks:
+            c = t.course
+            tasks_data.append({
+                "kcId": t.kc_id,
+                "status": t.status.value,
+                "groupId": t.group_id,
+                "attempts": t.attempts,
+                "lastMessage": t.last_message,
+                "createdAt": t.created_at,
+                "updatedAt": t.updated_at,
+                "course": {
+                    "kcId": c.kc_id,
+                    "displayId": c.display_id,
+                    "courseId": c.course_id,
+                    "seqNo": c.seq_no,
+                    "name": c.name,
+                    "teacher": c.teacher,
+                    "seatsFree": c.seats_free,
+                    "capacity": c.capacity,
+                    "classroom": c.classroom,
+                    "planId": c.plan_id,
+                    "schedule": c.schedule,
+                    "credit": c.credit,
+                    "campus": c.campus,
+                    "courseCategory": c.course_category,
+                    "restriction": c.restriction,
+                },
+            })
+    return {
+        "tasks": tasks_data,
+        "count": len(tasks_data),
+        "status": grabber_manager.get_status_overview(),
+    }
+
+
+@app.post("/api/grab/tasks")
+async def add_grab_task_api(req: GrabTaskAddRequest):
+    """将目标课程添加到抢课任务队列中，支持指定互斥备选组 (groupId)"""
+    course = CourseItem(
+        course_id=req.courseId.strip(),
+        seq_no=req.seqNo.strip(),
+        name=req.name.strip(),
+        teacher=req.teacher.strip() if req.teacher else "",
+        seats_free=req.seatsFree or 0,
+        capacity=req.capacity or 0,
+        classroom=req.classroom or "",
+        plan_id=req.planId or "",
+        schedule=req.schedule or "",
+        credit=req.credit or 0.0,
+        campus=req.campus or "",
+        course_category=req.courseCategory or "",
+        restriction=req.restriction or "",
+        raw=req.raw or {},
+    )
+    task = grabber_manager.add_task(course, group_id=req.groupId or 0)
+    return {
+        "success": True,
+        "message": f"成功将《{course.name}》({course.display_id}) 添加至抢课队列",
+        "task": {
+            "kcId": task.kc_id,
+            "status": task.status.value,
+            "groupId": task.group_id,
+        },
+    }
+
+
+@app.delete("/api/grab/tasks/{kc_id}")
+async def delete_grab_task_api(kc_id: str):
+    """从抢课队列中移除指定课程任务"""
+    ok = grabber_manager.remove_task(kc_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="未找到该抢课任务")
+    return {"success": True, "message": f"任务 {kc_id} 已成功移除"}
+
+
+@app.post("/api/grab/tasks/clear")
+async def clear_grab_tasks_api(payload: GrabTasksClearRequest = Body(default=GrabTasksClearRequest())):
+    """清空抢课队列（支持只清空已完成/终态任务）"""
+    grabber_manager.clear_tasks(only_finished=payload.onlyFinished)
+    return {"success": True, "message": "队列已清空"}
+
+
+@app.put("/api/grab/tasks/reorder")
+async def reorder_grab_tasks_api(req: GrabTasksReorderRequest):
+    """批量调整抢课队列任务优先级顺序"""
+    grabber_manager.reorder_tasks(req.orderedKcIds)
+    return {"success": True, "message": "任务优先级顺序已更新"}
+
+
+@app.post("/api/grab/start")
+async def start_grab_api():
+    """启动后台抢课守护线程"""
+    ensure_authenticated()
+    ok, msg = grabber_manager.start_engine(client)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {
+        "success": True,
+        "message": msg,
+        "status": grabber_manager.get_status_overview(),
+    }
+
+
+@app.post("/api/grab/stop")
+async def stop_grab_api():
+    """停止后台抢课守护线程"""
+    ok, msg = grabber_manager.stop_engine()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {
+        "success": True,
+        "message": msg,
+        "status": grabber_manager.get_status_overview(),
+    }
+
+
+@app.get("/api/grab/status")
+async def get_grab_status_api():
+    """获取当前抢课运行状态（时长、尝试次数、成功率、各状态任务统计等）"""
+    return grabber_manager.get_status_overview()
+
+
+@app.get("/api/grab/logs")
+async def get_grab_logs_api(since_id: int = Query(default=0, description="增量日志序列号游标")):
+    """增量拉取最新的抢课控制台日志"""
+    logs = grabber_manager.get_logs(since_id=since_id)
+    return {
+        "logs": logs,
+        "count": len(logs),
+        "latestId": logs[-1]["id"] if logs else since_id,
+        "isRunning": grabber_manager.is_running,
+    }
+
+
+@app.get("/api/grab/config")
+async def get_grab_config_api():
+    """获取抢课配置参数"""
+    return {
+        "sleepTime": grabber_manager.config.sleep_time,
+        "sleepJitter": grabber_manager.config.sleep_jitter,
+        "maxFailures": grabber_manager.config.max_failures,
+        "phase": grabber_manager.config.phase,
+        "majorId": grabber_manager.config.major_id,
+    }
+
+
+@app.post("/api/grab/config")
+async def update_grab_config_api(req: GrabConfigUpdateRequest):
+    """更新抢课配置参数（休眠秒数、抖动、选课阶段、专业号等）"""
+    cfg = grabber_manager.config
+    if req.sleepTime is not None:
+        cfg.sleep_time = max(0.2, float(req.sleepTime))
+    if req.sleepJitter is not None:
+        cfg.sleep_jitter = max(0.0, float(req.sleepJitter))
+    if req.maxFailures is not None:
+        cfg.max_failures = max(1, int(req.maxFailures))
+    if req.phase is not None:
+        if req.phase in PHASE_META:
+            cfg.phase = req.phase
+    if req.majorId is not None:
+        cfg.major_id = req.majorId.strip()
+
+    grabber_manager.save_config()
+    return {
+        "success": True,
+        "message": "抢课配置参数已保存",
+        "config": {
+            "sleepTime": cfg.sleep_time,
+            "sleepJitter": cfg.sleep_jitter,
+            "maxFailures": cfg.max_failures,
+            "phase": cfg.phase,
+            "majorId": cfg.major_id,
+            "scheduledTime": cfg.scheduled_time,
+        },
+    }
+
+
+@app.get("/api/grab/logs/stream")
+async def stream_grab_logs_api(request: Request):
+    """
+    通过 SSE (Server-Sent Events) 实时推送抢课终端日志流
+    支持心跳保持、连接自动回收与历史最近日志无缝回放
+    """
+    async def event_generator():
+        loop = asyncio.get_running_loop()
+        q = asyncio.Queue(maxsize=200)
+        grabber_manager.subscribe_logs(q, loop)
+        try:
+            # 1. 建立长连接时，优先下发最近 25 条历史日志，让前端控制台瞬间就绪
+            recent = grabber_manager.get_logs(since_id=max(0, grabber_manager._log_counter - 25))
+            for item in recent:
+                yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+
+            # 2. 持续等待新日志，带 15 秒心跳包保持长连接活性
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    item = await asyncio.wait_for(q.get(), timeout=15.0)
+                    yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        finally:
+            grabber_manager.unsubscribe_logs(q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/grab/scheduled")
+async def get_grab_scheduled_api():
+    """获取当前毫秒级定时开抢任务状态、目标时间与剩余倒计时"""
+    return grabber_manager.get_scheduled_status()
+
+
+@app.post("/api/grab/scheduled")
+async def set_grab_scheduled_api(req: GrabScheduledRequest):
+    """设置毫秒级定时开抢时间并启动后台待命与开抢前 30s 自动预热机制"""
+    ensure_authenticated()
+    ok, msg, data = grabber_manager.set_scheduled_time(req.scheduledTime, client)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {
+        "success": True,
+        "message": msg,
+        "scheduled": data,
+    }
+
+
+@app.delete("/api/grab/scheduled")
+async def cancel_grab_scheduled_api():
+    """取消定时开抢计划"""
+    ok, msg = grabber_manager.cancel_scheduled()
+    return {
+        "success": True,
+        "message": msg,
+        "scheduled": grabber_manager.get_scheduled_status(),
+    }
 
 
 if __name__ == "__main__":

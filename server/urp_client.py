@@ -448,8 +448,90 @@ class SCUUrpClient:
                 active_weeks.append(idx + 1)
         return active_weeks
 
+    @staticmethod
+    def parse_weeks_from_description(desc: str) -> List[int]:
+        """
+        从周次文字描述中智能解析整型周次列表（针对《形势与政策》等集中授课或单双周课程）
+        严格限定周次上限为 1~30 周，防止将教室号（如 301/302）误判为周次。
+        例如: '第1-8周(单)', '第4-8周', '第5周,第8周,第12周', '1-16周'
+        """
+        if not desc:
+            return []
+        weeks = set()
+        # 模式 1: 显式带 '周' 的区间或单周，如 '第6-10周', '4-8周(双)', '第5周'
+        for m in re.finditer(r'(?:第)?(\d+)(?:[-~至到](\d+))?周(?:\(([单双])\))?', desc):
+            try:
+                start = int(m.group(1))
+                end = int(m.group(2)) if m.group(2) else start
+                odd_even = m.group(3)
+                if 1 <= start <= 30 and 1 <= end <= 30:
+                    for w in range(start, end + 1):
+                        if odd_even == '单' and w % 2 == 0:
+                            continue
+                        if odd_even == '双' and w % 2 != 0:
+                            continue
+                        weeks.add(w)
+            except Exception:
+                continue
+
+        # 模式 2: 逗号/顿号隔开的周次列表，如 '1,3,5周' 或 '1、3、5周'
+        m_list = re.search(r'((?:\d+[、,，\s]+)+\d+)周', desc)
+        if m_list:
+            for num_s in re.findall(r'\d+', m_list.group(1)):
+                try:
+                    w = int(num_s)
+                    if 1 <= w <= 30:
+                        weeks.add(w)
+                except Exception:
+                    pass
+
+        return sorted(list(weeks))
+
+    @staticmethod
+    def _parse_schedule_from_text(text: str) -> Tuple[int, int, int, str]:
+        """
+        从排课备注或综合文本中正则解析星期 (1-7)、起始节次、持续节次与教室
+        例如: '周三 第1-2节 综B303' -> (3, 1, 2, '综B303')
+        """
+        if not text:
+            return 0, 0, 0, ""
+        day_map = {
+            "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "日": 7, "天": 7,
+            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7,
+        }
+        day = 0
+        m_day = re.search(r'(?:周|星期)([一二三四五六日天1-7])', text)
+        if m_day:
+            day = day_map.get(m_day.group(1), 0)
+
+        start_sec = 0
+        cont_sec = 2
+        m_sec = re.search(r'第?(\d+)(?:[-~至到](\d+))?节', text)
+        if m_sec:
+            try:
+                start_sec = int(m_sec.group(1))
+                if m_sec.group(2):
+                    cont_sec = max(1, int(m_sec.group(2)) - start_sec + 1)
+                else:
+                    cont_sec = 1
+            except Exception:
+                pass
+
+        room = ""
+        m_room = re.search(
+            r'((?:[一二三四五六七八]教|综合楼|综|基教楼|文科楼|二基楼|临医楼|逸夫楼)[A-Za-z0-9-座区]*|\d{3,4}|[A-Za-z0-9-]+教室)',
+            text,
+        )
+        if m_room:
+            room = m_room.group(1)
+
+        return day, start_sec, cont_sec, room
+
     def get_schedule(self) -> Dict[str, Any]:
-        """获取并整理个人课表数据"""
+        """
+        获取并整理个人课表数据
+        深度支持《形势与政策》、创新创业、实验实践等阶段性集中授课课程的完整识别与时间地点补全
+        """
         # 1. 提取当前学年编号
         page = self.request("GET", "/student/personalSenate/giveLessonInfo/thisSemesterSchedule/weekLySchedule").text
         sem_match = re.search(r'soliderboxval[^>]*value="([^"]+)"', page)
@@ -463,55 +545,171 @@ class SCUUrpClient:
             f"/student/courseSelect/thisSemesterCurriculum/ajaxStudentSchedule/weekLySchedule/callback/{semester_id}",
         ).json()
 
-        courses = []
+        # 收集所有原始课程候选池（去重归一化）
+        raw_courses_pool: List[Dict[str, Any]] = []
+
+        # (1) 主周历时间表 dateList
         date_list = data.get("dateList") or []
         for item in date_list:
             if not isinstance(item, dict):
                 continue
             sub_list = item.get("selectCourseList") or []
             for c in sub_list:
-                if not isinstance(c, dict):
-                    continue
-                time_places = []
-                tp_list = c.get("timeAndPlaceList") or []
+                if isinstance(c, dict):
+                    raw_courses_pool.append(c)
+
+        # (2) 补充扫描其他课程字段（如 allCourseList, notArrangementCourseList 等，覆盖《形势与政策》等未进周历网格的课程）
+        for extra_key in ("allCourseList", "otherCourseList", "notArrangementCourseList", "noScheduleList", "selectCourseList"):
+            extra_list = data.get(extra_key) or []
+            if isinstance(extra_list, list):
+                for c in extra_list:
+                    if isinstance(c, dict):
+                        raw_courses_pool.append(c)
+
+        # 按课程标识合并与组织课表
+        courses_map: Dict[str, Dict[str, Any]] = {}
+
+        for c in raw_courses_pool:
+            cid = c.get("id") or {}
+            if isinstance(cid, dict):
+                c_num = str(cid.get("coureNumber") or c.get("coureNumber") or c.get("courseNumber") or "").strip()
+                c_seq = str(cid.get("coureSequenceNumber") or c.get("coureSequenceNumber") or c.get("classNum") or "").strip()
+            else:
+                c_num = str(c.get("coureNumber") or c.get("courseNumber") or "").strip()
+                c_seq = str(c.get("coureSequenceNumber") or c.get("classNum") or "").strip()
+
+            c_name = str(c.get("courseName") or c.get("kcm") or "").strip()
+            if not c_name:
+                continue
+
+            course_key = f"{c_num}_{c_seq}" if c_num else c_name
+
+            # 基础信息解析
+            prop = str(c.get("coursePropertiesName") or c.get("kclbmc") or "").strip()
+            teacher = str(c.get("attendClassTeacher") or c.get("skjs") or "").strip().rstrip("*")
+            try:
+                credit = float(c.get("unit") or c.get("xf") or 0.0)
+            except (ValueError, TypeError):
+                credit = 0.0
+
+            pkbz = str(c.get("pkbz") or c.get("PKBZ") or "").strip()
+            skzcs = str(c.get("skzcs") or c.get("zcsm") or "").strip()
+            exam_type = str(c.get("examTypeName") or "").strip()
+
+            # 解析排期与时间地点
+            time_places: List[Dict[str, Any]] = []
+            tp_list = c.get("timeAndPlaceList") or []
+
+            if isinstance(tp_list, list) and len(tp_list) > 0:
                 for tp in tp_list:
                     if not isinstance(tp, dict):
                         continue
-                    raw_bitmap = tp.get("classWeek") or ""
+                    raw_bitmap = str(tp.get("classWeek") or "")
+                    w_desc = str(tp.get("weekDescription") or skzcs or pkbz or "").strip()
+
+                    # 智能解析周次：优先位图；若位图为空或全 0，自动从文字说明中解析！
+                    weeks = self.parse_class_weeks(raw_bitmap) if raw_bitmap else []
+                    if not weeks and w_desc:
+                        weeks = self.parse_weeks_from_description(w_desc)
+
+                    raw_day = tp.get("classDay")
+                    raw_start = tp.get("classSessions")
+                    raw_cont = tp.get("continuingSession", 2) or 2
+                    c_room = str(tp.get("classroomName") or "").strip()
+                    c_bldg = str(tp.get("teachingBuildingName") or "").strip()
+                    c_campus = str(tp.get("campusName") or "").strip()
+
+                    # 若星期或节次缺失，尝试从备注与文本中智能补全（针对阶段性集中上课）
+                    if not raw_day or raw_day == 0 or not raw_start or raw_start == 0:
+                        parsed_d, parsed_s, parsed_c, parsed_r = self._parse_schedule_from_text(f"{w_desc} {pkbz} {c_room}")
+                        if parsed_d > 0 and (not raw_day or raw_day == 0):
+                            raw_day = parsed_d
+                        if parsed_s > 0 and (not raw_start or raw_start == 0):
+                            raw_start = parsed_s
+                            raw_cont = parsed_c
+                        if not c_room and parsed_r:
+                            c_room = parsed_r
+
                     time_places.append({
-                        "day": tp.get("classDay"),  # 1-7
-                        "startSession": tp.get("classSessions"),  # 起始节
-                        "continuingSessions": tp.get("continuingSession", 2) or 2,
-                        "building": tp.get("teachingBuildingName") or "",
-                        "classroom": tp.get("classroomName") or "",
-                        "campus": tp.get("campusName") or "",
-                        "weekDescription": tp.get("weekDescription") or "",
+                        "day": int(raw_day) if (raw_day and str(raw_day).isdigit()) else 0,
+                        "startSession": int(raw_start) if (raw_start and str(raw_start).isdigit()) else 0,
+                        "continuingSessions": int(raw_cont) if (raw_cont and str(raw_cont).isdigit()) else 2,
+                        "building": c_bldg,
+                        "classroom": c_room or ("详见备注" if pkbz else "待安排"),
+                        "campus": c_campus,
+                        "weekDescription": w_desc,
                         "rawWeeks": raw_bitmap,
-                        "weeks": self.parse_class_weeks(raw_bitmap) if raw_bitmap else [],
+                        "weeks": weeks,
                     })
 
-                cid = c.get("id") or {}
-                if isinstance(cid, dict):
-                    c_num = cid.get("coureNumber") or ""
-                    c_seq = cid.get("coureSequenceNumber") or ""
-                else:
-                    c_num = ""
-                    c_seq = ""
+            # 若 timeAndPlaceList 为空列表（典型如《形势与政策》等集中授课或实践类课程）
+            if not time_places:
+                raw_day = c.get("skxq") or c.get("classDay")
+                raw_start = c.get("skjc") or c.get("classSessions")
+                raw_cont = c.get("cxjc") or c.get("continuingSession") or 2
+                c_room = str(c.get("jasm") or c.get("classroomName") or "").strip()
+                c_bldg = str(c.get("teachingBuildingName") or "").strip()
+                c_campus = str(c.get("campusName") or "").strip()
 
-                courses.append({
-                    "name": c.get("courseName") or "",
+                combined_text = f"{pkbz} {skzcs} {c_room}".strip()
+                parsed_d, parsed_s, parsed_c, parsed_r = self._parse_schedule_from_text(combined_text)
+
+                final_day = int(raw_day) if (raw_day and str(raw_day).isdigit() and int(raw_day) > 0) else parsed_d
+                final_start = int(raw_start) if (raw_start and str(raw_start).isdigit() and int(raw_start) > 0) else parsed_s
+                final_cont = int(raw_cont) if (raw_cont and str(raw_cont).isdigit() and int(raw_cont) > 0) else parsed_c
+                final_room = c_room or parsed_r or (pkbz if pkbz else "见任课教师通知")
+
+                desc = pkbz or skzcs or "阶段性/专题集中授课"
+                weeks = self.parse_weeks_from_description(desc)
+
+                time_places.append({
+                    "day": final_day,
+                    "startSession": final_start,
+                    "continuingSessions": final_cont,
+                    "building": c_bldg,
+                    "classroom": final_room,
+                    "campus": c_campus,
+                    "weekDescription": desc,
+                    "rawWeeks": "",
+                    "weeks": weeks,
+                    "isSpecialSchedule": True,  # 标注为阶段性或特殊授课
+                })
+
+            # 合并到现有课程或新增课程
+            if course_key in courses_map:
+                existing = courses_map[course_key]
+                # 合并 schedules，根据 (day, startSession, classroom) 去重
+                existing_schedules = existing["schedules"]
+                existing_fingerprints = {
+                    (s.get("day"), s.get("startSession"), s.get("classroom"), tuple(s.get("weeks", [])))
+                    for s in existing_schedules
+                }
+                for tp in time_places:
+                    fp = (tp.get("day"), tp.get("startSession"), tp.get("classroom"), tuple(tp.get("weeks", [])))
+                    if fp not in existing_fingerprints:
+                        existing_schedules.append(tp)
+                        existing_fingerprints.add(fp)
+                if not existing.get("note") and pkbz:
+                    existing["note"] = pkbz
+            else:
+                courses_map[course_key] = {
+                    "name": c_name,
                     "courseNumber": c_num,
                     "unitNumber": c_seq,
-                    "property": c.get("coursePropertiesName") or "",
-                    "teacher": (c.get("attendClassTeacher") or "").rstrip("*"),
-                    "credit": float(c.get("unit") or 0.0),
+                    "property": prop,
+                    "teacher": teacher,
+                    "credit": credit,
+                    "examType": exam_type,
+                    "note": pkbz,
                     "schedules": time_places,
-                })
+                }
+
+        formatted_courses = list(courses_map.values())
 
         return {
             "semesterId": semester_id,
-            "totalCourses": len(courses),
-            "courses": courses,
+            "totalCourses": len(formatted_courses),
+            "courses": formatted_courses,
         }
 
     @staticmethod

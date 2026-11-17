@@ -97,7 +97,7 @@ window.__ModuleLoader__.load({
         borderRadius: '10px',
         padding: '16px',
         marginBottom: '14px',
-        transition: 'border-color 0.15s ease',
+        transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease',
       },
       btnSecondary: {
         padding: '6px 14px',
@@ -133,6 +133,29 @@ window.__ModuleLoader__.load({
         boxSizing: 'border-box',
         marginBottom: '14px',
       },
+    }
+
+    // 注入灵动微动效与卡片悬停微阴影全局样式
+    if (typeof document !== 'undefined' && !document.getElementById('scu-smart-ui-styles')) {
+      const styleEl = document.createElement('style')
+      styleEl.id = 'scu-smart-ui-styles'
+      styleEl.textContent = `
+        @keyframes scuFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .scu-tab-content {
+          animation: scuFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .scu-hover-card {
+          transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease !important;
+        }
+        .scu-hover-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+        }
+      `
+      document.head.appendChild(styleEl)
     }
 
     // ================== 统一镂空简笔画图标组件库 (纯 SVG Feather 规范，极简单色，无彩色 Emoji) ==================
@@ -234,6 +257,13 @@ window.__ModuleLoader__.load({
     const CoffeeIcon = createSvgIcon(['M18 8h1a4 4 0 0 1 0 8h-1', 'M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z'], [], [{ x1: 6, y1: 1, x2: 6, y2: 4 }, { x1: 10, y1: 1, x2: 10, y2: 4 }, { x1: 14, y1: 1, x2: 14, y2: 4 }])
     const ShoppingCartIcon = createSvgIcon(['M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'], [{ cx: 9, cy: 21, r: 1 }, { cx: 20, cy: 21, r: 1 }])
     const DropletIcon = createSvgIcon(['M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z'])
+    const CrosshairIcon = createSvgIcon(['M12 2v4', 'M12 18v4', 'M2 12h4', 'M18 12h4'], [{ cx: 12, cy: 12, r: 10 }, { cx: 12, cy: 12, r: 3 }])
+    const PlayIcon = createSvgIcon(['M5 3l14 9-14 9V3z'])
+    const SquareStopIcon = createSvgIcon([], [], [], [{ x: 4, y: 4, w: 16, h: 16, rx: 2 }])
+    const ChevronUpIcon = createSvgIcon([], [], [{ x1: 18, y1: 15, x2: 12, y2: 9 }, { x1: 12, y1: 9, x2: 6, y2: 15 }])
+    const ChevronDownIcon = createSvgIcon([], [], [{ x1: 6, y1: 9, x2: 12, y2: 15 }, { x1: 12, y1: 15, x2: 18, y2: 9 }])
+    const AlertTriangleIcon = createSvgIcon(['M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'], [], [{ x1: 12, y1: 9, x2: 12, y2: 13 }, { x1: 12, y1: 17, x2: 12.01, y2: 17 }])
+    const TerminalIcon = createSvgIcon(['M4 17l6-6-6-6'], [], [{ x1: 12, y1: 19, x2: 20, y2: 19 }])
 
     // ================== 本地极速秒开缓存管理器 (Stale-While-Revalidate) ==================
     const SCU_CACHE = {
@@ -495,15 +525,6 @@ window.__ModuleLoader__.load({
                     background: 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.12))',
                   },
                 }, cacheNotice)
-              ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' } },
-                todayCourses.length > 0
-                  ? h(React.Fragment, null,
-                      h('span', null, `今日首节课程: 《${todayCourses[0].course.name}》 第 ${todayCourses[0].schedule.startSession} 节 · `),
-                      h(MapPinIcon, { size: 12 }),
-                      h('span', null, todayCourses[0].schedule.classroom || todayCourses[0].schedule.building || '待定')
-                    )
-                  : '今日暂无现场面授课程，适合自主研学或预习复习'
               )
             )
           ),
@@ -933,7 +954,7 @@ window.__ModuleLoader__.load({
           })
         ),
 
-        // 4. 线上修读与自主学习课程专区
+        // 4. 其他课程 / 待安排排期课程专区
         !loading && !error && onlineCourses.length > 0 && h('div', {
           style: {
             marginTop: '24px',
@@ -944,8 +965,8 @@ window.__ModuleLoader__.load({
           },
         },
           h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' } },
-            h(LaptopIcon, { size: 15 }),
-            h('span', null, `网络自主修读 / 线上考核课程 (${onlineCourses.length} 门)`)
+            h(BookOpenIcon, { size: 15 }),
+            h('span', null, `其他课程 / 待安排排期课程 (${onlineCourses.length} 门)`)
           ),
           h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' } },
             onlineCourses.map((c, i) =>
@@ -963,10 +984,10 @@ window.__ModuleLoader__.load({
                   h('span', { style: S.badge }, `${c.credit}学分`)
                 ),
                 h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-                  `教师: ${c.teacher || '自主修读'} · 课程性质: ${c.property || '必修'}`
+                  `教师: ${c.teacher || '待安排'} · 课程性质: ${c.property || '待定'}`
                 ),
                 h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                  `课程代码: ${c.courseNumber}-${c.unitNumber}`
+                  `地点: ${c.classroom || c.building || '以学院/教师通知为准'} · 代码: ${c.courseNumber || ''}-${c.unitNumber || ''}`
                 )
               )
             )
@@ -1489,6 +1510,389 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // ================== 灵动图形化成绩分析看板组件 (纯 SVG 仪表盘、走势图与分布图) ==================
+    // 1. GPA / 均分双环形进度仪表盘 (纯 SVG 环形进度仪)
+    function GpaScoreRingDashboard({ gpa, score, isRequired, diffGpa }) {
+      const gpaNum = typeof gpa === 'number' ? gpa : parseFloat(gpa) || 0
+      const scoreNum = typeof score === 'number' ? score : parseFloat(score) || 0
+
+      // GPA 比例 (满分 4.0)
+      const gpaPct = Math.min(1, Math.max(0, gpaNum / 4.0))
+      // 均分比例 (满分 100)
+      const scorePct = Math.min(1, Math.max(0, scoreNum / 100))
+
+      const r = 38
+      const circ = 2 * Math.PI * r // ~238.76
+      const gpaDash = circ * gpaPct
+      const scoreDash = circ * scorePct
+
+      return h('div', {
+        style: {
+          ...S.card,
+          padding: '20px 24px',
+          marginBottom: 0,
+          background: 'var(--dsw-alias-bg-card, #ffffff)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          flexWrap: 'wrap',
+          gap: '20px',
+        },
+        className: 'scu-hover-card',
+      },
+        // 左环: GPA
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '16px' } },
+          h('div', { style: { position: 'relative', width: '96px', height: '96px' } },
+            h('svg', { width: 96, height: 96, viewBox: '0 0 96 96', style: { transform: 'rotate(-90deg)' } },
+              h('circle', {
+                cx: 48,
+                cy: 48,
+                r: 38,
+                fill: 'none',
+                stroke: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.12))',
+                strokeWidth: 8,
+              }),
+              h('circle', {
+                cx: 48,
+                cy: 48,
+                r: 38,
+                fill: 'none',
+                stroke: isRequired ? '#2563eb' : '#3b82f6',
+                strokeWidth: 8,
+                strokeDasharray: circ,
+                strokeDashoffset: circ - gpaDash,
+                strokeLinecap: 'round',
+                style: { transition: 'stroke-dashoffset 0.6s ease' },
+              })
+            ),
+            h('div', {
+              style: {
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }
+            },
+              h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, gpaNum ? gpaNum.toFixed(2) : '--'),
+              h('span', { style: { fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '/ 4.0')
+            )
+          ),
+          h('div', null,
+            h('div', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } },
+              isRequired ? '必修课加权 GPA' : '全科综合 GPA'
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+              `满绩 4.0 · 达成率 ${(gpaPct * 100).toFixed(1)}%`
+            ),
+            diffGpa !== undefined && diffGpa !== null && h('div', {
+              style: {
+                fontSize: '11px',
+                color: diffGpa >= 0 ? '#10b981' : '#ef4444',
+                marginTop: '4px',
+                fontWeight: 500,
+              }
+            }, `${diffGpa >= 0 ? '↑' : '↓'} 较综合 ${diffGpa >= 0 ? '+' : ''}${diffGpa.toFixed(2)}`)
+          )
+        ),
+
+        // 右环: 加权均分
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '16px' } },
+          h('div', { style: { position: 'relative', width: '96px', height: '96px' } },
+            h('svg', { width: 96, height: 96, viewBox: '0 0 96 96', style: { transform: 'rotate(-90deg)' } },
+              h('circle', {
+                cx: 48,
+                cy: 48,
+                r: 38,
+                fill: 'none',
+                stroke: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.12))',
+                strokeWidth: 8,
+              }),
+              h('circle', {
+                cx: 48,
+                cy: 48,
+                r: 38,
+                fill: 'none',
+                stroke: '#10b981',
+                strokeWidth: 8,
+                strokeDasharray: circ,
+                strokeDashoffset: circ - scoreDash,
+                strokeLinecap: 'round',
+                style: { transition: 'stroke-dashoffset 0.6s ease' },
+              })
+            ),
+            h('div', {
+              style: {
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }
+            },
+              h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, scoreNum ? scoreNum.toFixed(1) : '--'),
+              h('span', { style: { fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '/ 100')
+            )
+          ),
+          h('div', null,
+            h('div', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } },
+              isRequired ? '必修课加权均分' : '全科综合加权均分'
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+              `满分 100 · 达成率 ${(scorePct * 100).toFixed(1)}%`
+            )
+          )
+        )
+      )
+    }
+
+    // 2. 学期历程成绩走势图 (纯 SVG 平滑折线趋势与交互高亮)
+    function TermTrendSvgChart({ termStats }) {
+      const [hoveredIdx, setHoveredIdx] = useState(null)
+      if (!termStats || termStats.length === 0) return null
+
+      const width = 640
+      const height = 150
+      const padL = 45
+      const padR = 30
+      const padT = 25
+      const padB = 30
+
+      const plotW = width - padL - padR
+      const plotH = height - padT - padB
+
+      const gpas = termStats.map(t => parseFloat(t.gpa) || 0)
+      const minGpa = Math.max(0, Math.min(...gpas) - 0.2)
+      const maxGpa = 4.0
+
+      const getX = (idx) => {
+        if (termStats.length <= 1) return padL + plotW / 2
+        return padL + (idx / (termStats.length - 1)) * plotW
+      }
+
+      const getY = (val) => {
+        const ratio = (val - minGpa) / (maxGpa - minGpa || 1)
+        return padT + plotH * (1 - Math.min(1, Math.max(0, ratio)))
+      }
+
+      const points = termStats.map((t, idx) => ({
+        x: getX(idx),
+        y: getY(parseFloat(t.gpa) || 0),
+        data: t,
+      }))
+
+      const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
+      const areaPath = points.length > 0
+        ? `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${padT + plotH} L ${points[0].x.toFixed(1)} ${padT + plotH} Z`
+        : ''
+
+      const hoveredItem = hoveredIdx !== null ? points[hoveredIdx] : null
+
+      return h('div', {
+        style: {
+          ...S.card,
+          padding: '18px 20px',
+          marginBottom: '18px',
+          background: 'var(--dsw-alias-bg-card, #ffffff)',
+        },
+        className: 'scu-hover-card',
+      },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+            h(ChartIcon, { size: 14 }),
+            h('span', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '历学期绩点平滑走势')
+          ),
+          hoveredItem && h('span', {
+            style: {
+              fontSize: '11px',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              background: 'rgba(59, 130, 246, 0.1)',
+              color: '#2563eb',
+              fontWeight: 500,
+            }
+          }, `${hoveredItem.data.term}: GPA ${hoveredItem.data.gpa} · ${hoveredItem.data.credits}学分 · ${hoveredItem.data.avgScore}分`)
+        ),
+        h('svg', {
+          viewBox: `0 0 ${width} ${height}`,
+          style: { width: '100%', height: 'auto', display: 'block', overflow: 'visible' },
+        },
+          h('defs', null,
+            h('linearGradient', { id: 'gpaAreaGrad', x1: '0', y1: '0', x2: '0', y2: '1' },
+              h('stop', { offset: '0%', stopColor: '#3b82f6', stopOpacity: 0.25 }),
+              h('stop', { offset: '100%', stopColor: '#3b82f6', stopOpacity: 0.0 })
+            )
+          ),
+          // 刻度水平基准线
+          [3.0, 3.5, 4.0].map(val => {
+            const y = getY(val)
+            return h('g', { key: val },
+              h('line', {
+                x1: padL,
+                y1: y,
+                x2: width - padR,
+                y2: y,
+                stroke: 'var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                strokeDasharray: '3 3',
+              }),
+              h('text', {
+                x: padL - 8,
+                y: y + 3,
+                textAnchor: 'end',
+                fontSize: 9,
+                fill: 'var(--dsw-alias-text-sub, #71717a)',
+              }, val.toFixed(1))
+            )
+          }),
+          // 渐变填充区域
+          h('path', { d: areaPath, fill: 'url(#gpaAreaGrad)' }),
+          // 主折线
+          h('path', { d: linePath, fill: 'none', stroke: '#3b82f6', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+          // 竖直悬停对齐虚线
+          hoveredItem && h('line', {
+            x1: hoveredItem.x,
+            y1: padT,
+            x2: hoveredItem.x,
+            y2: padT + plotH,
+            stroke: '#3b82f6',
+            strokeDasharray: '2 2',
+            strokeWidth: 1.5,
+          }),
+          // 交互节点圆圈与 X 轴学期标签
+          points.map((p, idx) =>
+            h('g', {
+              key: idx,
+              style: { cursor: 'pointer' },
+              onMouseEnter: () => setHoveredIdx(idx),
+              onMouseLeave: () => setHoveredIdx(null),
+            },
+              h('circle', { cx: p.x, cy: p.y, r: 12, fill: 'transparent' }),
+              h('circle', {
+                cx: p.x,
+                cy: p.y,
+                r: hoveredIdx === idx ? 6 : 4,
+                fill: hoveredIdx === idx ? '#2563eb' : '#3b82f6',
+                stroke: 'var(--dsw-alias-bg-card, #ffffff)',
+                strokeWidth: 2,
+                style: { transition: 'all 0.15s ease' },
+              }),
+              h('text', {
+                x: p.x,
+                y: height - 10,
+                textAnchor: 'middle',
+                fontSize: 10,
+                fontWeight: hoveredIdx === idx ? 600 : 400,
+                fill: hoveredIdx === idx ? '#2563eb' : 'var(--dsw-alias-text-sub, #71717a)',
+              }, p.data.term.replace(/20(\d{2})-20(\d{2})/, '$1-$2'))
+            )
+          )
+        )
+      )
+    }
+
+    // 3. 成绩区间分布条形图 (分段堆叠胶囊与区间指标网格)
+    function GradeDistributionChart({ grades }) {
+      if (!grades || grades.length === 0) return null
+
+      let countA = 0 // 90-100 (优秀)
+      let countB = 0 // 80-89  (良好)
+      let countC = 0 // 70-79  (中等)
+      let countD = 0 // 60-69  (及格)
+      let countF = 0 // <60    (待提升)
+
+      grades.forEach(g => {
+        const num = parseFloat(g.score)
+        if (!isNaN(num)) {
+          if (num >= 90) countA++
+          else if (num >= 80) countB++
+          else if (num >= 70) countC++
+          else if (num >= 60) countD++
+          else countF++
+        } else {
+          const lvl = g.gradeLevel || ''
+          if (lvl === 'A' || lvl === '优秀') countA++
+          else if (lvl === 'B' || lvl === '良好') countB++
+          else if (lvl === 'C' || lvl === '中等') countC++
+          else if (lvl === 'D' || lvl === '及格' || lvl === '合格' || lvl === '通过') countD++
+          else countF++
+        }
+      })
+
+      const total = grades.length || 1
+      const buckets = [
+        { label: '优秀 (90+)', count: countA, pct: (countA / total * 100).toFixed(1), color: '#10b981' },
+        { label: '良好 (80-89)', count: countB, pct: (countB / total * 100).toFixed(1), color: '#3b82f6' },
+        { label: '中等 (70-79)', count: countC, pct: (countC / total * 100).toFixed(1), color: '#f59e0b' },
+        { label: '及格 (60-69)', count: countD, pct: (countD / total * 100).toFixed(1), color: '#8b5cf6' },
+        { label: '待提升 (<60)', count: countF, pct: (countF / total * 100).toFixed(1), color: '#ef4444' },
+      ]
+
+      return h('div', {
+        style: {
+          ...S.card,
+          padding: '16px 20px',
+          marginBottom: '18px',
+          background: 'var(--dsw-alias-bg-card, #ffffff)',
+        },
+        className: 'scu-hover-card',
+      },
+        h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
+          h('span', null, '成绩区间分布比例'),
+          h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `共 ${total} 门已获评课程`)
+        ),
+        // 胶囊分段条
+        h('div', {
+          style: {
+            display: 'flex',
+            height: '12px',
+            borderRadius: '6px',
+            overflow: 'hidden',
+            background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
+            marginBottom: '12px',
+          }
+        },
+          buckets.map((b, i) =>
+            b.count > 0 ? h('div', {
+              key: i,
+              title: `${b.label}: ${b.count}门 (${b.pct}%)`,
+              style: {
+                width: `${b.pct}%`,
+                background: b.color,
+                transition: 'width 0.4s ease',
+              }
+            }) : null
+          )
+        ),
+        // 指标网格
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' } },
+          buckets.map((b, i) =>
+            h('div', {
+              key: i,
+              style: {
+                padding: '8px 10px',
+                borderRadius: '6px',
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                textAlign: 'center',
+              }
+            },
+              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '2px' } }, b.label),
+              h('div', { style: { fontSize: '14px', fontWeight: 700, color: b.color } }, `${b.count} 门`),
+              h('div', { style: { fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `${b.pct}%`)
+            )
+          )
+        )
+      )
+    }
+
     // ================== 子页面 2：成绩与 GPA (含保研必修切换、走势图与Excel导出) ==================
     function GradesView({ onRequireLogin }) {
       const [loading, setLoading] = useState(true)
@@ -1552,7 +1956,7 @@ window.__ModuleLoader__.load({
       const curCredit = isRequiredScope ? (data.requiredCredit ?? '--') : (data.totalCredit ?? '--')
       const curCount = isRequiredScope ? (data.requiredCourses ?? '--') : (data.totalCourses ?? '--')
 
-      return h('div', null,
+      return h('div', { className: 'scu-tab-content' },
         // 1. 顶部视角切换器 (全部课程 vs 保研/评奖必修课)
         h('div', {
           style: {
@@ -1642,78 +2046,35 @@ window.__ModuleLoader__.load({
           )
         ),
 
-        // 2. KPI 指标概览
-        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' } },
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center', position: 'relative' } },
-            h('div', { style: { fontSize: '26px', fontWeight: 700, color: isRequiredScope ? '#2563eb' : 'inherit' } }, curGpa),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              isRequiredScope ? '必修课加权 GPA (保研标准)' : '全科综合加权平均绩点 (GPA)'
+        // 2. GPA / 均分双环形进度仪表盘与核心 KPI
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'minmax(320px, 1.4fr) minmax(200px, 0.8fr)', gap: '14px', marginBottom: '18px' } },
+          h(GpaScoreRingDashboard, {
+            gpa: curGpa,
+            score: curScore,
+            isRequired: isRequiredScope,
+            diffGpa: (isRequiredScope && data.requiredGpa && data.overallGpa) ? (data.requiredGpa - data.overallGpa) : null,
+          }),
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+            h('div', { style: { ...S.card, marginBottom: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--dsw-alias-bg-card, #ffffff)' }, className: 'scu-hover-card' },
+              h('div', { style: { fontSize: '24px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, curCredit),
+              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                isRequiredScope ? '必修课累计学分' : '累计修读总学分'
+              )
             ),
-            isRequiredScope && data.requiredGpa && data.overallGpa && (
-              h('div', {
-                style: {
-                  fontSize: '11px',
-                  color: data.requiredGpa >= data.overallGpa ? '#10b981' : '#ef4444',
-                  marginTop: '4px',
-                  fontWeight: 500,
-                },
-              }, `${data.requiredGpa >= data.overallGpa ? '↑' : '↓'} 较综合 GPA ${data.requiredGpa >= data.overallGpa ? '+' : ''}${(data.requiredGpa - data.overallGpa).toFixed(2)}`)
-            )
-          ),
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '26px', fontWeight: 700 } }, curScore),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              isRequiredScope ? '必修课加权平均分' : '全科综合加权平均分'
-            )
-          ),
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '26px', fontWeight: 700 } }, curCredit),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              isRequiredScope ? '必修课累计学分' : '累计修读总学分'
-            )
-          ),
-          h('div', { style: { ...S.card, marginBottom: 0, textAlign: 'center' } },
-            h('div', { style: { fontSize: '26px', fontWeight: 700 } }, curCount),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              isRequiredScope ? '必修已修课程数' : '已获评课程总门数'
-            )
-          )
-        ),
-
-        // 3. 学期 GPA 趋势图卡片 (Term Trend)
-        !loading && data.termStats && data.termStats.length > 0 && h('div', {
-          style: {
-            ...S.card,
-            padding: '16px 20px',
-            marginBottom: '18px',
-            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
-          },
-        },
-          h('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' } },
-            h(ChartIcon, { size: 14 }),
-            h('span', null, '历年学期绩点与学分走势')
-          ),
-          h('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${data.termStats.length}, 1fr)`, gap: '12px' } },
-            data.termStats.map((t, idx) =>
-              h('div', {
-                key: idx,
-                style: {
-                  background: 'var(--dsw-alias-bg-card, rgba(125, 125, 125, 0.04))',
-                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
-                  borderRadius: '8px',
-                  padding: '10px',
-                  textAlign: 'center',
-                },
-              },
-                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '4px' } }, t.term),
-                h('div', { style: { fontSize: '18px', fontWeight: 700, color: '#2563eb' } }, t.gpa),
-                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                  `${t.credits}学分 · ${t.avgScore}分`
-                )
+            h('div', { style: { ...S.card, marginBottom: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--dsw-alias-bg-card, #ffffff)' }, className: 'scu-hover-card' },
+              h('div', { style: { fontSize: '24px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, curCount),
+              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                isRequiredScope ? '必修已修课程数' : '已获评课程总门数'
               )
             )
           )
         ),
+
+        // 3. 学期 GPA 趋势图 (纯 SVG 平滑折线走势)
+        !loading && data.termStats && data.termStats.length > 0 && h(TermTrendSvgChart, { termStats: data.termStats }),
+
+        // 4. 成绩区间分布条形图 (分段胶囊进度与比例网格)
+        !loading && filtered.length > 0 && h(GradeDistributionChart, { grades: filtered }),
 
         // 4. 学期筛选栏
         h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' } },
@@ -3523,44 +3884,6 @@ window.__ModuleLoader__.load({
         badgeBorder: 'rgba(16, 185, 129, 0.25)',
         url: 'https://wfw.scu.edu.cn/site/applicationSquare/index?sid=0',
         apiEndpoint: '/api/wfw/apps/all'
-      },
-      {
-        id: 'sports',
-        name: '体育场馆预约',
-        category: 'life',
-        categoryLabel: '校园生活',
-        icon: ActivityIcon,
-        status: 'online',
-        statusText: '快捷直达',
-        desc: '望江、江安、华西校区室内外羽毛球馆、网球场、游泳馆实时场次预约平台',
-        features: [
-          '三校区场馆总览：覆盖江安二号运动场、望江体育中心、华西东区羽毛球场等',
-          '官方场馆预约：直接直通场馆中心官方预约平台快速选场与个人履约管理'
-        ],
-        badgeColor: '#10b981',
-        badgeBg: 'rgba(16, 185, 129, 0.08)',
-        badgeBorder: 'rgba(16, 185, 129, 0.25)',
-        url: 'http://cgzx.scu.edu.cn/venue/',
-        apiEndpoint: 'http://cgzx.scu.edu.cn/venue/'
-      },
-      {
-        id: 'repairs',
-        name: '后勤综合微报修',
-        category: 'public',
-        categoryLabel: '综合便民',
-        icon: WrenchIcon,
-        status: 'online',
-        statusText: '快捷直达',
-        desc: '宿舍水电门窗故障、公共教学设施损坏极速线上报障与维修进度查询平台',
-        features: [
-          '一键报修提单：预设宿舍照明跳闸、水龙头渗漏、空调漏水、门锁损坏等常见报障',
-          '官方后勤报修：直通智慧后勤微信移动端与工单全链路跟踪系统'
-        ],
-        badgeColor: '#10b981',
-        badgeBg: 'rgba(16, 185, 129, 0.08)',
-        badgeBorder: 'rgba(16, 185, 129, 0.25)',
-        url: 'https://zhhq.scu.edu.cn/loginapp',
-        apiEndpoint: 'https://zhhq.scu.edu.cn/loginapp'
       }
     ]
 
@@ -5029,10 +5352,7 @@ window.__ModuleLoader__.load({
                     border: '1px solid rgba(16, 185, 129, 0.25)',
                     fontWeight: 500,
                   }
-                }, '● 每日花费统计')
-              ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                '实体卡实时余额 · 每日消费汇总核算 · 单笔账单随手记备注'
+                }, '● 消费流水与余额')
               )
             )
           ),
@@ -5704,9 +6024,6 @@ window.__ModuleLoader__.load({
                     fontWeight: 500,
                   }
                 }, '● 实时在线')
-              ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                '在线终端监控 · 远程一键踢下线 · 连接数配额管理'
               )
             )
           ),
@@ -5752,16 +6069,16 @@ window.__ModuleLoader__.load({
           }
         }, errorMsg),
 
-        // 核心 3 大指标卡片
+        // 核心指标卡片 (在线终端 / 网络环境)
         h('div', {
           style: {
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: '14px',
             marginBottom: '20px',
           }
         },
-          // 指标 1：当前在线设备数
+          // 指标 1：当前在线设备数 (川大上限 2 台)
           h('div', {
             style: {
               ...S.card,
@@ -5787,10 +6104,10 @@ window.__ModuleLoader__.load({
               }, h(WifiIcon, { size: 14 }))
             ),
             h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
-              netData?.deviceCount !== undefined ? `${netData.deviceCount} / ${netData.maxDevices || 3} 台` : (loading ? '...' : '--')
+              netData?.deviceCount !== undefined ? `${netData.deviceCount} / ${netData.maxDevices || 2} 台` : (loading ? '...' : '--')
             ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              netData?.deviceCount >= (netData?.maxDevices || 3) ? '⚠️ 已达终端最大并发限制' : '配额充裕 · 允许多终端并网'
+              netData?.deviceCount >= (netData?.maxDevices || 2) ? '⚠️ 已达终端最大并发限制 (2台)' : '配额充裕 · 允许多终端并网'
             )
           ),
 
@@ -5825,40 +6142,6 @@ window.__ModuleLoader__.load({
             ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
               'SCU-Wireless / 宿舍有线千兆'
-            )
-          ),
-
-          // 指标 3：下线控制权限
-          h('div', {
-            style: {
-              ...S.card,
-              padding: '18px 20px',
-              borderRadius: '12px',
-              background: 'var(--dsw-alias-bg-card, #ffffff)',
-              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
-            }
-          },
-            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
-              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '远程踢出权限'),
-              h('div', {
-                style: {
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  background: 'rgba(16, 185, 129, 0.08)',
-                  color: '#10b981',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }
-              }, h(ShieldIcon, { size: 14 }))
-            ),
-            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
-              netData?.canOffline ? '支持一键踢出' : '受限'
-            ),
-            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              '可秒级释放名额给新设备'
             )
           )
         ),
@@ -5907,7 +6190,6 @@ window.__ModuleLoader__.load({
             h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
               netData.devices.map((dev, idx) => {
                 const isOperating = offlineLoadingId === dev.deviceId
-                const DevIconComp = dev.icon === 'smartphone' ? SmartphoneIcon : (dev.icon === 'laptop' ? LaptopIcon : WifiIcon)
                 return h('div', {
                   key: dev.deviceId || idx,
                   style: {
@@ -5922,7 +6204,7 @@ window.__ModuleLoader__.load({
                     gap: '12px',
                   }
                 },
-                  // 左侧设备类型与图标
+                  // 左侧终端真实 MAC 与 IP
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
                     h('div', {
                       style: {
@@ -5935,10 +6217,10 @@ window.__ModuleLoader__.load({
                         justifyContent: 'center',
                         flexShrink: 0,
                       }
-                    }, h(DevIconComp, { size: 16 })),
+                    }, h(WifiIcon, { size: 16 })),
                     h('div', null,
                       h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                        h('span', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, dev.deviceType || '接入终端'),
+                        h('span', { style: { fontSize: '13px', fontWeight: 600, fontFamily: 'monospace', color: 'var(--dsw-alias-text, inherit)' } }, dev.mac || dev.deviceId || '未知 MAC'),
                         h('span', {
                           style: {
                             fontSize: '10px',
@@ -5950,14 +6232,13 @@ window.__ModuleLoader__.load({
                           }
                         }, '在线中')
                       ),
-                      h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '3px', display: 'flex', gap: '12px' } },
-                        h('span', null, `MAC: ${dev.mac || dev.deviceId}`),
+                      h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '3px', display: 'flex', gap: '12px', fontFamily: 'monospace' } },
                         h('span', null, `IP: ${dev.ip || '--'}`)
                       )
                     )
                   ),
 
-                  // 右侧强制下线操作按钮 (纯白极简规范)
+                  // 右侧强制下线操作按钮
                   h('button', {
                     style: {
                       ...S.btnSecondary,
@@ -5979,23 +6260,21 @@ window.__ModuleLoader__.load({
           )
         ),
 
-        // 纯白极简温馨提示卡片
+        // 极简说明卡片
         h('div', {
           style: {
-            ...S.card,
-            padding: '16px 20px',
-            borderRadius: '10px',
+            padding: '12px 16px',
+            borderRadius: '8px',
             background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
-            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
-            fontSize: '12px',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+            fontSize: '11px',
             color: 'var(--dsw-alias-text-sub, #71717a)',
-            lineHeight: 1.6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }
         },
-          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 校园网使用与配额说明'),
-          h('div', null, '1. 并发设备配额限制：四川大学校园网学生默认允许最多 3 台终端并发认证在线。当达到 3 台上限时，新接入的手机或平板将无法打开登录页面。'),
-          h('div', null, '2. 快速释放名额：若离开宿舍或更换新设备，无需返回原设备注销，直接在上方点击【强制下线】即可秒级释放连接名额。'),
-          h('div', null, '3. 网费充值与宽带故障：如需充值网费或变更宽带套餐，可登录信息中心缴费网关；若宿舍有线网口物理不通，可拨打网络故障报修电话 028-85410000。')
+          h('span', null, '提示：四川大学校园网每账号最多支持 2 台设备同时在线，超额时可点击【强制下线】释放名额。')
         )
       )
     }
@@ -6066,7 +6345,7 @@ window.__ModuleLoader__.load({
             ),
             h('div', null,
               h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园交通车运行时刻'),
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园交通车时刻'),
                 h('span', {
                   style: {
                     fontSize: '11px',
@@ -6077,10 +6356,7 @@ window.__ModuleLoader__.load({
                     border: '1px solid rgba(16, 185, 129, 0.25)',
                     fontWeight: 500,
                   }
-                }, `● ${busData?.dayTypeText || '工作日班次'}`)
-              ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                '望江 ⇄ 江安 ⇄ 华西三大校际穿梭校车 · 后勤保障部官方时刻'
+                }, `● ${busData?.dayTypeText || '班次查询'}`)
               )
             )
           ),
@@ -6438,7 +6714,7 @@ window.__ModuleLoader__.load({
             ),
             h('div', null,
               h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园一卡通官方失物招领'),
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园卡失物招领'),
                 h('span', {
                   style: {
                     fontSize: '11px',
@@ -6449,10 +6725,7 @@ window.__ModuleLoader__.load({
                     border: '1px solid rgba(16, 185, 129, 0.25)',
                     fontWeight: 500,
                   }
-                }, '● 实时同步')
-              ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                '全校各食堂与保安室拾得校园卡即时登记 · 本人一键安全排查'
+                }, '● 拾得登记')
               )
             )
           ),
@@ -6784,9 +7057,6 @@ window.__ModuleLoader__.load({
                     fontWeight: 500,
                   }
                 }, `● 读者证 ${libData?.status || '正常'}`)
-              ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                '四川大学图书馆读者档案 · 在借图书与借阅限额实时透视'
               )
             )
           ),
@@ -7151,7 +7421,7 @@ window.__ModuleLoader__.load({
             ),
             h('div', null,
               h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '全校微应用服务广场'),
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '微应用服务广场'),
                 h('span', {
                   style: {
                     fontSize: '11px',
@@ -7163,9 +7433,6 @@ window.__ModuleLoader__.load({
                     fontWeight: 500,
                   }
                 }, `共 ${allApps.length} 个应用`)
-              ),
-              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                '聚合四川大学 9 大业务板块全量微服务 · 点击任意应用即可免密直达'
               )
             )
           ),
@@ -7643,10 +7910,10 @@ window.__ModuleLoader__.load({
 
       // 分类筛选列表
       const categories = [
-        { key: 'all', label: '全部服务 (9)' },
-        { key: 'life', label: '校园生活 (4)' },
+        { key: 'all', label: '全部服务 (7)' },
+        { key: 'life', label: '校园生活 (3)' },
         { key: 'network', label: '网络信息化 (1)' },
-        { key: 'public', label: '综合便民 (4)' },
+        { key: 'public', label: '综合便民 (3)' },
       ]
 
       return h('div', null,
@@ -7654,7 +7921,7 @@ window.__ModuleLoader__.load({
         h('div', {
           style: {
             ...S.card,
-            padding: '20px 24px',
+            padding: '16px 20px',
             borderRadius: '12px',
             marginBottom: '18px',
             background: 'var(--dsw-alias-bg-card, #ffffff)',
@@ -7680,9 +7947,6 @@ window.__ModuleLoader__.load({
                 }
               }, h(GridIcon, { size: 16 })),
               h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园微服务大厅')
-            ),
-            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              '基于四川大学统一身份认证 SSO 单点直达 · 深度聚合全校高频生活、网络与公共便民服务'
             )
           ),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
@@ -8393,6 +8657,1312 @@ window.__ModuleLoader__.load({
     // 保持对旧引用兼容
     const ElectricityView = ServicesView
 
+
+    // ================== 子页面 7：选课与智能抢课 (极简莫兰迪风格，全自动后台并发与互斥备选) ==================
+    function CourseGrabView({ onRequireLogin }) {
+    // 选课阶段与搜索
+    const [phases, setPhases] = useState([
+      { id: 'PLAN', label: '培养方案选课', deal_type: 2 },
+      { id: 'SCHOOL', label: '校级公选课', deal_type: 3 },
+      { id: 'DEPART', label: '院系课程', deal_type: 4 },
+      { id: 'FREE', label: '自由选课(补退选)', deal_type: 5 },
+    ])
+    const [selectedPhase, setSelectedPhase] = useState('FREE')
+    const [keyword, setKeyword] = useState('')
+    const [searching, setSearching] = useState(false)
+    const [searchResults, setSearchResults] = useState([])
+    const [searchMsg, setSearchMsg] = useState('')
+    const [expandedCourseKey, setExpandedCourseKey] = useState(null)
+
+    // 快速直添
+    const [directCourseId, setDirectCourseId] = useState('')
+    const [directSeqNo, setDirectSeqNo] = useState('')
+
+    // 任务队列
+    const [tasks, setTasks] = useState([])
+    const [bannerMsg, setBannerMsg] = useState({ text: '', type: 'info' })
+
+    // 运行状态与统计
+    const [isRunning, setIsRunning] = useState(false)
+    const [stats, setStats] = useState({
+      duration: '--:--:--',
+      total_attempts: 0,
+      success_count: 0,
+      failed_count: 0,
+      waiting_count: 0,
+    })
+    const [actionLoading, setActionLoading] = useState(false)
+
+    // 参数设置 Modal
+    const [showSettings, setShowSettings] = useState(false)
+    const [sleepTime, setSleepTime] = useState(1.0)
+    const [sleepJitter, setSleepJitter] = useState(0.2)
+    const [savingSettings, setSavingSettings] = useState(false)
+
+    // 定时开抢状态与快捷键引用
+    const [scheduledTime, setScheduledTime] = useState('')
+    const [isScheduled, setIsScheduled] = useState(false)
+    const [countdownText, setCountdownText] = useState('')
+    const [scheduleSubmitting, setScheduleSubmitting] = useState(false)
+    const searchInputRef = useRef(null)
+
+    // 实时日志
+    const [logs, setLogs] = useState([])
+    const [autoScroll, setAutoScroll] = useState(true)
+    const [logFilter, setLogFilter] = useState('ALL')
+    const lastLogIdRef = useRef(0)
+    const logContainerRef = useRef(null)
+
+    const notify = (text, type = 'info') => {
+      setBannerMsg({ text, type })
+      setTimeout(() => setBannerMsg({ text: '', type: 'info' }), 3000)
+    }
+
+    // 选课界面按 / 键自动聚焦搜索框
+    useEffect(() => {
+      const handleSlash = (e) => {
+        if (e.key === '/') {
+          const tag = e.target?.tagName?.toLowerCase()
+          if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+            e.preventDefault()
+            if (searchInputRef.current) {
+              searchInputRef.current.focus()
+            }
+          }
+        }
+      }
+      window.addEventListener('keydown', handleSlash)
+      return () => window.removeEventListener('keydown', handleSlash)
+    }, [])
+
+    // 定时开抢倒计时动态计算
+    useEffect(() => {
+      if (!isScheduled || !scheduledTime) {
+        setCountdownText('')
+        return
+      }
+
+      const updateCountdown = () => {
+        const now = new Date()
+        let target = new Date()
+        const parts = scheduledTime.trim().split(':')
+        if (parts.length >= 2) {
+          target.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2] || 0, 10), 0)
+          if (target.getTime() <= now.getTime()) {
+            if (now.getTime() - target.getTime() > 10000) {
+              target.setDate(target.getDate() + 1)
+            }
+          }
+        }
+
+        const diffSec = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000))
+        if (diffSec === 0) {
+          setCountdownText('开抢时间已到达！系统正在出击')
+        } else {
+          const h = Math.floor(diffSec / 3600).toString().padStart(2, '0')
+          const m = Math.floor((diffSec % 3600) / 60).toString().padStart(2, '0')
+          const s = (diffSec % 60).toString().padStart(2, '0')
+          setCountdownText(`${h}:${m}:${s}`)
+        }
+      }
+
+      updateCountdown()
+      const cTimer = setInterval(updateCountdown, 1000)
+      return () => clearInterval(cTimer)
+    }, [isScheduled, scheduledTime])
+
+    // 1. 初始化拉取阶段、任务、设置、状态
+    const initData = useCallback(async () => {
+      try {
+        const pResp = await fetch(`${SERVICE_URL}/api/grab/phases`).catch(() => null)
+        if (pResp && pResp.ok) {
+          const d = await pResp.json()
+          if (d.phases && d.phases.length > 0) setPhases(d.phases)
+          if (d.current_phase) setSelectedPhase(d.current_phase)
+        }
+
+        const tResp = await fetch(`${SERVICE_URL}/api/grab/tasks`).catch(() => null)
+        if (tResp && tResp.ok) {
+          const d = await tResp.json()
+          if (Array.isArray(d.tasks)) setTasks(d.tasks)
+        }
+
+        const cResp = await fetch(`${SERVICE_URL}/api/grab/config`).catch(() => null)
+        if (cResp && cResp.ok) {
+          const d = await cResp.json()
+          if (d.sleep_time !== undefined) setSleepTime(d.sleep_time)
+          if (d.sleep_jitter !== undefined) setSleepJitter(d.sleep_jitter)
+          if (d.scheduled_time) {
+            setScheduledTime(d.scheduled_time)
+            setIsScheduled(true)
+          }
+        }
+
+        const sResp = await fetch(`${SERVICE_URL}/api/grab/status`).catch(() => null)
+        if (sResp && sResp.ok) {
+          const d = await sResp.json()
+          setIsRunning(d.is_running || false)
+          setStats({
+            duration: d.duration || '--:--:--',
+            total_attempts: d.total_attempts || 0,
+            success_count: d.success_count || 0,
+            failed_count: d.failed_count || 0,
+            waiting_count: d.waiting_count || 0,
+          })
+          if (Array.isArray(d.tasks) && d.tasks.length > 0) {
+            setTasks(d.tasks)
+          }
+          if (d.is_scheduled && d.scheduled_time) {
+            setScheduledTime(d.scheduled_time)
+            setIsScheduled(true)
+          }
+        }
+      } catch (_) {}
+    }, [])
+
+    useEffect(() => {
+      initData()
+    }, [initData])
+
+    // 2. 日志与状态实时流式推送 (SSE 优先，自动降级增量轮询)
+    useEffect(() => {
+      let es = null
+      let pollTimer = null
+      let isUnmounted = false
+
+      const startFallbackPoll = () => {
+        if (pollTimer || isUnmounted) return
+        pollTimer = setInterval(async () => {
+          try {
+            const sResp = await fetch(`${SERVICE_URL}/api/grab/status`).catch(() => null)
+            if (sResp) {
+              if (sResp.status === 401) {
+                onRequireLogin && onRequireLogin()
+                return
+              }
+              if (sResp.ok) {
+                const d = await sResp.json()
+                setIsRunning(d.is_running || false)
+                setStats({
+                  duration: d.duration || '--:--:--',
+                  total_attempts: d.total_attempts || 0,
+                  success_count: d.success_count || 0,
+                  failed_count: d.failed_count || 0,
+                  waiting_count: d.waiting_count || 0,
+                })
+                if (Array.isArray(d.tasks)) setTasks(d.tasks)
+              }
+            }
+
+            const lResp = await fetch(`${SERVICE_URL}/api/grab/logs?since_id=${lastLogIdRef.current}`).catch(() => null)
+            if (lResp && lResp.ok) {
+              const ld = await lResp.json()
+              if (Array.isArray(ld.logs) && ld.logs.length > 0) {
+                setLogs(prev => [...prev, ...ld.logs].slice(-300))
+                lastLogIdRef.current = ld.last_id || lastLogIdRef.current
+              }
+            }
+          } catch (_) {}
+        }, isRunning ? 1500 : 5000)
+      }
+
+      // 优先建立 SSE 实时长连接
+      if (typeof window !== 'undefined' && window.EventSource) {
+        try {
+          es = new EventSource(`${SERVICE_URL}/api/grab/logs/stream`)
+          es.onmessage = (e) => {
+            if (!e.data || isUnmounted) return
+            try {
+              const payload = JSON.parse(e.data)
+              if (payload.type === 'log' && payload.log) {
+                setLogs(prev => [...prev.slice(-299), payload.log])
+                if (payload.log.id) lastLogIdRef.current = payload.log.id
+              } else if (payload.type === 'status') {
+                if (payload.is_running !== undefined) setIsRunning(payload.is_running)
+                if (payload.stats) setStats(payload.stats)
+                if (Array.isArray(payload.tasks)) setTasks(payload.tasks)
+                if (payload.is_scheduled !== undefined) setIsScheduled(payload.is_scheduled)
+                if (payload.scheduled_time) setScheduledTime(payload.scheduled_time)
+              }
+            } catch (_) {}
+          }
+          es.onerror = () => {
+            if (es) { es.close(); es = null }
+            startFallbackPoll()
+          }
+        } catch (_) {
+          startFallbackPoll()
+        }
+      } else {
+        startFallbackPoll()
+      }
+
+      // 周期性同步队列
+      const taskSyncTimer = setInterval(async () => {
+        try {
+          const tResp = await fetch(`${SERVICE_URL}/api/grab/tasks`).catch(() => null)
+          if (tResp && tResp.ok) {
+            const d = await tResp.json()
+            if (Array.isArray(d.tasks)) setTasks(d.tasks)
+          }
+        } catch (_) {}
+      }, 5000)
+
+      return () => {
+        isUnmounted = true
+        if (es) es.close()
+        if (pollTimer) clearInterval(pollTimer)
+        if (taskSyncTimer) clearInterval(taskSyncTimer)
+      }
+    }, [isRunning, onRequireLogin])
+
+    // 日志自动滚动
+    useEffect(() => {
+      if (autoScroll && logContainerRef.current) {
+        logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+      }
+    }, [logs, autoScroll])
+
+    // 3. 搜索课程
+    const handleSearch = async () => {
+      const kw = keyword.trim()
+      if (!kw) {
+        setSearchMsg('请输入课程名称或课程号关键词')
+        return
+      }
+      setSearching(true)
+      setSearchMsg('')
+      try {
+        const resp = await fetch(`${SERVICE_URL}/api/grab/search?keyword=${encodeURIComponent(kw)}&phase=${selectedPhase}`)
+        if (resp.status === 401) {
+          onRequireLogin && onRequireLogin()
+          return
+        }
+        const data = await resp.json()
+        if (!resp.ok) {
+          setSearchMsg(data.detail || '搜索失败')
+          return
+        }
+        setSearchResults(data.courses || [])
+        if (!data.courses || data.courses.length === 0) {
+          setSearchMsg('未检索到符合条件的课程，可尝试更换关键词或选课阶段')
+        }
+      } catch (err) {
+        setSearchMsg(`搜索请求异常: ${err.message}`)
+      } finally {
+        setSearching(false)
+      }
+    }
+
+    // 4. 同步任务队列到后端
+    const syncTasks = async (nextTasks) => {
+      setTasks(nextTasks)
+      try {
+        await fetch(`${SERVICE_URL}/api/grab/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks: nextTasks }),
+        })
+      } catch (_) {}
+    }
+
+    // 5. 添加任务
+    const handleAddTask = (course) => {
+      const kcId = `${course.course_id}_${course.seq_no}`
+      if (tasks.some(t => `${t.course.course_id}_${t.course.seq_no}` === kcId)) {
+        notify(`《${course.name}》已在抢课队列中`, 'warning')
+        return
+      }
+      const newTask = {
+        course,
+        status: 'WAITING',
+        attempts: 0,
+        last_message: '待抢',
+        group_id: 0,
+      }
+      const next = [...tasks, newTask]
+      syncTasks(next)
+      notify(`已将《${course.name}》加入抢课目标队列`, 'success')
+    }
+
+    // 6. 手工直添
+    const handleDirectAdd = () => {
+      const cId = directCourseId.trim()
+      const seq = directSeqNo.trim()
+      if (!cId || !seq) {
+        notify('请同时输入课程号和课序号', 'warning')
+        return
+      }
+      const course = {
+        course_id: cId,
+        seq_no: seq,
+        name: `直添课程_${cId}_${seq}`,
+        teacher: '',
+        seats_free: -1,
+        classroom: '直添排定',
+        schedule: '待抢到后确认',
+      }
+      handleAddTask(course)
+      setDirectCourseId('')
+      setDirectSeqNo('')
+    }
+
+    // 7. 队列操作
+    const handleRemoveTask = (idx) => {
+      const next = tasks.filter((_, i) => i !== idx)
+      syncTasks(next)
+      notify('已移除该抢课任务')
+    }
+
+    const handleMoveTask = (idx, delta) => {
+      const target = idx + delta
+      if (target < 0 || target >= tasks.length) return
+      const next = [...tasks]
+      const temp = next[idx]
+      next[idx] = next[target]
+      next[target] = temp
+      syncTasks(next)
+    }
+
+    const handleSetGroup = (idx, gid) => {
+      const next = [...tasks]
+      next[idx] = { ...next[idx], group_id: gid }
+      syncTasks(next)
+    }
+
+    // 8. 启动与停止抢课
+    const handleStartGrab = async () => {
+      if (tasks.length === 0) {
+        notify('抢课队列为空，请先添加课程', 'warning')
+        return
+      }
+      setActionLoading(true)
+      try {
+        const resp = await fetch(`${SERVICE_URL}/api/grab/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tasks,
+            sleep_time: sleepTime,
+            sleep_jitter: sleepJitter,
+            phase: selectedPhase,
+          }),
+        })
+        if (resp.status === 401) {
+          onRequireLogin && onRequireLogin()
+          return
+        }
+        const data = await resp.json()
+        if (!resp.ok) {
+          notify(data.detail || '启动失败', 'error')
+        } else {
+          setIsRunning(true)
+          notify('抢课引擎已在后台启动！', 'success')
+        }
+      } catch (err) {
+        notify(`启动失败: ${err.message}`, 'error')
+      } finally {
+        setActionLoading(false)
+      }
+    }
+
+    const handleStopGrab = async () => {
+      setActionLoading(true)
+      try {
+        const resp = await fetch(`${SERVICE_URL}/api/grab/stop`, { method: 'POST' })
+        if (resp.ok) {
+          setIsRunning(false)
+          notify('已下发停止抢课指令')
+        }
+      } catch (err) {
+        notify(`停止失败: ${err.message}`, 'error')
+      } finally {
+        setActionLoading(false)
+      }
+    }
+
+    // 9. 保存参数设置
+    const handleSaveConfig = async () => {
+      setSavingSettings(true)
+      try {
+        await fetch(`${SERVICE_URL}/api/grab/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sleep_time: sleepTime, sleep_jitter: sleepJitter }),
+        })
+        notify('参数已保存并实时生效', 'success')
+        setShowSettings(false)
+      } catch (err) {
+        notify(`保存失败: ${err.message}`, 'error')
+      } finally {
+        setSavingSettings(false)
+      }
+    }
+
+    // 10. 设定定时开抢
+    const handleSetSchedule = async () => {
+      const tm = scheduledTime.trim()
+      if (!tm) {
+        notify('请输入目标开抢时间 (例如 13:00:00)', 'error')
+        return
+      }
+      setScheduleSubmitting(true)
+      try {
+        const resp = await fetch(`${SERVICE_URL}/api/grab/scheduled`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scheduled_time: tm }),
+        }).catch(() => null)
+        if (resp && resp.ok) {
+          setIsScheduled(true)
+          notify(`已开启毫秒级定时待命: ${tm}`, 'success')
+        } else {
+          // 本地待命模式
+          setIsScheduled(true)
+          notify(`已开启定时待命: ${tm}`, 'success')
+        }
+      } catch (err) {
+        setIsScheduled(true)
+        notify(`已开启定时待命: ${tm}`, 'info')
+      } finally {
+        setScheduleSubmitting(false)
+      }
+    }
+
+    // 取消定时开抢
+    const handleCancelSchedule = async () => {
+      setScheduleSubmitting(true)
+      try {
+        await fetch(`${SERVICE_URL}/api/grab/scheduled/cancel`, { method: 'POST' }).catch(() => null)
+        setIsScheduled(false)
+        setCountdownText('')
+        notify('已取消定时待命', 'info')
+      } catch (_) {}
+      finally {
+        setScheduleSubmitting(false)
+      }
+    }
+
+    // 11. 简单冲突预检 (计算队列中有哪些课程上课时间可能重叠)
+    const conflicts = []
+    for (let i = 0; i < tasks.length; i++) {
+      for (let j = i + 1; j < tasks.length; j++) {
+        const s1 = tasks[i].course.schedule || ''
+        const s2 = tasks[j].course.schedule || ''
+        if (s1 && s2 && s1 !== '待抢到后确认' && s2 !== '待抢到后确认') {
+          // 简易冲突判定：同在周几且节次文字有交叠
+          const m1 = s1.match(/周([一二三四五六日])/);
+          const m2 = s2.match(/周([一二三四五六日])/);
+          if (m1 && m2 && m1[1] === m2[1]) {
+            conflicts.push({
+              nameA: tasks[i].course.name,
+              nameB: tasks[j].course.name,
+              day: m1[1],
+              isSameGroup: tasks[i].group_id > 0 && tasks[i].group_id === tasks[j].group_id,
+            })
+          }
+        }
+      }
+    }
+
+    const filteredLogs = logs.filter(l => {
+      if (logFilter === 'ALL') return true
+      if (logFilter === 'SUCCESS') return l.level === 'SUCCESS'
+      if (logFilter === 'ERROR') return l.level === 'ERROR'
+      return true
+    })
+
+    return h('div', null,
+      // 顶部 Banner 提示
+      bannerMsg.text && h('div', {
+        style: {
+          padding: '8px 16px',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          fontSize: '13px',
+          fontWeight: 500,
+          background: bannerMsg.type === 'success'
+            ? 'rgba(16, 185, 129, 0.12)'
+            : bannerMsg.type === 'error'
+            ? 'rgba(239, 68, 68, 0.12)'
+            : bannerMsg.type === 'warning'
+            ? 'rgba(245, 158, 11, 0.12)'
+            : 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
+          color: bannerMsg.type === 'success'
+            ? '#10b981'
+            : bannerMsg.type === 'error'
+            ? '#ef4444'
+            : bannerMsg.type === 'warning'
+            ? '#f59e0b'
+            : 'inherit',
+          border: `1px solid ${bannerMsg.type === 'success' ? '#10b98144' : bannerMsg.type === 'error' ? '#ef444444' : 'var(--dsw-alias-border, rgba(125,125,125,0.15))'}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        },
+      },
+        h('span', null, bannerMsg.text),
+        h('button', {
+          style: { background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '13px' },
+          onClick: () => setBannerMsg({ text: '', type: 'info' }),
+        }, '✕')
+      ),
+
+      // 1. 顶部主控制与仪表盘卡片
+      h('div', {
+        style: {
+          ...S.card,
+          padding: '18px 20px',
+          marginBottom: '18px',
+          background: 'var(--dsw-alias-bg-card, rgba(125, 125, 125, 0.04))',
+        },
+      },
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: '16px',
+          },
+        },
+          // 左侧：状态指示与定时倒计时徽章
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' } },
+            h('span', {
+              style: {
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: isRunning ? '#10b981' : (isScheduled ? '#3b82f6' : '#a1a1aa'),
+                boxShadow: isRunning ? '0 0 10px rgba(16, 185, 129, 0.8)' : (isScheduled ? '0 0 10px rgba(59, 130, 246, 0.6)' : 'none'),
+                display: 'inline-block',
+                transition: 'all 0.2s ease',
+              },
+            }),
+            h('span', { style: { fontSize: '15px', fontWeight: 600 } },
+              isRunning ? '抢课后台引擎运行中' : (isScheduled ? '定时待命待命中' : '抢课引擎就绪 (空闲待命)')
+            ),
+            h('span', {
+              style: {
+                ...S.badge,
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+              },
+            }, `轮询间隔: ${sleepTime}s ±${sleepJitter}s`),
+            isScheduled && h('span', {
+              style: {
+                ...S.badge,
+                background: 'rgba(59, 130, 246, 0.1)',
+                color: '#2563eb',
+                borderColor: 'rgba(59, 130, 246, 0.3)',
+                fontWeight: 600,
+              },
+            }, `⏱️ 定时: ${scheduledTime} · 倒计时 ${countdownText || '计算中...'}`)
+          ),
+
+          // 右侧：定时开抢输入与主控制按钮组
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+            // 定时开抢输入条
+            !isScheduled ? (
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                h('input', {
+                  type: 'text',
+                  placeholder: '定时开抢 如 13:00:00',
+                  value: scheduledTime,
+                  onChange: (e) => setScheduledTime(e.target.value),
+                  onKeyDown: (e) => e.key === 'Enter' && handleSetSchedule(),
+                  style: {
+                    ...S.btnSecondary,
+                    padding: '5px 8px',
+                    width: '130px',
+                    fontSize: '11px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125,125,125,0.06))',
+                  },
+                }),
+                h('button', {
+                  style: { ...S.btnSecondary, padding: '5px 10px', fontSize: '11px', fontWeight: 600 },
+                  onClick: handleSetSchedule,
+                  disabled: scheduleSubmitting,
+                }, '设定定时')
+              )
+            ) : (
+              h('button', {
+                style: {
+                  ...S.btnSecondary,
+                  color: '#ef4444',
+                  borderColor: 'rgba(239, 68, 68, 0.25)',
+                  background: 'rgba(239, 68, 68, 0.05)',
+                  padding: '5px 10px',
+                  fontSize: '11px',
+                },
+                onClick: handleCancelSchedule,
+                disabled: scheduleSubmitting,
+              }, '取消定时待命')
+            ),
+
+            h('button', {
+              style: { ...S.btnSecondary, display: 'inline-flex', alignItems: 'center', gap: '6px' },
+              onClick: () => setShowSettings(true),
+              title: '配置刷新间隔与随机抖动',
+            },
+              h(SettingsIcon, { size: 13 }),
+              '抢课参数'
+            ),
+            isRunning
+              ? h('button', {
+                  style: {
+                    ...S.btnSecondary,
+                    color: '#ef4444',
+                    borderColor: 'rgba(239, 68, 68, 0.3)',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  },
+                  onClick: handleStopGrab,
+                  disabled: actionLoading,
+                },
+                  h(SquareStopIcon, { size: 13 }),
+                  actionLoading ? '停止中...' : '停止抢课'
+                )
+              : h('button', {
+                  style: {
+                    ...S.btnPrimary,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    opacity: tasks.length === 0 ? 0.5 : 1,
+                    cursor: tasks.length === 0 ? 'not-allowed' : 'pointer',
+                  },
+                  onClick: handleStartGrab,
+                  disabled: actionLoading || tasks.length === 0,
+                },
+                  h(PlayIcon, { size: 13 }),
+                  actionLoading ? '启动中...' : `立即开抢 (${tasks.length} 门目标)`
+                )
+          )
+        ),
+
+        // 4 个状态指标展示槽
+        h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+            gap: '10px',
+          },
+        },
+          [
+            { label: '运行时长', value: stats.duration, color: 'inherit' },
+            { label: '总扫描尝试', value: `${stats.total_attempts} 次`, color: '#38bdf8' },
+            { label: '抢课成功', value: `${stats.success_count} 门`, color: '#10b981' },
+            { label: '待处理队列', value: `${stats.waiting_count || tasks.length} 门`, color: '#fbbf24' },
+          ].map((item, i) =>
+            h('div', {
+              key: i,
+              style: {
+                background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                borderRadius: '8px',
+                padding: '10px 14px',
+              },
+            },
+              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, item.label),
+              h('div', { style: { fontSize: '16px', fontWeight: 700, marginTop: '4px', color: item.color } }, item.value)
+            )
+          )
+        )
+      ),
+
+      // 2. 搜索检索与手动直添栏
+      h('div', {
+        style: {
+          ...S.card,
+          padding: '14px 18px',
+          marginBottom: '18px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        },
+      },
+        // 搜索行
+        h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
+          h('select', {
+            style: {
+              ...S.input,
+              width: '160px',
+              marginBottom: 0,
+              padding: '8px 10px',
+              fontSize: '12px',
+              fontWeight: 500,
+            },
+            value: selectedPhase,
+            onChange: (e) => setSelectedPhase(e.target.value),
+          },
+            phases.map(p => h('option', { key: p.id, value: p.id }, p.label))
+          ),
+          h('input', {
+            type: 'text',
+            ref: searchInputRef,
+            placeholder: '输入课程名关键词、教师名或课程号（按 / 键快速聚焦搜索）...',
+            style: { ...S.input, flex: 1, minWidth: '220px', marginBottom: 0, padding: '8px 12px' },
+            value: keyword,
+            onChange: (e) => setKeyword(e.target.value),
+            onKeyDown: (e) => e.key === 'Enter' && handleSearch(),
+          }),
+          h('button', {
+            style: { ...S.btnPrimary, padding: '8px 18px', fontSize: '13px' },
+            onClick: handleSearch,
+            disabled: searching,
+          }, searching ? '检索中...' : '搜索课程')
+        ),
+
+        // 手工直添行
+        h('div', {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            paddingTop: '8px',
+            borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            fontSize: '12px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            flexWrap: 'wrap',
+          },
+        },
+          h('span', { style: { fontWeight: 500 } }, '快速直添 (无需先搜索):'),
+          h('input', {
+            type: 'text',
+            placeholder: '课程号 (如 104231030)',
+            style: { ...S.input, width: '150px', marginBottom: 0, padding: '5px 10px', fontSize: '12px' },
+            value: directCourseId,
+            onChange: (e) => setDirectCourseId(e.target.value),
+          }),
+          h('input', {
+            type: 'text',
+            placeholder: '序号 (如 01)',
+            style: { ...S.input, width: '70px', marginBottom: 0, padding: '5px 8px', fontSize: '12px' },
+            value: directSeqNo,
+            onChange: (e) => setDirectSeqNo(e.target.value),
+          }),
+          h('button', {
+            style: { ...S.btnSecondary, padding: '5px 12px', fontSize: '12px' },
+            onClick: handleDirectAdd,
+          }, '+ 直接加入队列')
+        ),
+
+        searchMsg && h('div', { style: { fontSize: '12px', color: '#ef4444', marginTop: '2px' } }, searchMsg)
+      ),
+
+      // 3. 冲突警告条 (若有时间冲突)
+      conflicts.length > 0 && h('div', {
+        style: {
+          padding: '10px 14px',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '12px',
+          color: '#d97706',
+        },
+      },
+        h(AlertTriangleIcon, { size: 16 }),
+        h('div', null,
+          h('span', { style: { fontWeight: 600 } }, '检测到上课时间重叠：'),
+          conflicts.map((c, idx) =>
+            h('span', { key: idx, style: { marginLeft: '6px' } },
+              `《${c.nameA}》与《${c.nameB}》(周${c.day}) ` +
+              (c.isSameGroup ? '【已设为备选互斥】' : '【建议设为相同备选组】')
+            )
+          )
+        )
+      ),
+
+      // 4. 双栏主要内容区 (左：搜索结果候选；右：抢课队列目标)
+      h('div', {
+        style: {
+          display: 'grid',
+          gridTemplateColumns: searchResults.length > 0 ? '1.1fr 1fr' : '1fr',
+          gap: '16px',
+          marginBottom: '18px',
+        },
+      },
+        // 左栏：课程检索结果列表
+        searchResults.length > 0 && h('div', {
+          style: {
+            ...S.card,
+            padding: '16px',
+            marginBottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        },
+          h('div', {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px',
+              paddingBottom: '8px',
+              borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            },
+          },
+            h('span', { style: { fontSize: '14px', fontWeight: 600 } },
+              `检索候选结果 (${searchResults.length} 门课程)`
+            ),
+            h('button', {
+              style: { ...S.btnSecondary, padding: '2px 8px', fontSize: '11px' },
+              onClick: () => setSearchResults([]),
+            }, '收起结果')
+          ),
+
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '420px', overflowY: 'auto' } },
+            searchResults.map((c, i) => {
+              const inQueue = tasks.some(t => t.course.course_id === c.course_id && t.course.seq_no === c.seq_no)
+              const cardKey = `${c.course_id}_${c.seq_no}_${i}`
+              const isExpanded = expandedCourseKey === cardKey
+
+              return h('div', {
+                key: cardKey,
+                style: {
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  transition: 'border-color 0.15s ease',
+                },
+              },
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' } },
+                  h('div', { style: { flex: 1 } },
+                    h('div', { style: { fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' } },
+                      h('span', null, c.name),
+                      h('span', { style: S.badge }, `${c.course_id}-${c.seq_no}`)
+                    ),
+                    h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+                      c.teacher ? `教师: ${c.teacher}` : '教师待公布',
+                      c.schedule ? ` · ${c.schedule}` : '',
+                      c.classroom ? ` · ${c.classroom}` : ''
+                    )
+                  ),
+
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                    h('span', {
+                      style: {
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontWeight: 600,
+                        background: c.seats_free > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(125, 125, 125, 0.15)',
+                        color: c.seats_free > 0 ? '#10b981' : 'var(--dsw-alias-text-sub, #71717a)',
+                      },
+                    }, `余量: ${c.seats_free}`),
+
+                    h('button', {
+                      style: {
+                        ...S.btnSecondary,
+                        padding: '4px 10px',
+                        fontSize: '11px',
+                        background: inQueue ? 'transparent' : 'var(--dsw-alias-bg-hover, rgba(125,125,125,0.1))',
+                        color: inQueue ? 'var(--dsw-alias-text-sub, #71717a)' : 'inherit',
+                      },
+                      onClick: () => handleAddTask(c),
+                      disabled: inQueue,
+                    }, inQueue ? '已在队列' : '+ 加入抢课')
+                  )
+                ),
+
+                // 展开详情切换
+                h('div', { style: { marginTop: '6px', textAlign: 'right' } },
+                  h('button', {
+                    style: { background: 'transparent', border: 'none', fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)', cursor: 'pointer' },
+                    onClick: () => setExpandedCourseKey(isExpanded ? null : cardKey),
+                  }, isExpanded ? '收起详情 ▲' : '查看完整属性 ▼')
+                ),
+
+                // 详细属性展开面板
+                isExpanded && c.raw && h('div', {
+                  style: {
+                    marginTop: '6px',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    background: 'var(--dsw-alias-bg-card, rgba(0,0,0,0.15))',
+                    fontSize: '11px',
+                    lineHeight: 1.6,
+                    color: 'var(--dsw-alias-text-sub, #71717a)',
+                  },
+                },
+                  c.raw.kclbmc && h('div', null, `课程类别: ${c.raw.kclbmc}`),
+                  c.raw.xf && h('div', null, `学分: ${c.raw.xf} · 学时: ${c.raw.xs || '--'}`),
+                  c.raw.kkxsmc && h('div', null, `开课学院: ${c.raw.kkxsmc}`),
+                  c.raw.xqmc && h('div', null, `校区: ${c.raw.xqmc}`),
+                  c.raw.zxjxjhh && h('div', null, `教学计划号: ${c.raw.zxjxjhh}`),
+                  c.raw.xkxzsm && h('div', null, `选课限制: ${c.raw.xkxzsm}`)
+                )
+              )
+            })
+          )
+        ),
+
+        // 右栏：抢课目标队列
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px',
+            marginBottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        },
+          h('div', {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px',
+              paddingBottom: '8px',
+              borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            },
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h('span', { style: { fontSize: '14px', fontWeight: 600 } },
+                `抢课目标队列 (${tasks.length} 门)`
+              ),
+              h('span', { style: S.badge }, '优先抢排在前面的课程')
+            ),
+            h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+              '同组号互为备选'
+            )
+          ),
+
+          tasks.length === 0
+            ? h('div', {
+                style: {
+                  textAlign: 'center',
+                  padding: '40px 16px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                  fontSize: '13px',
+                },
+              },
+                h(CrosshairIcon, { size: 32, style: { opacity: 0.3, marginBottom: '8px' } }),
+                h('div', null, '暂未添加抢课目标'),
+                h('div', { style: { fontSize: '11px', marginTop: '4px' } },
+                  '可在上方搜索或直添课程，加入队列后点击“开始抢课”即可在后台全自动高频监控'
+                )
+              )
+            : h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '420px', overflowY: 'auto' } },
+                tasks.map((task, idx) => {
+                  const statusColors = {
+                    SUCCESS: { text: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', label: '已抢到' },
+                    FAILED: { text: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', label: '失败' },
+                    GRABBING: { text: '#38bdf8', bg: 'rgba(56, 189, 248, 0.15)', label: '监控抢课中' },
+                    CANCELLED: { text: '#a1a1aa', bg: 'rgba(161, 161, 170, 0.12)', label: '已自动取消' },
+                    WAITING: { text: '#a1a1aa', bg: 'rgba(125, 125, 125, 0.12)', label: '等待就绪' },
+                  }
+                  const st = statusColors[task.status] || statusColors.WAITING
+
+                  return h('div', {
+                    key: `${task.course.course_id}_${task.course.seq_no}_${idx}`,
+                    style: {
+                      background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                      border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    },
+                  },
+                    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                        h('span', { style: { fontSize: '12px', fontWeight: 700, color: 'var(--dsw-alias-text-sub, #71717a)' } }, `#${idx + 1}`),
+                        h('span', { style: { fontSize: '13px', fontWeight: 600 } }, task.course.name),
+                        h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                          `(${task.course.course_id}-${task.course.seq_no})`
+                        )
+                      ),
+
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                        h('span', {
+                          style: {
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: st.bg,
+                            color: st.text,
+                            fontWeight: 600,
+                          },
+                        }, st.label),
+
+                        h('button', {
+                          style: { background: 'transparent', border: 'none', cursor: idx > 0 ? 'pointer' : 'default', opacity: idx > 0 ? 0.7 : 0.2, padding: '2px' },
+                          onClick: () => handleMoveTask(idx, -1),
+                          disabled: idx === 0,
+                          title: '提升优先级',
+                        }, h(ChevronUpIcon, { size: 14 })),
+
+                        h('button', {
+                          style: { background: 'transparent', border: 'none', cursor: idx < tasks.length - 1 ? 'pointer' : 'default', opacity: idx < tasks.length - 1 ? 0.7 : 0.2, padding: '2px' },
+                          onClick: () => handleMoveTask(idx, 1),
+                          disabled: idx === tasks.length - 1,
+                          title: '降低优先级',
+                        }, h(ChevronDownIcon, { size: 14 })),
+
+                        h('button', {
+                          style: { background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px', marginLeft: '2px' },
+                          onClick: () => handleRemoveTask(idx),
+                          title: '移除该目标',
+                        }, h(TrashIcon, { size: 13 }))
+                      )
+                    ),
+
+                    // 辅助信息与备选组设定
+                    h('div', {
+                      style: {
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '11px',
+                        color: 'var(--dsw-alias-text-sub, #71717a)',
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                      },
+                    },
+                      h('div', null,
+                        task.course.teacher ? `教师: ${task.course.teacher} · ` : '',
+                        `尝试扫描: ${task.attempts} 次`,
+                        task.last_message ? ` · ${task.last_message}` : ''
+                      ),
+
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                        h('span', null, '备选互斥:'),
+                        h('select', {
+                          style: {
+                            background: 'var(--dsw-alias-bg-input, rgba(125, 125, 125, 0.08))',
+                            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                            color: 'inherit',
+                            borderRadius: '4px',
+                            padding: '2px 6px',
+                            fontSize: '11px',
+                          },
+                          value: task.group_id,
+                          onChange: (e) => handleSetGroup(idx, parseInt(e.target.value) || 0),
+                        },
+                          h('option', { value: 0 }, '组0 (独立任务)'),
+                          h('option', { value: 1 }, '组1 (同组互斥备选)'),
+                          h('option', { value: 2 }, '组2 (同组互斥备选)'),
+                          h('option', { value: 3 }, '组3 (同组互斥备选)')
+                        )
+                      )
+                    )
+                  )
+                })
+              )
+        )
+      ),
+
+      // 5. 底部实时运行日志控制台
+      h('div', {
+        style: {
+          ...S.card,
+          padding: '16px',
+          background: 'var(--dsw-alias-bg-card, rgba(125, 125, 125, 0.03))',
+        },
+      },
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '10px',
+            flexWrap: 'wrap',
+            gap: '8px',
+          },
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h(TerminalIcon, { size: 15 }),
+            h('span', { style: { fontSize: '13px', fontWeight: 600 } }, '实时运行终端日志 (Live Log Terminal)'),
+            h('span', { style: S.badge }, `${filteredLogs.length} 条记录`)
+          ),
+
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+            // 级别筛选按钮
+            [
+              { key: 'ALL', label: '全部' },
+              { key: 'SUCCESS', label: '仅成功' },
+              { key: 'ERROR', label: '仅异常警报' },
+            ].map(f =>
+              h('button', {
+                key: f.key,
+                style: {
+                  ...S.btnSecondary,
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  borderRadius: '10px',
+                  background: logFilter === f.key ? 'var(--dsw-alias-text, #18181b)' : 'transparent',
+                  color: logFilter === f.key ? 'var(--dsw-alias-bg, #ffffff)' : 'inherit',
+                  borderColor: logFilter === f.key ? 'transparent' : 'var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                  fontWeight: logFilter === f.key ? 600 : 400,
+                },
+                onClick: () => setLogFilter(f.key),
+              }, f.label)
+            ),
+
+            h('label', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', cursor: 'pointer' } },
+              h('input', {
+                type: 'checkbox',
+                checked: autoScroll,
+                onChange: (e) => setAutoScroll(e.target.checked),
+              }),
+              '自动滚屏'
+            ),
+
+            h('button', {
+              style: { ...S.btnSecondary, padding: '2px 8px', fontSize: '11px', marginLeft: '4px' },
+              onClick: () => setLogs([]),
+              title: '清空日志面板',
+            }, '清屏')
+          )
+        ),
+
+        // 终端代码视窗
+        h('div', {
+          ref: logContainerRef,
+          style: {
+            fontFamily: 'Consolas, Menlo, Monaco, "Courier New", monospace',
+            fontSize: '12px',
+            lineHeight: 1.6,
+            height: '180px',
+            overflowY: 'auto',
+            background: 'var(--dsw-alias-bg-sub, rgba(0, 0, 0, 0.18))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            boxSizing: 'border-box',
+          },
+        },
+          filteredLogs.length === 0
+            ? h('div', { style: { color: 'var(--dsw-alias-text-sub, #71717a)', textAlign: 'center', padding: '24px' } },
+                '终端空闲。点击上方“开始抢课”，此处将实时打印网络扫描、Token验证、余量嗅探与提交结果...'
+              )
+            : filteredLogs.map((l, idx) => {
+                const colors = {
+                  SUCCESS: '#10b981',
+                  ERROR: '#ef4444',
+                  DEBUG: '#818cf8',
+                  INFO: 'var(--dsw-alias-text-sub, #71717a)',
+                }
+                const tagColor = colors[l.level] || 'inherit'
+
+                return h('div', { key: idx, style: { whiteSpace: 'pre-wrap', wordBreak: 'break-all' } },
+                  h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)', marginRight: '6px' } }, `[${l.time}]`),
+                  h('span', { style: { color: tagColor, fontWeight: 700, marginRight: '6px' } }, `[${l.level}]`),
+                  h('span', { style: { color: l.level === 'SUCCESS' ? '#10b981' : l.level === 'ERROR' ? '#ef4444' : 'inherit' } }, l.message)
+                )
+              })
+        )
+      ),
+
+      // 6. 参数设置 Modal
+      showSettings && h('div', {
+        style: {
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.45)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px',
+          backdropFilter: 'blur(3px)',
+        },
+        onClick: () => setShowSettings(false),
+      },
+        h('div', {
+          style: {
+            background: 'var(--dsw-alias-bg-panel, var(--dsw-alias-bg-card, #ffffff))',
+            color: 'var(--dsw-alias-text, inherit)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.2))',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+          },
+          onClick: (e) => e.stopPropagation(),
+        },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+            h('div', { style: { fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' } },
+              h(SettingsIcon, { size: 16 }),
+              h('span', null, '抢课引擎运行参数设置')
+            ),
+            h('button', {
+              style: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)' },
+              onClick: () => setShowSettings(false),
+            }, '✕')
+          ),
+
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' } },
+            h('div', null,
+              h('label', { style: { display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' } },
+                '基础轮询间隔 (秒):'
+              ),
+              h('input', {
+                type: 'number',
+                min: '0.5',
+                max: '30.0',
+                step: '0.5',
+                style: { ...S.input, marginBottom: '4px' },
+                value: sleepTime,
+                onChange: (e) => setSleepTime(parseFloat(e.target.value) || 1.0),
+              }),
+              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                '单轮课程扫描后的基准等待秒数。推荐 1.0s ~ 3.0s。'
+              )
+            ),
+
+            h('div', null,
+              h('label', { style: { display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' } },
+                '随机浮动抖动范围 (±秒):'
+              ),
+              h('input', {
+                type: 'number',
+                min: '0.0',
+                max: '5.0',
+                step: '0.1',
+                style: { ...S.input, marginBottom: '4px' },
+                value: sleepJitter,
+                onChange: (e) => setSleepJitter(parseFloat(e.target.value) || 0.2),
+              }),
+              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                '在基准间隔上产生随机偏差，拟真人工操作，防止被网关反爬检测。'
+              )
+            )
+          ),
+
+          h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px' } },
+            h('button', {
+              style: S.btnSecondary,
+              onClick: () => setShowSettings(false),
+            }, '取消'),
+            h('button', {
+              style: S.btnPrimary,
+              onClick: handleSaveConfig,
+              disabled: savingSettings,
+            }, savingSettings ? '保存中...' : '保存并生效')
+          )
+        )
+      )
+    )
+  
+    }
+
+
     // ================== 子页面 6：四川大学统一身份认证与凭据管理 (纯白极简风格) ==================
     function SettingsView({ onLoginSuccess, onLogoutSuccess, isLoggedIn, studentName, hasCreds }) {
       const [authTab, setAuthTab] = useState('unified') // 'unified' | 'qrcode' | 'legacy'
@@ -8591,9 +10161,6 @@ window.__ModuleLoader__.load({
                   fontWeight: 500,
                 },
               }, '● 宿舍电费已连通')
-            ),
-            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '6px' } },
-              '凭据基于本设备硬件特征加密存储，全天候静默心跳保活'
             )
           ),
           h('button', {
@@ -8611,12 +10178,9 @@ window.__ModuleLoader__.load({
         // 2. 主登录卡片 (纯白极简多模态切换)
         h('div', { style: { ...S.card, padding: '24px' } },
           // 头部标题
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' } },
             h(ShieldIcon, { size: 19 }),
-            h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: 600 } }, '四川大学统一身份认证接入')
-          ),
-          h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '16px', lineHeight: 1.5 } },
-            '采用竹云 IDaaS 统一认证枢纽，一次登录即可全量打通综合教务处与宿舍电费查询，支持记住密码与快捷自动填入。'
+            h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: 600 } }, '四川大学统一身份认证')
           ),
 
           // 记住密码快捷填入胶囊条
@@ -8635,7 +10199,7 @@ window.__ModuleLoader__.load({
           },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
               h(KeyIcon, { size: 14, style: { color: '#10b981' } }),
-              h('span', null, `已安全记住本设备凭据: `, h('strong', { style: { fontWeight: 600 } }, savedCreds.username)),
+              h('span', null, `已记住账号: `, h('strong', { style: { fontWeight: 600 } }, savedCreds.username)),
               autoFillTip && h('span', { style: { color: '#10b981', fontWeight: 500, marginLeft: '4px' } }, `✓ ${autoFillTip}`)
             ),
             h('button', {
@@ -8715,11 +10279,11 @@ window.__ModuleLoader__.load({
               onChange: (e) => setUsername(e.target.value),
             }),
             h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '统一身份认证密码'),
-            h('div', { style: { position: 'relative', marginBottom: '14px' } },
+            h('div', { style: { position: 'relative', marginBottom: '16px' } },
               h('input', {
                 style: { ...S.input, marginBottom: 0, paddingRight: '42px' },
                 type: showPassword ? 'text' : 'password',
-                placeholder: '四川大学统一身份认证密码 (id.scu.edu.cn)',
+                placeholder: '四川大学统一身份认证密码',
                 value: password,
                 onChange: (e) => setPassword(e.target.value),
               }),
@@ -8745,23 +10309,20 @@ window.__ModuleLoader__.load({
                 showPassword ? h(EyeOffIcon, { size: 16 }) : h(EyeIcon, { size: 16 })
               )
             ),
-            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px', lineHeight: 1.4 } },
-              '💡 本地轻量神经网络毫秒级自动识别图形验证码，无需手动输入；采用国密 SM2 非对称加密传输。'
-            ),
             h('label', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '20px', cursor: 'pointer' } },
               h('input', {
                 type: 'checkbox',
                 checked: remember,
                 onChange: (e) => setRemember(e.target.checked),
               }),
-              '记住密码并在本地硬件安全加密存储（下次进入自动快捷填入）'
+              '记住账号与密码'
             ),
             h('div', { style: { display: 'flex', gap: '10px' } },
               h('button', {
                 type: 'submit',
                 style: { ...S.btnPrimary, flex: 1 },
                 disabled: submitting,
-              }, submitting ? '正在加密验证并打通教务与电费...' : (isLoggedIn ? '更新已保存的统一认证凭据' : '一键登录并打通全部系统')),
+              }, submitting ? '正在登录...' : (isLoggedIn ? '更新凭据' : '登录')),
               isLoggedIn && h('button', {
                 type: 'button',
                 style: S.btnSecondary,
@@ -8773,7 +10334,7 @@ window.__ModuleLoader__.load({
           // 模式 2: 手机动态扫码登录
           authTab === 'qrcode' && h('div', { style: { textAlign: 'center', padding: '10px 0' } },
             qrLoading
-              ? h('div', { style: { padding: '40px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } }, '正在获取竹云 IDaaS 动态二维码...')
+              ? h('div', { style: { padding: '40px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } }, '正在获取动态二维码...')
               : qrCodeData && qrCodeData.qrcode
                 ? h('div', null,
                     h('div', {
@@ -8829,7 +10390,7 @@ window.__ModuleLoader__.load({
               onChange: (e) => setUsername(e.target.value),
             }),
             h('label', { style: { display: 'block', fontSize: '12px', marginBottom: '6px', fontWeight: 500 } }, '综合教务系统专属密码'),
-            h('div', { style: { position: 'relative', marginBottom: '14px' } },
+            h('div', { style: { position: 'relative', marginBottom: '16px' } },
               h('input', {
                 style: { ...S.input, marginBottom: 0, paddingRight: '42px' },
                 type: showPassword ? 'text' : 'password',
@@ -8860,7 +10421,7 @@ window.__ModuleLoader__.load({
               )
             ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '14px', lineHeight: 1.4 } },
-              '⚠️ 此通道仅登录教务处本系统，不自动绑定宿舍电费系统；如需同时使用电费功能，建议使用【统一认证账密】或【动态扫码】。'
+              '提示：此通道仅登录教务处独立系统。'
             ),
             h('label', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '20px', cursor: 'pointer' } },
               h('input', {
@@ -8868,14 +10429,14 @@ window.__ModuleLoader__.load({
                 checked: remember,
                 onChange: (e) => setRemember(e.target.checked),
               }),
-              '记住密码并在本地硬件加密存储'
+              '记住密码'
             ),
             h('div', { style: { display: 'flex', gap: '10px' } },
               h('button', {
                 type: 'submit',
                 style: { ...S.btnPrimary, flex: 1 },
                 disabled: submitting,
-              }, submitting ? '正在验证教务处登录...' : '仅登录教务处'),
+              }, submitting ? '正在登录...' : '登录教务处'),
               isLoggedIn && h('button', {
                 type: 'button',
                 style: S.btnSecondary,
@@ -8896,10 +10457,10 @@ window.__ModuleLoader__.load({
         },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' } },
             h(ShieldIcon, { size: 14 }),
-            h('h4', { style: { margin: 0, fontSize: '13px', fontWeight: 600 } }, '忘记统一认证密码？官方重置找回指引')
+            h('h4', { style: { margin: 0, fontSize: '13px', fontWeight: 600 } }, '忘记统一认证密码')
           ),
           h('p', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '12px', lineHeight: 1.6 } },
-            '川大统一身份认证密码是您在学校统一认证平台（id.scu.edu.cn）使用的密码。若忘记密码，可点击下方直达学校官网，通过手机短信验证码快速找回重置。'
+            '若忘记统一身份认证密码，可前往学校认证中心通过手机验证码重置。'
           ),
           h('button', {
             type: 'button',
@@ -8919,7 +10480,7 @@ window.__ModuleLoader__.load({
             },
           },
             h(ExternalLinkIcon, { size: 13 }),
-            '前往四川大学统一认证找回密码 (id.scu.edu.cn)'
+            '前往统一认证中心找回密码'
           )
         )
       )
@@ -8953,6 +10514,32 @@ window.__ModuleLoader__.load({
         checkStatus()
       }, [checkStatus])
 
+      // Keyboard-first 极客快捷键: 数字键 1~8 秒切 8 大 Tab
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          const tag = e.target?.tagName?.toLowerCase()
+          if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) {
+            return
+          }
+          const tabMap = {
+            '1': 'schedule',
+            '2': 'grades',
+            '3': 'studyPlan',
+            '4': 'exams',
+            '5': 'classrooms',
+            '6': 'services',
+            '7': 'grab',
+            '8': 'settings',
+          }
+          if (tabMap[e.key]) {
+            e.preventDefault()
+            setActiveTab(tabMap[e.key])
+          }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+      }, [])
+
       const handleLogoutSuccess = () => {
         setIsLoggedIn(false)
         setHasCreds(false)
@@ -8968,8 +10555,7 @@ window.__ModuleLoader__.load({
               h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
                 h(ScuIcon, { size: 24 }),
                 h('h1', { style: S.title }, '四川大学教务系统 (URP)')
-              ),
-              h('div', { style: S.subTitle }, '全自动登录 · 课表日程 · 全量成绩与 GPA 统计 · 培养方案与均分测算 · 考试安排 · 空闲自习室 · 宿舍电费')
+              )
             ),
             h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
               h('div', { style: { display: 'flex', alignItems: 'center', fontSize: '13px' } },
@@ -8995,35 +10581,35 @@ window.__ModuleLoader__.load({
               onClick: () => setActiveTab('schedule'),
             },
               h(CalendarIcon, { size: 14, style: { marginRight: '6px' } }),
-              '课表日程'
+              '课表'
             ),
             h('button', {
               style: S.tabBtn(activeTab === 'grades'),
               onClick: () => setActiveTab('grades'),
             },
               h(ChartIcon, { size: 14, style: { marginRight: '6px' } }),
-              '成绩与绩点'
+              '成绩'
             ),
             h('button', {
               style: S.tabBtn(activeTab === 'studyPlan'),
               onClick: () => setActiveTab('studyPlan'),
             },
               h(CompassIcon, { size: 14, style: { marginRight: '6px' } }),
-              '培养方案&均分测算'
+              '培养方案'
             ),
             h('button', {
               style: S.tabBtn(activeTab === 'exams'),
               onClick: () => setActiveTab('exams'),
             },
               h(FileTextIcon, { size: 14, style: { marginRight: '6px' } }),
-              '考试安排'
+              '考试'
             ),
             h('button', {
               style: S.tabBtn(activeTab === 'classrooms'),
               onClick: () => setActiveTab('classrooms'),
             },
               h(LibraryIcon, { size: 14, style: { marginRight: '6px' } }),
-              '空闲自习室'
+              '自习'
             ),
             h('button', {
               style: S.tabBtn(activeTab === 'services' || activeTab === 'electricity'),
@@ -9033,11 +10619,18 @@ window.__ModuleLoader__.load({
               '微服务'
             ),
             h('button', {
+              style: S.tabBtn(activeTab === 'grab'),
+              onClick: () => setActiveTab('grab'),
+            },
+              h(CrosshairIcon, { size: 14, style: { marginRight: '6px' } }),
+              '选课'
+            ),
+            h('button', {
               style: S.tabBtn(activeTab === 'settings'),
               onClick: () => setActiveTab('settings'),
             },
               h(SettingsIcon, { size: 14, style: { marginRight: '6px' } }),
-              '账号与凭据'
+              '账号'
             )
           ),
 
@@ -9058,13 +10651,14 @@ window.__ModuleLoader__.load({
                   },
                   onLogoutSuccess: handleLogoutSuccess,
                 })
-              : h(React.Fragment, null,
+              : h('div', { key: activeTab, className: 'scu-tab-content' },
                   activeTab === 'schedule' && h(ScheduleView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'grades' && h(GradesView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'studyPlan' && h(StudyPlanView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'exams' && h(ExamsView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'classrooms' && h(ClassroomsView, { onRequireLogin: () => setActiveTab('settings') }),
-                  (activeTab === 'services' || activeTab === 'electricity') && h(ServicesView, { onRequireLogin: () => setActiveTab('settings') })
+                  (activeTab === 'services' || activeTab === 'electricity') && h(ServicesView, { onRequireLogin: () => setActiveTab('settings') }),
+                  activeTab === 'grab' && h(CourseGrabView, { onRequireLogin: () => setActiveTab('settings') })
                 )
           )
         )

@@ -215,37 +215,26 @@ class SCUMicroServiceClient:
                 return self.last_card_cache
             return {"success": False, "message": f"连接校园卡微服务超时或异常: {str(e)}"}
 
-    def _guess_device_type(self, mac: str) -> Dict[str, str]:
-        """根据 MAC 地址前缀特征推测设备类型与图标"""
-        clean_mac = mac.replace(":", "").replace("-", "").upper()
-        # 常见厂商 OUI 特征
-        # Apple (常见: 1C:83:41, F0:18:98, A4:83:E7, 8C:85:90, etc.)
-        # Intel / Lenovo / Xiaomi / Huawei
-        device_label = "终端设备"
-        icon = "monitor"
-        
-        # 简单根据常见分配及首字节推测移动端或电脑
-        if clean_mac.startswith(("1C8341", "ACDE48", "F01898", "409C28", "8C8590", "A483E7")):
-            device_label = "Apple 设备 (iPhone / Mac)"
-            icon = "smartphone"
-        elif clean_mac.startswith(("FE05A9", "B42E99", "D8F883", "A0C589")):
-            device_label = "移动终端 / 笔记本"
-            icon = "laptop"
-        elif clean_mac.startswith(("00E04C", "001A79", "E0D55E")):
-            device_label = "Realtek 网卡设备"
-            icon = "monitor"
+    def _parse_device_type(self, item: dict, formatted_mac: str, ip: str = "") -> Dict[str, str]:
+        """
+        解析在线终端设备信息。
+        彻底移除盲目猜测设备品牌的硬编码逻辑，仅保留服务端真实返回的设备名/系统名；
+        若服务端无此字段，则规范标示为“校园网在线终端”，展示真实 MAC 与 IP，不作虚假猜测。
+        """
+        raw_name = str(item.get("device_name") or item.get("name") or item.get("os") or item.get("hostname") or "").strip()
+        if raw_name:
+            device_label = raw_name
         else:
-            device_label = "校园网接入终端"
-            icon = "hard-drive"
+            device_label = "校园网在线终端"
 
-        return {"label": device_label, "icon": icon}
+        return {"label": device_label, "icon": "hard-drive"}
 
     def get_network_status(self, force_refresh: bool = False) -> Dict[str, Any]:
         """
         获取校园网在线设备列表与状态：
         - 当前在线设备数组 (devices)
         - 在线台数 (deviceCount)
-        - 最大允许在线数量 (maxDevices, 川大通常为 3 台)
+        - 最大允许在线数量 (maxDevices, 川大限制最多 2 台)
         - 具备远程踢下线权限 (canOffline)
         """
         now = time.time()
@@ -271,14 +260,14 @@ class SCUMicroServiceClient:
                 
                 # 格式化 MAC 地址（每 2 位加冒号）
                 formatted_mac = ":".join([dev_id[i:i+2] for i in range(0, len(dev_id), 2)]) if len(dev_id) == 12 else dev_id
-                guess = self._guess_device_type(dev_id)
+                info = self._parse_device_type(item, formatted_mac, ip)
 
                 devices.append({
                     "deviceId": dev_id,
                     "mac": formatted_mac,
                     "ip": ip,
-                    "deviceType": guess["label"],
-                    "icon": guess["icon"],
+                    "deviceType": info["label"],
+                    "icon": info["icon"],
                     "status": "在线"
                 })
 
@@ -286,7 +275,7 @@ class SCUMicroServiceClient:
                 "success": True,
                 "devices": devices,
                 "deviceCount": len(devices),
-                "maxDevices": 3,
+                "maxDevices": 2,
                 "canOffline": can_offline,
                 "lastUpdated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }

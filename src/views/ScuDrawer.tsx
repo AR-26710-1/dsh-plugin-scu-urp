@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { ScheduleTab } from './components/ScheduleTab.js';
 import { GradesTab } from './components/GradesTab.js';
 import { ExamsTab } from './components/ExamsTab.js';
+import { CourseGrabTab } from './components/CourseGrabTab.js';
 import { LoginForm } from './components/LoginForm.js';
 
-type TabType = 'schedule' | 'grades' | 'exams' | 'settings';
+type TabType = 'schedule' | 'grades' | 'exams' | 'grab' | 'settings';
 
 export const ScuDrawer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('schedule');
@@ -85,25 +86,31 @@ export const ScuDrawer: React.FC = () => {
           className={`scu-tab-btn ${activeTab === 'schedule' ? 'active' : ''}`}
           onClick={() => setActiveTab('schedule')}
         >
-          📅 课表
+          课表
         </button>
         <button
           className={`scu-tab-btn ${activeTab === 'grades' ? 'active' : ''}`}
           onClick={() => setActiveTab('grades')}
         >
-          📊 成绩
+          成绩
         </button>
         <button
           className={`scu-tab-btn ${activeTab === 'exams' ? 'active' : ''}`}
           onClick={() => setActiveTab('exams')}
         >
-          📝 考试
+          考试
+        </button>
+        <button
+          className={`scu-tab-btn ${activeTab === 'grab' ? 'active' : ''}`}
+          onClick={() => setActiveTab('grab')}
+        >
+          选课
         </button>
         <button
           className={`scu-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
           onClick={() => setActiveTab('settings')}
         >
-          ⚙️ 设置
+          账号
         </button>
       </div>
 
@@ -130,6 +137,9 @@ export const ScuDrawer: React.FC = () => {
             )}
             {activeTab === 'exams' && (
               <ExamsTab onSessionExpired={() => setActiveTab('settings')} />
+            )}
+            {activeTab === 'grab' && (
+              <CourseGrabTab onSessionExpired={() => setActiveTab('settings')} />
             )}
           </>
         )}
