@@ -4717,12 +4717,12 @@ window.__ModuleLoader__.load({
     const ELE_CACHE_EXPIRE_MS = 60 * 60 * 1000 // 1 小时自动缓存有效周期
 
     function ServicesView({ onRequireLogin }) {
-      const [subView, setSubView] = useState('hub') // 'hub' | 'electricity'
+      const [subView, setSubView] = useState('hub') // 'hub' | 'electricity' | 'card' | 'network'
       const [activeCategory, setActiveCategory] = useState('all') // 'all' | 'life' | 'network' | 'public'
       const [activeModalApp, setActiveModalApp] = useState(null)
       const [hoveredCardId, setHoveredCardId] = useState(null)
 
-      // 电费数据与 1 小时缓存管理器 (支持秒开与定时刷新)
+      // 1. 电费数据与 1 小时缓存管理器 (支持秒开与防抖刷新)
       const cachedEle = SCU_CACHE.get('electricity')
       const [eleData, setEleData] = useState(cachedEle?.data || null)
       const [lastUpdated, setLastUpdated] = useState(cachedEle?.updatedAt || '')
@@ -4730,12 +4730,10 @@ window.__ModuleLoader__.load({
       const [eleRefreshing, setEleRefreshing] = useState(false)
       const [eleError, setEleError] = useState('')
 
-      // 核心获取电费函数：force 为 true 时手动强制刷新，否则在 1 小时内直接走缓存
       const fetchElectricity = useCallback(async (force = false) => {
         const cache = SCU_CACHE.get('electricity')
         const now = Date.now()
 
-        // 若非强制刷新，且本地已有缓存且未满 1 小时，直接复用缓存，绝不发重复网络请求
         if (!force && cache?.data && (now - (cache.timestamp || 0) < ELE_CACHE_EXPIRE_MS)) {
           setEleData(cache.data)
           setLastUpdated(cache.updatedAt || '')
@@ -4768,19 +4766,126 @@ window.__ModuleLoader__.load({
         }
       }, [onRequireLogin])
 
-      // 挂载时检查：仅在无缓存或已超 1 小时时静默拉取
+      // 2. 校园一卡通数据与 1 小时缓存管理器 (支持秒开与防抖刷新)
+      const cachedCard = SCU_CACHE.get('wfw_card')
+      const [cardData, setCardData] = useState(cachedCard?.data || null)
+      const [cardLastUpdated, setCardLastUpdated] = useState(cachedCard?.updatedAt || '')
+      const [cardLoading, setCardLoading] = useState(!cachedCard?.data)
+      const [cardRefreshing, setCardRefreshing] = useState(false)
+      const [cardError, setCardError] = useState('')
+
+      const fetchCard = useCallback(async (force = false) => {
+        const cache = SCU_CACHE.get('wfw_card')
+        const now = Date.now()
+
+        if (!force && cache?.data && (now - (cache.timestamp || 0) < ELE_CACHE_EXPIRE_MS)) {
+          setCardData(cache.data)
+          setCardLastUpdated(cache.updatedAt || '')
+          setCardLoading(false)
+          return
+        }
+
+        if (force) setCardRefreshing(true)
+        else setCardLoading(true)
+        setCardError('')
+
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/card/status${force ? '?refresh=true' : ''}`)
+          if (resp.status === 401) {
+            return onRequireLogin()
+          }
+          const d = await resp.json()
+          if (!resp.ok) {
+            throw new Error(d.detail || '获取一卡通数据失败')
+          }
+          setCardData(d)
+          const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          setCardLastUpdated(timeStr)
+          SCU_CACHE.set('wfw_card', d)
+        } catch (err) {
+          setCardError(err.message || '网络连接异常')
+        } finally {
+          setCardLoading(false)
+          setCardRefreshing(false)
+        }
+      }, [onRequireLogin])
+
+      // 3. 校园网服务数据与 1 小时缓存管理器 (支持秒开与防抖刷新)
+      const cachedNet = SCU_CACHE.get('wfw_network')
+      const [netData, setNetData] = useState(cachedNet?.data || null)
+      const [netLastUpdated, setNetLastUpdated] = useState(cachedNet?.updatedAt || '')
+      const [netLoading, setNetLoading] = useState(!cachedNet?.data)
+      const [netRefreshing, setNetRefreshing] = useState(false)
+      const [netError, setNetError] = useState('')
+
+      const fetchNetwork = useCallback(async (force = false) => {
+        const cache = SCU_CACHE.get('wfw_network')
+        const now = Date.now()
+
+        if (!force && cache?.data && (now - (cache.timestamp || 0) < ELE_CACHE_EXPIRE_MS)) {
+          setNetData(cache.data)
+          setNetLastUpdated(cache.updatedAt || '')
+          setNetLoading(false)
+          return
+        }
+
+        if (force) setNetRefreshing(true)
+        else setNetLoading(true)
+        setNetError('')
+
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/network/status${force ? '?refresh=true' : ''}`)
+          if (resp.status === 401) {
+            return onRequireLogin()
+          }
+          const d = await resp.json()
+          if (!resp.ok) {
+            throw new Error(d.detail || '获取校园网数据失败')
+          }
+          setNetData(d)
+          const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          setNetLastUpdated(timeStr)
+          SCU_CACHE.set('wfw_network', d)
+        } catch (err) {
+          setNetError(err.message || '网络连接异常')
+        } finally {
+          setNetLoading(false)
+          setNetRefreshing(false)
+        }
+      }, [onRequireLogin])
+
+      // 远程下线终端设备操作
+      const handleOfflineDevice = useCallback(async (deviceId, ip) => {
+        const resp = await fetch(`${SERVICE_URL}/api/wfw/network/offline`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId, ip: ip || '' })
+        })
+        const res = await resp.json()
+        if (!resp.ok) {
+          throw new Error(res.detail || res.message || '下线操作失败')
+        }
+        // 下线成功后强制刷新设备列表
+        await fetchNetwork(true)
+      }, [fetchNetwork])
+
+      // 挂载时检查：仅在无缓存或已超 1 小时时静默拉取三大在线微服务
       useEffect(() => {
         fetchElectricity(false)
+        fetchCard(false)
+        fetchNetwork(false)
 
         // 定时检测：每 10 分钟检测一次，若自然过去超过 1 小时则自动静默刷新一次
         const timer = setInterval(() => {
           fetchElectricity(false)
+          fetchCard(false)
+          fetchNetwork(false)
         }, 10 * 60 * 1000)
 
         return () => clearInterval(timer)
-      }, [fetchElectricity])
+      }, [fetchElectricity, fetchCard, fetchNetwork])
 
-      // 若当前进入子页面（如电费详情）
+      // 若当前进入子页面（电费详情 / 一卡通详情 / 校园网详情）
       if (subView === 'electricity') {
         return h(ElectricityDetailView, {
           onRequireLogin,
@@ -4791,6 +4896,31 @@ window.__ModuleLoader__.load({
           lastUpdated,
           errorMsg: eleError,
           onRefresh: () => fetchElectricity(true),
+        })
+      }
+      if (subView === 'card') {
+        return h(CardDetailView, {
+          onRequireLogin,
+          onBack: () => setSubView('hub'),
+          cardData,
+          loading: cardLoading,
+          refreshing: cardRefreshing,
+          lastUpdated: cardLastUpdated,
+          errorMsg: cardError,
+          onRefresh: () => fetchCard(true),
+        })
+      }
+      if (subView === 'network') {
+        return h(NetworkDetailView, {
+          onRequireLogin,
+          onBack: () => setSubView('hub'),
+          netData,
+          loading: netLoading,
+          refreshing: netRefreshing,
+          lastUpdated: netLastUpdated,
+          errorMsg: netError,
+          onRefresh: () => fetchNetwork(true),
+          onOfflineDevice: handleOfflineDevice,
         })
       }
 
@@ -4908,8 +5038,17 @@ window.__ModuleLoader__.load({
         },
           filteredServices.map(srv => {
             const isEle = srv.id === 'electricity'
+            const isCard = srv.id === 'card'
+            const isNet = srv.id === 'network'
+            const isOnline = srv.status === 'online'
             const isHovered = hoveredCardId === srv.id
             const IconComp = srv.icon
+
+            // 底部操作文案
+            let bottomActionText = '查看功能规划与规范'
+            if (isEle) bottomActionText = '进入详细看板与换房'
+            else if (isCard) bottomActionText = '查看卡片流水与充值'
+            else if (isNet) bottomActionText = '管理在线终端与网络'
 
             return h('div', {
               key: srv.id,
@@ -4937,6 +5076,10 @@ window.__ModuleLoader__.load({
               onClick: () => {
                 if (isEle) {
                   setSubView('electricity')
+                } else if (isCard) {
+                  setSubView('card')
+                } else if (isNet) {
+                  setSubView('network')
                 } else {
                   setActiveModalApp(srv)
                 }
@@ -4952,8 +5095,8 @@ window.__ModuleLoader__.load({
                         width: '36px',
                         height: '36px',
                         borderRadius: '8px',
-                        background: isEle ? 'rgba(16, 185, 129, 0.08)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
-                        color: isEle ? '#10b981' : 'var(--dsw-alias-text, inherit)',
+                        background: isOnline ? 'rgba(16, 185, 129, 0.08)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                        color: isOnline ? '#10b981' : 'var(--dsw-alias-text, inherit)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -4993,7 +5136,7 @@ window.__ModuleLoader__.load({
                   }
                 }, srv.desc),
 
-                // 电费专属微缩概览指标 (若为电费卡片)
+                // 1. 电费专属微缩概览指标
                 isEle && h('div', {
                   style: {
                     padding: '10px 12px',
@@ -5044,8 +5187,104 @@ window.__ModuleLoader__.load({
                   )
                 ),
 
-                // 其它微服务规划亮点微标签
-                !isEle && h('div', {
+                // 2. 校园一卡通专属微缩概览指标
+                isCard && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(CreditCardIcon, { size: 12 }),
+                      cardData?.records?.[0]?.merchant ? `最新: ${cardData.records[0].merchant.split(' · ')[0]}` : '实体一卡通芯片'
+                    ),
+                    h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, '● 正常使用')
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, `物理余额: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        cardData?.balance !== undefined ? `¥ ${cardData.balance}` : (cardLoading ? '...' : '--')
+                      )
+                    ),
+                    h('span', null, `今日支出: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        cardData?.todaySpent !== undefined ? `¥ ${cardData.todaySpent.toFixed(2)}` : (cardLoading ? '...' : '--')
+                      )
+                    )
+                  ),
+                  cardLastUpdated && h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, `最近同步: ${cardLastUpdated}`),
+                    cardRefreshing ? h('span', { style: { color: 'var(--dsw-alias-text, inherit)', fontWeight: 500 } }, '正在同步流水...') : h('span', null, '1小时自动校验')
+                  )
+                ),
+
+                // 3. 校园网服务专属微缩概览指标
+                isNet && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(WifiIcon, { size: 12 }),
+                      'SCU-Wireless / 宿舍千兆'
+                    ),
+                    netData?.deviceCount >= (netData?.maxDevices || 3)
+                      ? h('span', { style: { fontSize: '10px', color: '#ef4444', fontWeight: 600 } }, '⚠️ 连接已满 (3/3)')
+                      : h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, '● 配额充裕')
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, `在线终端: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        netData?.deviceCount !== undefined ? `${netData.deviceCount} / ${netData.maxDevices || 3} 台` : (netLoading ? '...' : '--')
+                      )
+                    ),
+                    h('span', null, `主终端IP: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        netData?.devices?.[0]?.ip || (netLoading ? '...' : '--')
+                      )
+                    )
+                  ),
+                  netLastUpdated && h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, `最近检测: ${netLastUpdated}`),
+                    netRefreshing ? h('span', { style: { color: 'var(--dsw-alias-text, inherit)', fontWeight: 500 } }, '正在刷新设备...') : h('span', null, '可远程一键踢出')
+                  )
+                ),
+
+                // 4. 其它规划中微服务亮点微标签
+                !isOnline && h('div', {
                   style: {
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -5080,7 +5319,7 @@ window.__ModuleLoader__.load({
                   fontWeight: 500,
                 }
               },
-                h('span', null, isEle ? '进入详细看板与换房' : '查看功能规划与规范'),
+                h('span', null, bottomActionText),
                 h(ChevronRightIcon, { size: 14 })
               )
             )
