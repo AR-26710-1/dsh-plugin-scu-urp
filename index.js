@@ -547,7 +547,7 @@ export function apply(ctx, config) {
   // 7.15 注册宿舍电费历史抄表与用电走势查询工具 (Cordis Tools)
   ctx.effect(() => ctx.tools.register({
     name: 'scu_get_electricity_history',
-    description: '查询四川大学宿舍电费的历史抄表快照数据、每日耗电量变化、日均耗电度数、剩余电量预计可用天数与耗电峰值日分析。',
+    description: '查询四川大学宿舍电费的真实历史抄表快照数据、总电费/空调/照明 3 条回路真实用电走势、每日耗电量变化与剩余电量预计可用天数分析。',
     parameters: {
       type: 'object',
       properties: {
@@ -584,9 +584,11 @@ export function apply(ctx, config) {
           dailyText = `\n\n**近几天单日耗电明细**:\n` + rows.join('\n')
         }
 
+        const insufficientTip = d.isInsufficient ? '\n• **真实数据积累提示**: 当前已记录真实抄表读数少于 2 次，根据 100% 真实数据原则暂不连线。随着后续查询与自动打点，累积到 2 次及以上将自动生成 3 条回路真实走势。' : ''
+
         return [{
           type: 'text',
-          text: `**川大宿舍电费耗电走势与历史分析 (近 ${days} 天)**:\n• **当前剩余总电量**: **${s.currentTotalDegrees || 0} 度** (空调 ${s.currentAirDegrees || 0} 度 + 照明 ${s.currentLightDegrees || 0} 度)\n• **区间日均消耗**: **${s.avgDailyUsage || 0} 度/天** (区间累计消耗 ${s.totalPeriodUsage || 0} 度)\n• **预计可用天数**: 约 **${s.estimatedDaysLeft || '--'} 天** (以当前日均耗电推算)\n${peakText}• **基准电价**: 0.5464 元/度${dailyText}\n\n提示: 可在插件左侧看板【宿舍电费】中查看更详尽的纯白极简折线图与双模历史抄表流水。`,
+          text: `**川大宿舍电费 3 条回路真实用电走势 (近 ${days} 天)**:\n• **当前剩余总电量**: **${s.currentTotalDegrees || 0} 度**\n  - 空调回路: **${s.currentAirDegrees || 0} 度** (约 ¥ ${((s.currentAirDegrees || 0) * 0.5464).toFixed(2)})\n  - 宿舍照明: **${s.currentLightDegrees || 0} 度** (约 ¥ ${((s.currentLightDegrees || 0) * 0.5464).toFixed(2)})\n• **区间日均消耗**: **${s.avgDailyUsage || 0} 度/天** (区间累计消耗 ${s.totalPeriodUsage || 0} 度)\n• **预计可用天数**: 约 **${s.estimatedDaysLeft || '--'} 天** (以当前日均耗电推算)\n${peakText}• **基准电价**: 0.5464 元/度${insufficientTip}${dailyText}\n\n提示: 可在插件左侧看板【宿舍电费】中查看 3 条回路折线图与双模历史抄表流水。`,
         }]
       },
     },
@@ -754,16 +756,16 @@ export function apply(ctx, config) {
     },
   }))
 
-  // 8.1 注册校园一卡通记账统计与智能消费分析工具 (Cordis Tools)
+  // 8.1 注册校园一卡通每日花费统计工具 (Cordis Tools)
   ctx.effect(() => ctx.tools.register({
     name: 'scu_get_card_bookkeeping',
-    description: '查询四川大学校园一卡通记账统计分析，包括今日、本周、本月的支出汇总、日均花费、食堂餐饮等分类占比、消费最高单笔档口与近 14 天花费走势。',
+    description: '查询四川大学校园一卡通每日花费统计，包括今日、本周、本月的支出汇总、日均花费、近 14 天每日花费走势与按天账单清单。',
     parameters: {
       type: 'object',
       properties: {
         refresh: {
           type: 'boolean',
-          description: '可选：是否强制刷新并重新计算一卡通记账账单。',
+          description: '可选：是否强制刷新并重新计算一卡通每日消费账单。',
         },
       },
       additionalProperties: false,
@@ -780,24 +782,26 @@ export function apply(ctx, config) {
       },
       render(args, value) {
         if (!value.success) {
-          return [{ type: 'text', text: `获取一卡通记账统计失败: ${value.error}` }]
+          return [{ type: 'text', text: `获取一卡通每日花费统计失败: ${value.error}` }]
         }
         const d = value.data
         const s = d.summary || {}
         
-        let catText = ''
-        if (d.categories && d.categories.length > 0) {
-          const rows = d.categories.filter(c => c.amount > 0).map(c => `  - **${c.name}**: **¥ ${c.amount.toFixed(2)}** (占比 ${c.percentage}% · ${c.count} 笔)`)
+        let dailyText = ''
+        if (d.dailyExpenseList && d.dailyExpenseList.length > 0) {
+          const recentDays = d.dailyExpenseList.slice(0, 5)
+          const rows = recentDays.map(item => `  - **${item.date} (${item.weekday})**: 支出 **¥ ${item.totalSpent.toFixed(2)}** (${item.count} 笔)${item.rechargeAmt > 0 ? ` · +¥ ${item.rechargeAmt.toFixed(2)} 充值` : ''}`)
           if (rows.length > 0) {
-            catText = `\n\n**各场景支出分类统计**:\n` + rows.join('\n')
+            dailyText = `\n\n**近期每日花费汇总**:\n` + rows.join('\n')
           }
         }
 
+        const maxDay = s.maxDay ? `\n• **单日最高花费**: **¥ ${s.maxDay.amount.toFixed(2)}** (${s.maxDay.date} · 共 ${s.maxDay.count} 笔)` : ''
         const maxExp = s.maxExpense ? `\n• **单笔最高消费**: **¥ ${s.maxExpense.amount}** (${s.maxExpense.merchant} · ${s.maxExpense.datetime || s.maxExpense.date})` : ''
 
         return [{
           type: 'text',
-          text: `**川大校园一卡通智能记账与消费大盘**:\n• **物理卡当前余额**: **¥ ${d.balance || '0.00'}**\n• **今日支出**: **¥ ${s.todaySpent !== undefined ? s.todaySpent.toFixed(2) : '--'}**\n• **本周累计支出**: **¥ ${s.weekSpent !== undefined ? s.weekSpent.toFixed(2) : '--'}** (周一至今)\n• **本月累计支出**: **¥ ${s.monthSpent !== undefined ? s.monthSpent.toFixed(2) : '--'}** (当月1日至今)\n• **区间日均花费**: 约 **¥ ${s.avgDailySpent !== undefined ? s.avgDailySpent.toFixed(2) : '--'} / 天**\n• **累计充值金额**: **¥ ${s.totalRecharge !== undefined ? s.totalRecharge.toFixed(2) : '0.00'}**${maxExp}${catText}\n\n提示: 可在插件左侧看板【校园一卡通】中查看分类占比环、近14天每日走势柱状折线图并为每笔交易流水添加自定义备注。`,
+          text: `**川大校园一卡通每日花费统计**:\n• **物理卡当前余额**: **¥ ${d.balance || '0.00'}**\n• **今日总支出**: **¥ ${s.todaySpent !== undefined ? s.todaySpent.toFixed(2) : '--'}**\n• **本周累计支出**: **¥ ${s.weekSpent !== undefined ? s.weekSpent.toFixed(2) : '--'}** (周一至今)\n• **本月累计支出**: **¥ ${s.monthSpent !== undefined ? s.monthSpent.toFixed(2) : '--'}** (当月1日至今)\n• **区间日均花费**: 约 **¥ ${s.avgDailySpent !== undefined ? s.avgDailySpent.toFixed(2) : '--'} / 天**\n• **累计充值金额**: **¥ ${s.totalRecharge !== undefined ? s.totalRecharge.toFixed(2) : '0.00'}**${maxDay}${maxExp}${dailyText}\n\n提示: 可在插件左侧看板【校园一卡通】中查看每日花费柱状图、按天流水明细并为每笔交易随手添加自定义备注。`,
         }]
       },
     },

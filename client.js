@@ -4202,18 +4202,57 @@ window.__ModuleLoader__.load({
             ))
           ),
 
-          // 纯白极简折线图 (SVG 渲染)
+          // 纯白极简折线图 (SVG 渲染：总电量、空调回路、宿舍照明 3 条真实折线)
           (() => {
             const points = trendData?.timeline || []
-            if (points.length < 2) {
-              return h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '12px' } },
-                trendLoading ? '正在分析用电走势...' : '暂无充足历史抄表数据'
+            const isInsufficient = trendData?.isInsufficient || points.length < 2
+
+            // 真实数据不足 2 条时，不绘制虚假折线，以真实空置/积累卡片呈现
+            if (isInsufficient) {
+              const single = points[0]
+              return h('div', {
+                style: {
+                  padding: '28px 20px',
+                  textAlign: 'center',
+                  borderRadius: '10px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+                  border: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.18))',
+                  margin: '4px 0 10px 0',
+                }
+              },
+                single ? h('div', null,
+                  h('div', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '8px' } },
+                    `📍 当前已记录 1 次真实抄表快照 (${single.datetime || single.date})`
+                  ),
+                  h('div', {
+                    style: {
+                      display: 'inline-flex',
+                      gap: '16px',
+                      fontSize: '12px',
+                      padding: '8px 16px',
+                      background: 'var(--dsw-alias-bg-card, #ffffff)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+                      marginBottom: '10px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }
+                  },
+                    h('span', null, '总剩余电量: ', h('strong', { style: { fontSize: '13px' } }, `${single.total} 度`)),
+                    h('span', { style: { color: '#06b6d4' } }, '空调回路: ', h('strong', { style: { fontSize: '13px' } }, `${single.air} 度`)),
+                    h('span', { style: { color: '#f59e0b' } }, '宿舍照明: ', h('strong', { style: { fontSize: '13px' } }, `${single.light} 度`))
+                  ),
+                  h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', maxWidth: '480px', margin: '0 auto', lineHeight: 1.5 } },
+                    '遵循真实数据原则，历史抄表读数少于 2 次时暂不连接折线。数据已永久记录在本地，随着后续手动刷新或后台自动打点，累积到 2 次及以上将实时连线展示 3 条回路真实用电走势。'
+                  )
+                ) : h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', padding: '16px 0' } },
+                  trendLoading ? '正在分析用电走势...' : '暂无历史抄表数据，点击右上角【刷新电费】即可自动记录第 1 条真实读数。'
+                )
               )
             }
 
             const W = 620
-            const H = 180
-            const padL = 40
+            const H = 190
+            const padL = 42
             const padR = 20
             const padT = 20
             const padB = 30
@@ -4222,18 +4261,20 @@ window.__ModuleLoader__.load({
 
             const totals = points.map(p => p.total)
             const airs = points.map(p => p.air)
-            const minV = Math.max(0, Math.floor(Math.min(...totals, ...airs) * 0.85))
+            const lights = points.map(p => p.light)
+            const minV = Math.max(0, Math.floor(Math.min(...totals, ...airs, ...lights) * 0.85))
             const maxV = Math.ceil(Math.max(...totals) * 1.15) || 50
             const rangeV = maxV - minV || 1
 
             const getX = (idx) => padL + (idx / (points.length - 1)) * plotW
             const getY = (val) => padT + (1 - (val - minV) / rangeV) * plotH
 
-            // 构造折线路径
+            // 构造 3 条折线路径
             const totalPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(p.total).toFixed(1)}`).join(' ')
             const totalArea = `${totalPath} L ${getX(points.length - 1)} ${H - padB} L ${getX(0)} ${H - padB} Z`
 
             const airPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(p.air).toFixed(1)}`).join(' ')
+            const lightPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(p.light).toFixed(1)}`).join(' ')
 
             // 刻度线
             const gridLines = [0, 0.5, 1].map(ratio => {
@@ -4243,15 +4284,19 @@ window.__ModuleLoader__.load({
             })
 
             return h('div', { style: { position: 'relative', width: '100%', overflow: 'hidden' } },
-              // 图例
-              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '14px', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '6px' } },
-                h('div', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
-                  h('span', { style: { display: 'inline-block', width: '12px', height: '3px', background: 'var(--dsw-alias-text, #18181b)', borderRadius: '2px' } }),
+              // 3 条折线清晰图例
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '16px', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '8px', flexWrap: 'wrap' } },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px' } },
+                  h('span', { style: { display: 'inline-block', width: '14px', height: '3px', background: 'var(--dsw-alias-text, #18181b)', borderRadius: '2px' } }),
                   '总剩余电量 (度)'
                 ),
-                h('div', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
-                  h('span', { style: { display: 'inline-block', width: '12px', height: '3px', background: '#06b6d4', borderRadius: '2px' } }),
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px' } },
+                  h('span', { style: { display: 'inline-block', width: '14px', height: '3px', background: '#06b6d4', borderRadius: '2px' } }),
                   '空调回路 (度)'
+                ),
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px' } },
+                  h('span', { style: { display: 'inline-block', width: '14px', height: '3px', background: '#f59e0b', borderRadius: '2px' } }),
+                  '宿舍照明 (度)'
                 )
               ),
 
@@ -4280,14 +4325,14 @@ window.__ModuleLoader__.load({
                   }, gl.val)
                 )),
 
-                // 总电量阴影填充
+                // 总电量背景渐变阴影填充
                 h('path', {
                   d: totalArea,
                   fill: 'var(--dsw-alias-text, #18181b)',
                   fillOpacity: 0.04,
                 }),
 
-                // 空调折线
+                // 折线 2：空调动力 (青色)
                 h('path', {
                   d: airPath,
                   fill: 'none',
@@ -4297,7 +4342,17 @@ window.__ModuleLoader__.load({
                   strokeLinejoin: 'round',
                 }),
 
-                // 总电量主折线
+                // 折线 3：宿舍照明 (金橙色)
+                h('path', {
+                  d: lightPath,
+                  fill: 'none',
+                  stroke: '#f59e0b',
+                  strokeWidth: 2,
+                  strokeLinecap: 'round',
+                  strokeLinejoin: 'round',
+                }),
+
+                // 折线 1：总剩余电量主折线 (深色粗线)
                 h('path', {
                   d: totalPath,
                   fill: 'none',
@@ -4307,10 +4362,12 @@ window.__ModuleLoader__.load({
                   strokeLinejoin: 'round',
                 }),
 
-                // 数据节点与交互圆点
+                // 交互数据节点圆点
                 points.map((p, i) => {
                   const x = getX(i)
                   const y = getY(p.total)
+                  const yAir = getY(p.air)
+                  const yLight = getY(p.light)
                   const isHov = hoveredPoint?.index === i
                   return h('g', {
                     key: i,
@@ -4319,8 +4376,12 @@ window.__ModuleLoader__.load({
                     onMouseLeave: () => setHoveredPoint(null),
                   },
                     // 透明大响应区
-                    h('circle', { cx: x, cy: y, r: 10, fill: 'transparent' }),
-                    // 实际圆点
+                    h('circle', { cx: x, cy: y, r: 12, fill: 'transparent' }),
+                    // 空调圆点
+                    h('circle', { cx: x, cy: yAir, r: 2.5, fill: '#06b6d4' }),
+                    // 照明圆点
+                    h('circle', { cx: x, cy: yLight, r: 2.5, fill: '#f59e0b' }),
+                    // 总电量主圆点
                     h('circle', {
                       cx: x,
                       cy: y,
@@ -4329,26 +4390,26 @@ window.__ModuleLoader__.load({
                       stroke: 'var(--dsw-alias-text, #18181b)',
                       strokeWidth: 2,
                     }),
-                    // X 轴日期刻度
+                    // X 轴时间/日期刻度
                     (i === 0 || i === points.length - 1 || i % Math.ceil(points.length / 5) === 0) && h('text', {
                       x,
                       y: H - 8,
                       fontSize: 10,
                       textAnchor: 'middle',
                       fill: 'var(--dsw-alias-text-sub, #71717a)'
-                    }, p.shortDate)
+                    }, p.shortDate || p.time?.substring(0, 5) || p.date)
                   )
                 })
               ),
 
-              // 悬浮 Tooltip 气泡卡片
+              // 悬浮 Tooltip 气泡卡片 (包含总电量、空调、照明 3 条读数)
               hoveredPoint && h('div', {
                 style: {
                   position: 'absolute',
-                  top: '10px',
+                  top: '8px',
                   left: '50%',
                   transform: 'translateX(-50%)',
-                  padding: '6px 14px',
+                  padding: '7px 14px',
                   borderRadius: '6px',
                   background: 'var(--dsw-alias-text, #18181b)',
                   color: 'var(--dsw-alias-bg, #ffffff)',
@@ -4362,10 +4423,10 @@ window.__ModuleLoader__.load({
                   zIndex: 10,
                 }
               },
-                h('span', { style: { fontWeight: 600 } }, `${hoveredPoint.date} 抄表`),
+                h('span', { style: { fontWeight: 600 } }, `${hoveredPoint.datetime || `${hoveredPoint.date} ${hoveredPoint.time}`} 抄表`),
                 h('span', null, `总剩余: ${hoveredPoint.total} 度 (约 ¥ ${hoveredPoint.cost})`),
-                h('span', { style: { color: '#06b6d4' } }, `空调: ${hoveredPoint.air} 度`),
-                h('span', null, `照明: ${hoveredPoint.light} 度`)
+                h('span', { style: { color: '#06b6d4', fontWeight: 500 } }, `空调: ${hoveredPoint.air} 度`),
+                h('span', { style: { color: '#f59e0b', fontWeight: 500 } }, `照明: ${hoveredPoint.light} 度`)
               )
             )
           })(),
@@ -4848,13 +4909,12 @@ window.__ModuleLoader__.load({
 
     // ================== 微服务子页面：校园一卡通详情看板与记账统计 (纯白极简风格) ==================
     function CardDetailView({ onRequireLogin, onBack, cardData, loading, refreshing, lastUpdated, errorMsg, onRefresh }) {
-      const [viewMode, setViewMode] = useState('bookkeeping') // 'bookkeeping' (记账统计大盘) | 'records' (流水明细)
       const [bookkeepingData, setBookkeepingData] = useState(null)
       const [bookkeepingLoading, setBookkeepingLoading] = useState(false)
-      const [filterCategory, setFilterCategory] = useState('all') // 'all' | 'dining' | 'supermarket' | 'life' | 'recharge'
       const [noteModalItem, setNoteModalItem] = useState(null)
       const [noteInput, setNoteInput] = useState('')
       const [noteSaving, setNoteSaving] = useState(false)
+      const [activeDateFilter, setActiveDateFilter] = useState('all') // 'all' | 'YYYY-MM-DD'
 
       // 拉取一卡通记账分析数据
       const fetchBookkeeping = useCallback(async (isRefresh = false) => {
@@ -4904,7 +4964,12 @@ window.__ModuleLoader__.load({
             // 本地状态乐观更新
             if (bookkeepingData?.records) {
               const updated = bookkeepingData.records.map(r => r.id === noteModalItem.id ? { ...r, userNote: noteInput.trim() } : r)
-              setBookkeepingData({ ...bookkeepingData, records: updated })
+              // 同步更新 dailyExpenseList 中的记录
+              const updatedDays = (bookkeepingData.dailyExpenseList || []).map(day => ({
+                ...day,
+                records: day.records.map(r => r.id === noteModalItem.id ? { ...r, userNote: noteInput.trim() } : r)
+              }))
+              setBookkeepingData({ ...bookkeepingData, records: updated, dailyExpenseList: updatedDays })
             }
             setNoteModalItem(null)
           }
@@ -4915,12 +4980,13 @@ window.__ModuleLoader__.load({
       }
 
       const summary = bookkeepingData?.summary || {}
-      const allRecords = bookkeepingData?.records || cardData?.records || []
-      const filteredRecords = allRecords.filter(item => {
-        if (filterCategory === 'all') return true
-        if (filterCategory === 'recharge') return item.category === 'recharge' || (item.type && (item.type.includes('充值') || item.type.includes('补助')))
-        return item.category === filterCategory
-      })
+      const dailyTrend = bookkeepingData?.dailyTrend || []
+      const dailyExpenseList = bookkeepingData?.dailyExpenseList || []
+
+      // 筛选后的按日账单列表
+      const displayDailyList = activeDateFilter === 'all'
+        ? dailyExpenseList
+        : dailyExpenseList.filter(d => d.date === activeDateFilter)
 
       return h('div', null,
         // 顶部导航行
@@ -4963,10 +5029,10 @@ window.__ModuleLoader__.load({
                     border: '1px solid rgba(16, 185, 129, 0.25)',
                     fontWeight: 500,
                   }
-                }, '● 智能记账已就绪')
+                }, '● 每日花费统计')
               ),
               h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                '实体卡实时余额 · 食堂超市智能记账 · 每日消费走势分析'
+                '实体卡实时余额 · 每日消费汇总核算 · 单笔账单随手记备注'
               )
             )
           ),
@@ -5051,7 +5117,7 @@ window.__ModuleLoader__.load({
               cardData?.balance !== undefined ? `¥ ${cardData.balance}` : (loading ? '...' : '--')
             ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              '卡内物理芯片结余 · 刷卡立结'
+              '芯片结余 · 食堂水房刷卡即扣'
             )
           ),
 
@@ -5067,7 +5133,7 @@ window.__ModuleLoader__.load({
             }
           },
             h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
-              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '今日支出'),
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '今日总支出'),
               h('div', {
                 style: {
                   width: '28px',
@@ -5084,7 +5150,7 @@ window.__ModuleLoader__.load({
               summary.todaySpent !== undefined ? `¥ ${summary.todaySpent.toFixed(2)}` : (cardData?.todaySpent !== undefined ? `¥ ${cardData.todaySpent.toFixed(2)}` : '--')
             ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              `日均消费约 ¥ ${summary.avgDailySpent || '--'}/天`
+              `日均花费约 ¥ ${summary.avgDailySpent || '--'}/天`
             )
           ),
 
@@ -5117,11 +5183,11 @@ window.__ModuleLoader__.load({
               summary.weekSpent !== undefined ? `¥ ${summary.weekSpent.toFixed(2)}` : '--'
             ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              '自然周在校消费核算'
+              '自然周在校日常消费'
             )
           ),
 
-          // 指标 4：本月支出
+          // 指标 4：本月累计支出
           h('div', {
             style: {
               ...S.card,
@@ -5150,376 +5216,177 @@ window.__ModuleLoader__.load({
               summary.monthSpent !== undefined ? `¥ ${summary.monthSpent.toFixed(2)}` : '--'
             ),
             h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
-              `${summary.totalRecords || cardData?.recordCount || 0} 笔流水 · 餐饮占比 ${summary.diningShare || 100}%`
+              `累计 ${summary.totalRecords || cardData?.recordCount || 0} 笔 · 活跃天数 ${summary.activeDaysCount || 0} 天`
             )
           )
         ),
 
-        // 记账大盘与流水切换 Tab 分段栏
+        // 核心板块 1：近 14 天每日花费统计柱状图 (纯粹反映每天多少钱)
         h('div', {
           style: {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '16px',
-            flexWrap: 'wrap',
-            gap: '10px',
+            ...S.card,
+            padding: '20px 24px',
+            borderRadius: '12px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            marginBottom: '20px',
           }
         },
-          h('div', { style: { display: 'flex', gap: '6px', background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))', padding: '3px', borderRadius: '8px' } },
-            [
-              { key: 'bookkeeping', label: '📊 智能记账与消费大盘' },
-              { key: 'records', label: '📝 交易流水与记账明细' },
-            ].map(tab => h('button', {
-              key: tab.key,
-              style: {
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: viewMode === tab.key ? 600 : 400,
-                cursor: 'pointer',
-                background: viewMode === tab.key ? 'var(--dsw-alias-bg-card, #ffffff)' : 'transparent',
-                color: viewMode === tab.key ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
-                border: 'none',
-                boxShadow: viewMode === tab.key ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                transition: 'all 0.15s ease',
-              },
-              onClick: () => setViewMode(tab.key),
-            }, tab.label))
-          ),
-          h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
-            summary.maxExpense && `单笔最高: ¥ ${summary.maxExpense.amount} (${summary.maxExpense.merchant})`
-          )
-        ),
-
-        // ================= 视图 A：智能记账与消费大盘 =================
-        viewMode === 'bookkeeping' && h('div', { style: { display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' } },
-          // 上半部分：左侧分类占比 + 右侧 14 天花费起伏柱状图
           h('div', {
             style: {
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              flexWrap: 'wrap',
+              gap: '10px',
             }
           },
-            // 模块 1：场景消费分类占比
-            h('div', {
-              style: {
-                ...S.card,
-                padding: '20px',
-                borderRadius: '12px',
-                background: 'var(--dsw-alias-bg-card, #ffffff)',
-                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }
-            },
-              h('div', null,
-                h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' } },
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                    h(CoffeeIcon, { size: 16 }),
-                    h('span', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '场景支出分类统计')
-                  ),
-                  h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `总支出 ¥ ${summary.totalExpense || '0.00'}`)
-                ),
-                // 各分类条形占比列表
-                h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-                  (bookkeepingData?.categories || []).map(cat => h('div', { key: cat.category },
-                    h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' } },
-                      h('span', { style: { fontWeight: 500 } }, cat.name),
-                      h('span', null,
-                        h('strong', null, `¥ ${cat.amount.toFixed(2)}`),
-                        h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)', marginLeft: '6px' } }, `(${cat.percentage}%)`)
-                      )
-                    ),
-                    // 比例进度条
-                    h('div', {
-                      style: {
-                        width: '100%',
-                        height: '6px',
-                        borderRadius: '3px',
-                        background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
-                        overflow: 'hidden',
-                      }
-                    },
-                      h('div', {
-                        style: {
-                          width: `${Math.max(2, cat.percentage)}%`,
-                          height: '100%',
-                          background: cat.color || '#3b82f6',
-                          borderRadius: '3px',
-                          transition: 'width 0.3s ease',
-                        }
-                      })
-                    )
-                  ))
-                )
-              ),
-              // 底部单笔最高提示
-              summary.maxExpense && h('div', {
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h(TrendingUpIcon, { size: 16 }),
+              h('span', { style: { fontSize: '15px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '近 14 天每日花费走势'),
+              h('span', {
                 style: {
-                  marginTop: '16px',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
                   fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
                   color: 'var(--dsw-alias-text-sub, #71717a)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
                 }
-              },
-                h(AwardIcon, { size: 13, style: { color: '#f59e0b' } }),
-                `最大单笔支出: ¥ ${summary.maxExpense.amount} (${summary.maxExpense.merchant})`
-              )
+              }, '单位: 元')
             ),
-
-            // 模块 2：近 14 天每日花费走势 (极简柱状折线图)
-            h('div', {
-              style: {
-                ...S.card,
-                padding: '20px',
-                borderRadius: '12px',
-                background: 'var(--dsw-alias-bg-card, #ffffff)',
-                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }
-            },
-              h('div', null,
-                h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' } },
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                    h(TrendingUpIcon, { size: 16 }),
-                    h('span', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '近 14 天每日消费起伏')
-                  ),
-                  h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '单位: 人民币元')
-                ),
-                // 柱状图本体 (SVG)
-                (() => {
-                  const trend = bookkeepingData?.dailyTrend || []
-                  if (trend.length === 0) {
-                    return h('div', { style: { textAlign: 'center', padding: '30px 0', fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '暂无每日趋势数据')
-                  }
-
-                  const W = 360
-                  const H = 140
-                  const padL = 20
-                  const padR = 10
-                  const padB = 25
-                  const plotW = W - padL - padR
-                  const plotH = H - padB
-                  const maxAmt = Math.max(25, Math.ceil(Math.max(...trend.map(t => t.amount)) * 1.2))
-
-                  return h('svg', {
-                    viewBox: `0 0 ${W} ${H}`,
-                    style: { width: '100%', height: 'auto', display: 'block' }
-                  },
-                    // 参考虚线
-                    [0, 0.5, 1].map((r, i) => {
-                      const y = 10 + r * (plotH - 10)
-                      return h('line', {
-                        key: i,
-                        x1: padL,
-                        y1: y,
-                        x2: W - padR,
-                        y2: y,
-                        stroke: 'var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
-                        strokeDasharray: '3 3',
-                      })
-                    }),
-                    // 14 根每日柱形
-                    trend.map((day, idx) => {
-                      const colW = (plotW / trend.length) * 0.65
-                      const x = padL + idx * (plotW / trend.length) + (plotW / trend.length - colW) / 2
-                      const barH = (day.amount / maxAmt) * (plotH - 10)
-                      const y = plotH - barH
-                      const isToday = idx === trend.length - 1
-                      return h('g', { key: day.date },
-                        // 柱子
-                        h('rect', {
-                          x,
-                          y,
-                          width: colW,
-                          height: Math.max(2, barH),
-                          rx: 2,
-                          fill: isToday ? 'var(--dsw-alias-text, #18181b)' : (day.amount > 0 ? '#3b82f6' : 'var(--dsw-alias-border, rgba(125, 125, 125, 0.15))'),
-                          opacity: isToday ? 1 : 0.8,
-                        }, h('title', null, `${day.date} (${day.weekday}): 支出 ¥ ${day.amount} (${day.count} 笔)`)),
-                        // 柱顶金额标签 (对消费大于 0 的显示)
-                        day.amount > 0 && h('text', {
-                          x: x + colW / 2,
-                          y: Math.max(12, y - 4),
-                          fontSize: 8,
-                          textAnchor: 'middle',
-                          fill: 'var(--dsw-alias-text-sub, #71717a)',
-                          fontWeight: 500,
-                        }, `${Math.round(day.amount)}`),
-                        // X 轴日期
-                        (idx % 2 === 0 || idx === trend.length - 1) && h('text', {
-                          x: x + colW / 2,
-                          y: H - 8,
-                          fontSize: 9,
-                          textAnchor: 'middle',
-                          fill: isToday ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)',
-                          fontWeight: isToday ? 600 : 400,
-                        }, day.shortDate)
-                      )
-                    })
-                  )
-                })()
-              ),
-              h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', textAlign: 'right', marginTop: '10px' } },
-                `活跃消费天数: ${summary.activeDaysCount || 0} 天 · 黑色柱为今日`
-              )
+            h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', display: 'flex', alignItems: 'center', gap: '12px' } },
+              summary.maxDay && h('span', null, `单日最高: ${summary.maxDay.date} (¥ ${summary.maxDay.amount.toFixed(2)})`),
+              summary.maxExpense && h('span', null, `单笔最大: ¥ ${summary.maxExpense.amount} (${summary.maxExpense.merchant})`)
             )
           ),
 
-          // 下半部分：最近记账流水与备注打点卡片
-          h('div', {
-            style: {
-              ...S.card,
-              padding: '20px 24px',
-              borderRadius: '12px',
-              background: 'var(--dsw-alias-bg-card, #ffffff)',
-              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+          // 每日消费柱状图本体 (SVG)
+          (() => {
+            if (dailyTrend.length === 0) {
+              return h('div', { style: { textAlign: 'center', padding: '30px 0', fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '暂无每日趋势数据')
             }
-          },
-            h('div', {
-              style: {
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '16px',
-                paddingBottom: '12px',
-                borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
-              }
-            },
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                h(ListIcon, { size: 15 }),
-                h('span', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '近期记账流水与自定义备注'),
-                h('span', {
-                  style: {
-                    fontSize: '11px',
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
-                    color: 'var(--dsw-alias-text-sub, #71717a)',
-                  }
-                }, `共 ${allRecords.length} 笔`)
-              ),
-              h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '点击右侧【记账/备注】可随手补充消费事由')
-            ),
 
-            // 记账流水条目渲染
-            allRecords.length === 0 ? (
-              h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } }, '暂无消费记录')
-            ) : (
-              h('div', {
-                style: {
-                  maxHeight: '380px',
-                  overflowY: 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  paddingRight: '4px',
-                }
+            const W = 620
+            const H = 160
+            const padL = 36
+            const padR = 16
+            const padT = 16
+            const padB = 28
+            const plotW = W - padL - padR
+            const plotH = H - padT - padB
+            const maxAmt = Math.max(30, Math.ceil(Math.max(...dailyTrend.map(t => t.amount)) * 1.25))
+
+            return h('div', { style: { position: 'relative', width: '100%', overflow: 'hidden' } },
+              h('svg', {
+                viewBox: `0 0 ${W} ${H}`,
+                style: { width: '100%', height: 'auto', display: 'block' }
               },
-                allRecords.map((item, idx) => {
-                  const isRecharge = item.category === 'recharge' || (item.type && (item.type.includes('充值') || item.type.includes('补助')))
-                  return h('div', {
-                    key: item.id || idx,
-                    style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
-                      border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.06))',
-                    }
+                // 背景参考横虚线与刻度
+                [0, 0.5, 1].map((r, i) => {
+                  const y = padT + r * plotH
+                  const val = Math.round((1 - r) * maxAmt)
+                  return h('g', { key: i },
+                    h('line', {
+                      x1: padL,
+                      y1: y,
+                      x2: W - padR,
+                      y2: y,
+                      stroke: 'var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      strokeDasharray: '3 3',
+                    }),
+                    h('text', {
+                      x: padL - 8,
+                      y: y + 4,
+                      fontSize: 10,
+                      textAnchor: 'end',
+                      fill: 'var(--dsw-alias-text-sub, #71717a)'
+                    }, `¥${val}`)
+                  )
+                }),
+
+                // 14 根每日柱形
+                dailyTrend.map((day, idx) => {
+                  const colW = (plotW / dailyTrend.length) * 0.62
+                  const x = padL + idx * (plotW / dailyTrend.length) + (plotW / dailyTrend.length - colW) / 2
+                  const barH = (day.amount / maxAmt) * plotH
+                  const y = padT + (plotH - barH)
+                  const isToday = idx === dailyTrend.length - 1
+                  const isSelected = activeDateFilter === day.date
+
+                  return h('g', {
+                    key: day.date,
+                    style: { cursor: 'pointer' },
+                    onClick: () => setActiveDateFilter(activeDateFilter === day.date ? 'all' : day.date)
                   },
-                    // 左侧：分类微徽章 + 商户 + 备注
-                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 } },
-                      h('span', {
-                        style: {
-                          fontSize: '10px',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          background: `${item.categoryColor || '#3b82f6'}18`,
-                          color: item.categoryColor || '#3b82f6',
-                          fontWeight: 500,
-                          flexShrink: 0,
-                        }
-                      }, item.categoryName || (isRecharge ? '充值' : '消费')),
-                      h('div', { style: { overflow: 'hidden' } },
-                        h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
-                          h('span', { style: { fontSize: '13px', fontWeight: 500, color: 'var(--dsw-alias-text, inherit)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
-                            item.merchant
-                          ),
-                          item.userNote && h('span', {
-                            style: {
-                              fontSize: '11px',
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                              background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
-                              color: 'var(--dsw-alias-text, inherit)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                            }
-                          },
-                            h(Edit3Icon, { size: 10 }),
-                            item.userNote
-                          )
-                        ),
-                        h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                          `${item.datetime || `${item.date} ${item.time}`} · ${item.type || '消费'}`
-                        )
-                      )
-                    ),
-                    // 右侧：金额与记账按钮
-                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 } },
-                      h('div', { style: { textAlign: 'right' } },
-                        h('div', {
-                          style: {
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: isRecharge ? '#10b981' : 'var(--dsw-alias-text, inherit)'
-                          }
-                        }, isRecharge ? `+¥ ${item.amount.toFixed(2)}` : `-¥ ${item.amount.toFixed(2)}`),
-                        item.balance && h('div', { style: { fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `余 ¥ ${item.balance}`)
-                      ),
-                      h('button', {
-                        style: {
-                          ...S.btnSecondary,
-                          padding: '4px 8px',
-                          fontSize: '11px',
-                          borderRadius: '4px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          cursor: 'pointer',
-                        },
-                        onClick: () => handleOpenNoteModal(item),
-                      },
-                        h(Edit3Icon, { size: 11 }),
-                        item.userNote ? '改备注' : '记备注'
-                      )
-                    )
+                    // 柱子
+                    h('rect', {
+                      x,
+                      y,
+                      width: colW,
+                      height: Math.max(3, barH),
+                      rx: 3,
+                      fill: isSelected ? '#10b981' : (isToday ? 'var(--dsw-alias-text, #18181b)' : (day.amount > 0 ? '#3b82f6' : 'var(--dsw-alias-border, rgba(125, 125, 125, 0.18))')),
+                      opacity: day.amount > 0 ? 0.9 : 0.4,
+                    }, h('title', null, `${day.date} (${day.weekday}): 支出 ¥ ${day.amount} (${day.count} 笔，点击筛选当天)`)),
+
+                    // 柱顶金额标签 (对消费大于 0 的显示)
+                    day.amount > 0 && h('text', {
+                      x: x + colW / 2,
+                      y: Math.max(12, y - 4),
+                      fontSize: 9,
+                      textAnchor: 'middle',
+                      fill: isSelected ? '#10b981' : (isToday ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)'),
+                      fontWeight: (isToday || isSelected) ? 600 : 500,
+                    }, `¥${day.amount >= 10 ? Math.round(day.amount) : day.amount.toFixed(1)}`),
+
+                    // X 轴日期刻度
+                    h('text', {
+                      x: x + colW / 2,
+                      y: H - 8,
+                      fontSize: 10,
+                      textAnchor: 'middle',
+                      fill: isSelected ? '#10b981' : (isToday ? 'var(--dsw-alias-text, inherit)' : 'var(--dsw-alias-text-sub, #71717a)'),
+                      fontWeight: (isToday || isSelected) ? 600 : 400,
+                    }, day.shortDate)
                   )
                 })
+              ),
+              h('div', {
+                style: {
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '11px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                  marginTop: '10px',
+                  paddingTop: '8px',
+                  borderTop: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                }
+              },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+                  h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '4px' } },
+                    h('span', { style: { width: '8px', height: '8px', borderRadius: '2px', background: 'var(--dsw-alias-text, #18181b)' } }),
+                    '黑色为今日'
+                  ),
+                  h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '4px' } },
+                    h('span', { style: { width: '8px', height: '8px', borderRadius: '2px', background: '#3b82f6' } }),
+                    '蓝色为产生消费日'
+                  ),
+                  activeDateFilter !== 'all' && h('span', { style: { color: '#10b981', fontWeight: 500 } }, `已筛选: ${activeDateFilter}`)
+                ),
+                activeDateFilter !== 'all' && h('button', {
+                  style: { ...S.btnSecondary, fontSize: '11px', padding: '2px 8px' },
+                  onClick: () => setActiveDateFilter('all')
+                }, '查看全部日期')
               )
             )
-          )
+          })()
         ),
 
-        // ================= 视图 B：原始流水列表 (带分类筛选) =================
-        viewMode === 'records' && h('div', {
+        // 核心板块 2：每日花费明细账本 (纯粹按天统计每天多少钱)
+        h('div', {
           style: {
             ...S.card,
             padding: '20px 24px',
@@ -5542,129 +5409,161 @@ window.__ModuleLoader__.load({
               gap: '10px',
             }
           },
-            // 分类筛选小胶囊
-            h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } },
-              [
-                { key: 'all', label: `全部 (${allRecords.length})` },
-                { key: 'dining', label: '食堂餐饮' },
-                { key: 'supermarket', label: '超市便利' },
-                { key: 'life', label: '生活水房' },
-                { key: 'recharge', label: '充值补助' },
-              ].map(cat => h('button', {
-                key: cat.key,
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              h(ListIcon, { size: 15 }),
+              h('span', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '每日花费统计账本'),
+              h('span', {
                 style: {
-                  padding: '3px 10px',
-                  borderRadius: '12px',
                   fontSize: '11px',
-                  fontWeight: filterCategory === cat.key ? 600 : 400,
-                  cursor: 'pointer',
-                  background: filterCategory === cat.key ? 'var(--dsw-alias-text, #18181b)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
-                  color: filterCategory === cat.key ? 'var(--dsw-alias-bg, #ffffff)' : 'var(--dsw-alias-text, inherit)',
-                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
-                },
-                onClick: () => setFilterCategory(cat.key),
-              }, cat.label))
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.06))',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                }
+              }, `共 ${displayDailyList.length} 天有流水`)
             ),
-            cardData?.dateRange && h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
-              `统计周期: ${cardData.dateRange}`
-            )
+            h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, '点击单笔交易右侧【记备注】可记录消费事由')
           ),
 
-          // 流水记录渲染
-          filteredRecords.length === 0 ? (
-            h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
-              '该分类下暂无消费流水记录'
+          // 按天聚合账单卡片列表
+          displayDailyList.length === 0 ? (
+            h('div', { style: { textAlign: 'center', padding: '40px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+              '所选日期暂无消费记录'
             )
           ) : (
-            h('div', {
-              style: {
-                maxHeight: '420px',
-                overflowY: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                paddingRight: '4px',
-              }
-            },
-              filteredRecords.map((item, idx) => {
-                const isRecharge = item.category === 'recharge' || (item.type && (item.type.includes('充值') || item.type.includes('补助')))
-                return h('div', {
-                  key: item.id || idx,
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } },
+              displayDailyList.map(day => h('div', {
+                key: day.date,
+                style: {
+                  borderRadius: '10px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.02))',
+                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                  overflow: 'hidden',
+                }
+              },
+                // 每天的汇总标题行
+                h('div', {
                   style: {
                     display: 'flex',
-                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
-                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.06))',
+                    alignItems: 'center',
+                    padding: '10px 16px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
+                    borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
                   }
                 },
-                  // 左侧：图标 + 商户与时间
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-                    h('div', {
-                      style: {
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        background: isRecharge ? 'rgba(16, 185, 129, 0.08)' : 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))',
-                        color: isRecharge ? '#10b981' : 'var(--dsw-alias-text, inherit)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }
-                    }, h(CreditCardIcon, { size: 14 })),
-                    h('div', null,
-                      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
-                        h('span', { style: { fontSize: '13px', fontWeight: 500, color: 'var(--dsw-alias-text, inherit)' } },
-                          item.merchant
-                        ),
-                        item.userNote && h('span', {
-                          style: {
-                            fontSize: '11px',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
-                            color: 'var(--dsw-alias-text, inherit)',
-                          }
-                        }, `📝 ${item.userNote}`)
-                      ),
-                      h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                        `${item.datetime || `${item.date} ${item.time}`} · ${item.type || '消费'}`
-                      )
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                    h(CalendarIcon, { size: 13, style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }),
+                    h('span', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } },
+                      `${day.date} ${day.weekday}`
                     )
                   ),
-
-                  // 右侧：金额与变动后结余
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-                    h('div', { style: { textAlign: 'right' } },
-                      h('div', {
-                        style: {
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: isRecharge ? '#10b981' : 'var(--dsw-alias-text, inherit)'
-                        }
-                      },
-                        isRecharge ? `+¥ ${item.amount.toFixed(2)}` : `-¥ ${item.amount.toFixed(2)}`
-                      ),
-                      item.balance && h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
-                        `余 ¥ ${item.balance}`
-                      )
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' } },
+                    day.totalSpent > 0 && h('span', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } },
+                      `支出 ¥ ${day.totalSpent.toFixed(2)} (${day.count} 笔)`
                     ),
-                    h('button', {
-                      style: {
-                        ...S.btnSecondary,
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                      },
-                      onClick: () => handleOpenNoteModal(item),
-                    }, item.userNote ? '改备注' : '记备注')
+                    day.rechargeAmt > 0 && h('span', { style: { color: '#10b981', fontWeight: 500 } },
+                      `+¥ ${day.rechargeAmt.toFixed(2)} 充值`
+                    )
                   )
+                ),
+
+                // 当天的各笔交易流水明细
+                h('div', { style: { display: 'flex', flexDirection: 'column', gap: '1px', background: 'var(--dsw-alias-border, rgba(125, 125, 125, 0.06))' } },
+                  day.records.map((item, idx) => {
+                    const isRecharge = item.isRecharge
+                    return h('div', {
+                      key: item.id || idx,
+                      style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 16px',
+                        background: 'var(--dsw-alias-bg-card, #ffffff)',
+                      }
+                    },
+                      // 左侧：商户名与时间
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 } },
+                        h('div', {
+                          style: {
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            background: isRecharge ? 'rgba(16, 185, 129, 0.08)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                            color: isRecharge ? '#10b981' : 'var(--dsw-alias-text, inherit)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }
+                        }, isRecharge ? h(CreditCardIcon, { size: 13 }) : h(CoffeeIcon, { size: 13 })),
+                        h('div', { style: { overflow: 'hidden' } },
+                          h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                            h('span', {
+                              style: {
+                                fontSize: '13px',
+                                fontWeight: 500,
+                                color: 'var(--dsw-alias-text, inherit)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }
+                            }, item.merchant),
+                            item.userNote && h('span', {
+                              style: {
+                                fontSize: '11px',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                background: 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.1))',
+                                color: 'var(--dsw-alias-text, inherit)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                              }
+                            },
+                              h(Edit3Icon, { size: 10 }),
+                              item.userNote
+                            )
+                          ),
+                          h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                            `${item.time || item.datetime} · ${item.type || '消费'}`
+                          )
+                        )
+                      ),
+
+                      // 右侧：金额与记账按钮
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 } },
+                        h('div', { style: { textAlign: 'right' } },
+                          h('div', {
+                            style: {
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: isRecharge ? '#10b981' : 'var(--dsw-alias-text, inherit)'
+                            }
+                          }, isRecharge ? `+¥ ${item.amount.toFixed(2)}` : `-¥ ${item.amount.toFixed(2)}`),
+                          item.balance && h('div', { style: { fontSize: '10px', color: 'var(--dsw-alias-text-sub, #71717a)' } }, `余 ¥ ${item.balance}`)
+                        ),
+                        h('button', {
+                          style: {
+                            ...S.btnSecondary,
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            cursor: 'pointer',
+                          },
+                          onClick: () => handleOpenNoteModal(item),
+                        },
+                          h(Edit3Icon, { size: 10 }),
+                          item.userNote ? '改备注' : '记备注'
+                        )
+                      )
+                    )
+                  })
                 )
-              })
+              ))
             )
           )
         ),
@@ -5739,9 +5638,9 @@ window.__ModuleLoader__.load({
             lineHeight: 1.6,
           }
         },
-          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 校园一卡通智能记账与使用指南'),
-          h('div', null, '1. 智能分类记账：系统根据商户档口关键词自动分类为食堂餐饮、超市便利、生活水房等，并自动核算每日花费起伏与周期预算。'),
-          h('div', null, '2. 随手记账备注：每笔流水右侧均支持一键打备注，数据持久化保存在本地，方便学期末对账复盘。'),
+          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 校园一卡通每日花费统计说明'),
+          h('div', null, '1. 每日花费核算：系统按自然日自动汇总您每一天的消费金额与笔数，柱状图直观呈现开销起伏。'),
+          h('div', null, '2. 随手记账备注：每笔流水右侧均支持一键补充记账备注，数据持久化保存在本地，方便学期末对账复盘。'),
           h('div', null, '3. 线上充值通道：可微信关注【微川大】服务号或手机端【智慧川大 APP】直接充值，充值后可在食堂圈存机贴卡补登。')
         )
       )

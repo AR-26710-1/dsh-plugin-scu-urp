@@ -1,10 +1,10 @@
 """
-四川大学校园一卡通记账统计与智能消费分析模块
+四川大学校园一卡通记账统计与每日消费汇总模块
 负责：
-1. 流水智能分类识别 (餐饮食堂 / 超市便利 / 生活服务 / 宽带缴费 / 充值补助 / 其他)
-2. 周期消费大盘核算 (今日 / 本周 / 本月 / 日均消费 / 消费最高单笔)
-3. 近 14 天 / 近 30 天每日花费趋势与笔数统计 (用于折线柱状图)
-4. 本地流水自定义备注与标签持久化 (server/data/card_notes.json)
+1. 纯粹按天统计每日花费 (每天花了多少钱、消费笔数、每日流水详情)
+2. 周期消费大盘核算 (今日支出 / 本周支出 / 本月支出 / 累计支出 / 日均消费)
+3. 近 14 天每日花费走势 (用于直观每日开销柱状图)
+4. 本地单笔交易自定义记账备注持久化 (server/data/card_notes.json)
 """
 import os
 import json
@@ -60,47 +60,9 @@ def save_card_note(record_id: str, note: str, tag: str = "") -> bool:
         return False
 
 
-def classify_merchant(merchant_name: str, raw_toname: str = "", trade_type: str = "") -> Dict[str, str]:
-    """
-    智能商户与交易类型分类引擎
-    返回: { "category": key, "categoryName": 友好中文, "icon": 图标标识, "color": 颜色值 }
-    """
-    text = f"{merchant_name} {raw_toname} {trade_type}".lower()
-
-    if "充值" in text or "补助" in text or "圈存" in text or "退款" in text:
-        return {"category": "recharge", "categoryName": "充值补助", "icon": "download", "color": "#10b981"}
-
-    # 1. 食堂与餐饮
-    dining_keywords = [
-        "食堂", "餐厅", "饮食", "快餐", "自选", "小吃", "面点", "面馆", "早点", "点心",
-        "瓦罐", "清真", "烤肉", "冒菜", "黄焖鸡", "水饺", "米线", "粉丝", "汉堡", "教工",
-        "东园", "西园", "一食堂", "二食堂", "三食堂", "档口", "美食", "饭", "菜"
-    ]
-    if any(k in text for k in dining_keywords):
-        return {"category": "dining", "categoryName": "食堂餐饮", "icon": "coffee", "color": "#f59e0b"}
-
-    # 2. 超市与日用品
-    supermarket_keywords = ["超市", "便利", "红旗", "百货", "商贸", "购物", "水果", "文具", "副食"]
-    if any(k in text for k in supermarket_keywords):
-        return {"category": "supermarket", "categoryName": "超市便利", "icon": "shopping-cart", "color": "#3b82f6"}
-
-    # 3. 公共生活与洗浴开水
-    life_keywords = ["开水", "浴室", "洗浴", "水房", "开水房", "洗衣", "吹风机", "理发", "直饮水", "饮水"]
-    if any(k in text for k in life_keywords):
-        return {"category": "life", "categoryName": "生活水房", "icon": "droplet", "color": "#06b6d4"}
-
-    # 4. 网络与公共缴费
-    bill_keywords = ["网费", "电费", "卡费", "工本费", "上机", "机房", "打印", "复印"]
-    if any(k in text for k in bill_keywords):
-        return {"category": "bill", "categoryName": "网络缴费", "icon": "wifi", "color": "#8b5cf6"}
-
-    # 兜底：其他消费
-    return {"category": "other", "categoryName": "其他消费", "icon": "tag", "color": "#71717a"}
-
-
 def analyze_card_records(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    对一卡通交易流水进行全维度记账统计与分析
+    对一卡通交易流水进行每日消费统计与核算 (无需消费场景分类)
     """
     notes = load_card_notes()
     now = datetime.datetime.now()
@@ -117,29 +79,9 @@ def analyze_card_records(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     total_expense = 0.0
     total_recharge = 0.0
 
-    # 分类聚合统计
-    category_totals: Dict[str, Dict[str, Any]] = {
-        "dining": {"name": "食堂餐饮", "amount": 0.0, "count": 0, "color": "#f59e0b", "icon": "coffee"},
-        "supermarket": {"name": "超市便利", "amount": 0.0, "count": 0, "color": "#3b82f6", "icon": "shopping-cart"},
-        "life": {"name": "生活水房", "amount": 0.0, "count": 0, "color": "#06b6d4", "icon": "droplet"},
-        "bill": {"name": "网络缴费", "amount": 0.0, "count": 0, "color": "#8b5cf6", "icon": "wifi"},
-        "other": {"name": "其他消费", "amount": 0.0, "count": 0, "color": "#71717a", "icon": "tag"},
-        "recharge": {"name": "充值补助", "amount": 0.0, "count": 0, "color": "#10b981", "icon": "download"}
-    }
-
-    # 按天归集近 14 天日常消费 (用于趋势折线/柱状图)
-    daily_expense_map: Dict[str, Dict[str, Any]] = {}
-    
-    # 预填充最近 14 天的槽位
-    for i in range(13, -1, -1):
-        d_str = (now - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-        daily_expense_map[d_str] = {
-            "date": d_str,
-            "shortDate": d_str[5:],  # MM-DD
-            "weekday": ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][(now - datetime.timedelta(days=i)).weekday()],
-            "amount": 0.0,
-            "count": 0
-        }
+    # 按天汇总消费流水字典
+    # date_str -> { date, shortDate, weekday, totalSpent, count, records }
+    day_groups: Dict[str, Dict[str, Any]] = {}
 
     enhanced_records = []
     max_expense_record = None
@@ -151,34 +93,25 @@ def analyze_card_records(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         t_type = item.get("type", "消费")
         merchant = item.get("merchant", "")
         raw_to = item.get("rawToname", "")
+        text = f"{merchant} {raw_to} {t_type}".lower()
 
-        # 智能分类
-        cat_info = classify_merchant(merchant, raw_to, t_type)
-        cat_key = cat_info["category"]
+        # 判断是否为充值补助类流水
+        is_recharge = any(k in text for k in ["充值", "补助", "圈存", "退款"]) or "充值" in t_type
 
-        # 获取用户自定义记账备注
+        # 挂载用户自定义备注
         user_note = notes.get(r_id, {})
         enhanced_item = {
             **item,
-            "category": cat_key,
-            "categoryName": cat_info["categoryName"],
-            "categoryColor": cat_info["color"],
-            "categoryIcon": cat_info["icon"],
+            "isRecharge": is_recharge,
             "userNote": user_note.get("note", ""),
             "userTag": user_note.get("tag", "")
         }
         enhanced_records.append(enhanced_item)
 
-        # 支出或充值归集
-        if cat_key == "recharge":
+        if is_recharge:
             total_recharge += amount
-            category_totals["recharge"]["amount"] += amount
-            category_totals["recharge"]["count"] += 1
         else:
-            # 属于支出
             total_expense += amount
-            category_totals[cat_key]["amount"] += amount
-            category_totals[cat_key]["count"] += 1
 
             if r_date == today_str:
                 today_spent += amount
@@ -196,38 +129,58 @@ def analyze_card_records(records: List[Dict[str, Any]]) -> Dict[str, Any]:
                     "datetime": enhanced_item.get("datetime", "")
                 }
 
-            # 填充到每日走势中 (如果在近 14 天内)
-            if r_date in daily_expense_map:
-                daily_expense_map[r_date]["amount"] = round(daily_expense_map[r_date]["amount"] + amount, 2)
-                daily_expense_map[r_date]["count"] += 1
+        # 归入当天的分组（只统计支出，充值单独记录）
+        if r_date:
+            if r_date not in day_groups:
+                try:
+                    d_obj = datetime.datetime.strptime(r_date, "%Y-%m-%d")
+                    w_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][d_obj.weekday()]
+                    s_date = r_date[5:]
+                except Exception:
+                    w_str = ""
+                    s_date = r_date
 
-    # 格式化各分类金额与占比
-    categories_summary = []
-    for k, v in category_totals.items():
-        if k == "recharge":
-            continue
-        amt = round(v["amount"], 2)
-        pct = round((amt / total_expense * 100), 1) if total_expense > 0 else 0.0
-        categories_summary.append({
-            "category": k,
-            "name": v["name"],
-            "amount": amt,
-            "percentage": pct,
-            "count": v["count"],
-            "color": v["color"],
-            "icon": v["icon"]
+                day_groups[r_date] = {
+                    "date": r_date,
+                    "shortDate": s_date,
+                    "weekday": w_str,
+                    "totalSpent": 0.0,
+                    "rechargeAmt": 0.0,
+                    "count": 0,
+                    "records": []
+                }
+
+            day_groups[r_date]["records"].append(enhanced_item)
+            if is_recharge:
+                day_groups[r_date]["rechargeAmt"] = round(day_groups[r_date]["rechargeAmt"] + amount, 2)
+            else:
+                day_groups[r_date]["totalSpent"] = round(day_groups[r_date]["totalSpent"] + amount, 2)
+                day_groups[r_date]["count"] += 1
+
+    # 倒序排列每天的消费明细清单
+    daily_expense_list = sorted(day_groups.values(), key=lambda x: x["date"], reverse=True)
+
+    # 构造近 14 天连续走势槽位 (无论有无消费均保证槽位完整，便于前端柱状图展示)
+    daily_trend = []
+    for i in range(13, -1, -1):
+        target_d = (now - datetime.timedelta(days=i))
+        t_str = target_d.strftime("%Y-%m-%d")
+        existing = day_groups.get(t_str)
+        daily_trend.append({
+            "date": t_str,
+            "shortDate": t_str[5:],
+            "weekday": ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][target_d.weekday()],
+            "amount": existing["totalSpent"] if existing else 0.0,
+            "count": existing["count"] if existing else 0
         })
 
-    # 按消费金额由高到低排序
-    categories_summary.sort(key=lambda x: x["amount"], reverse=True)
+    # 计算有实际支出的天数与日均消费
+    spending_days = [d for d in daily_expense_list if d["totalSpent"] > 0]
+    active_days_count = max(1, len(spending_days))
+    avg_daily_spent = round(total_expense / active_days_count, 2)
 
-    # 每日趋势列表 (按时间正序排列)
-    daily_trend = sorted(daily_expense_map.values(), key=lambda x: x["date"])
-
-    # 计算有记录以来的实际天数与日均消费
-    unique_dates = set(r["date"] for r in records if r.get("date"))
-    active_days = max(1, len(unique_dates))
-    avg_daily_spent = round(total_expense / active_days, 2)
+    # 花费最高的一天
+    max_day = max(spending_days, key=lambda x: x["totalSpent"]) if spending_days else None
 
     return {
         "success": True,
@@ -238,13 +191,17 @@ def analyze_card_records(records: List[Dict[str, Any]]) -> Dict[str, Any]:
             "totalExpense": round(total_expense, 2),
             "totalRecharge": round(total_recharge, 2),
             "avgDailySpent": avg_daily_spent,
-            "activeDaysCount": active_days,
+            "activeDaysCount": len(spending_days),
             "totalRecords": len(records),
             "maxExpense": max_expense_record,
-            "diningShare": next((c["percentage"] for c in categories_summary if c["category"] == "dining"), 0.0)
+            "maxDay": {
+                "date": max_day["date"],
+                "amount": max_day["totalSpent"],
+                "count": max_day["count"]
+            } if max_day else None
         },
-        "categories": categories_summary,
-        "dailyTrend": daily_trend,
-        "records": enhanced_records,
+        "dailyTrend": daily_trend,            # 近 14 天每日花费走势 (绘图用)
+        "dailyExpenseList": daily_expense_list, # 按天归类的账单明细列表
+        "records": enhanced_records,          # 扁平化全部流水
         "lastUpdated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
