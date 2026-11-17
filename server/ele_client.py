@@ -203,6 +203,77 @@ class SCUElectricityClient:
         except Exception as e:
             return False, f"房间校验请求异常: {str(e)}"
 
+    def create_recharge_order(self, fee_type: int = 1, amount: float = 10.0) -> Dict[str, Any]:
+        """
+        创建宿舍电费充值订单并请求四川大学统一支付网关
+        fee_type: 1 为空调用电, 2 为照明用电
+        amount: 充值金额 (1 ~ 500 元)
+        """
+        self._ensure_user_info()
+        if not self.cus_no:
+            return {"success": False, "message": "电费身份未绑定或会话已过期，请重新登录统一认证"}
+
+        amt = round(float(amount), 2)
+        if amt < 1 or amt > 500:
+            return {"success": False, "message": "充值金额须在 1 ~ 500 元之间"}
+
+        url = f"{BASE_PAYAPP}/eleFees/electric/toPay"
+        payload = {
+            "cusNo": self.cus_no,
+            "rechargeAmt": amt,
+            "type": fee_type
+        }
+        try:
+            r = self.session.post(url, json=payload, timeout=12)
+            res = r.json()
+            if res.get("respCode") != "00":
+                return {"success": False, "message": res.get("respDesc", "创建充值订单失败")}
+
+            data = res.get("data", {})
+            pay_url = data.get("payUrl", "https://pay.scu.edu.cn/paycenter/gateway_web")
+            order_json_str = data.get("json", "")
+            signature = data.get("signature", "")
+
+            order_info = {}
+            try:
+                order_info = json.loads(order_json_str)
+            except Exception:
+                pass
+
+            # 进一步向川大统一支付网关发起表单提交，解析收银台页面与支付渠道
+            gw_resp = self.session.post(pay_url, data={"json": order_json_str, "signature": signature}, timeout=15)
+            gw_html = gw_resp.text
+
+            # 提取网关收银台关键特征
+            qr_match = re.search(r'src=["\'](data:image/[^"\']+|https?://[^"\']+qr[^"\']+)["\']', gw_html, re.I) or re.search(r'id="qrCode"[^>]*src=["\']([^"\']+)["\']', gw_html)
+            qr_code_url = qr_match.group(1) if qr_match else ""
+
+            # 提取直接扫码支付的 code_url 或者微信/银联支付链接
+            code_url_match = re.search(r'(weixin://wxpay/bizpayurl\?[^"\'\s<>]+)', gw_html) or re.search(r'var codeUrl\s*=\s*["\']([^"\']+)["\']', gw_html)
+            pay_code_url = code_url_match.group(1) if code_url_match else ""
+
+            return {
+                "success": True,
+                "orderNo": order_info.get("orderno", ""),
+                "amount": amt,
+                "feeType": "空调动力电" if fee_type == 1 else "宿舍照明电",
+                "type": fee_type,
+                "roomName": order_info.get("feename", ""),
+                "userName": order_info.get("name", self.cus_name),
+                "payUrl": pay_url,
+                "postData": {
+                    "json": order_json_str,
+                    "signature": signature
+                },
+                "qrCode": qr_code_url,
+                "codeUrl": pay_code_url,
+                "gatewayHtmlSnippet": gw_html[:5000],
+                "message": "充值订单创建成功"
+            }
+        except Exception as e:
+            return {"success": False, "message": f"创建电费充值订单异常: {str(e)}"}
+
+
 
 # 全局单例
 ele_client = SCUElectricityClient()

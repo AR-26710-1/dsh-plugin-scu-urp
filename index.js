@@ -544,6 +544,83 @@ export function apply(ctx, config) {
     },
   }))
 
+  // 7.2 注册宿舍电费在线购电下单工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_create_electricity_recharge',
+    description: '为四川大学宿舍电费创建在线购电充值订单，支持为空调动力用电 (type=1) 或宿舍照明用电 (type=2) 充值 1~500 元，并返回川大官方统一支付中心收银台支付信息与订单号。',
+    parameters: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'integer',
+          description: '用电回路类型：1 为空调动力电，2 为宿舍照明电。',
+          enum: [1, 2],
+        },
+        amount: {
+          type: 'number',
+          description: '充值金额 (人民币元)，取值范围 1 ~ 500 元。',
+        },
+      },
+      required: ['type', 'amount'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          orderNo: { type: 'string' },
+          amount: { type: 'number' },
+          feeType: { type: 'string' },
+          roomName: { type: 'string' },
+          payUrl: { type: 'string' },
+          message: { type: 'string' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(_args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `创建宿舍电费充值订单失败: ${value.error || value.message}` }]
+        }
+        const estKwh = (value.amount / 0.5464).toFixed(2)
+        return [{
+          type: 'text',
+          text: `⚡ **四川大学宿舍电费购电订单已生成**:\n• **订单编号**: \`${value.orderNo}\`\n• **充值项目**: ${value.feeType} (${value.type === 1 ? '空调动力回路' : '照明回路'})\n• **充值金额**: **¥ ${value.amount} 元** (折合预估约 **${estKwh} 度**)\n• **充值房间**: ${value.roomName}\n• **支付网关**: 四川大学统一支付中心官方收银台\n\n💡 **支付方式**: 请在插件左侧的微服务大厅【宿舍用电】看板中点击【在线购电】，系统将自动拉起官方聚合支付收银台完成微信扫码支付；资金直达川大财务处，支付后系统将自动刷新电表度数。`,
+        }]
+      },
+    },
+    async execute(args) {
+      try {
+        const resp = await fetch(`${serviceUrl}/api/electricity/recharge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: args.type,
+            amount: args.amount,
+          }),
+        })
+        const data = await resp.json()
+        if (!resp.ok || !data.success) {
+          return { success: false, error: data.detail || data.message || `HTTP ${resp.status}` }
+        }
+        return {
+          success: true,
+          orderNo: data.orderNo,
+          amount: data.amount,
+          feeType: data.feeType,
+          type: data.type,
+          roomName: data.roomName,
+          payUrl: data.payUrl,
+          message: data.message,
+        }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地充值服务: ${e.message}` }
+      }
+    },
+  }))
+
   // 8. 注册校园一卡通查询工具 (Cordis Tools)
   ctx.effect(() => ctx.tools.register({
     name: 'scu_get_card_info',

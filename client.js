@@ -229,6 +229,7 @@ window.__ModuleLoader__.load({
     const ActivityIcon = createSvgIcon(['M22 12h-4l-3 9L9 3l-3 9H2'])
     const TruckIcon = createSvgIcon(['M1 3h15v13H1z', 'M16 8h4l3 3v5h-7V8z'], [{ cx: 5.5, cy: 18.5, r: 2.5 }, { cx: 18.5, cy: 18.5, r: 2.5 }])
     const WrenchIcon = createSvgIcon(['M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'])
+    const XIcon = createSvgIcon([], [], [{ x1: 18, y1: 6, x2: 6, y2: 18 }, { x1: 6, y1: 6, x2: 18, y2: 18 }])
 
     // ================== 本地极速秒开缓存管理器 (Stale-While-Revalidate) ==================
     const SCU_CACHE = {
@@ -3521,7 +3522,7 @@ window.__ModuleLoader__.load({
       }
     ]
 
-    // ================== 微服务子页面：宿舍电费实时查询与换房向导 (纯白极简风格) ==================
+    // ================== 微服务子页面：宿舍电费实时查询、在线购电与换房向导 (纯白极简风格) ==================
     function ElectricityDetailView({ onRequireLogin, onBack, eleData, loading, refreshing, lastUpdated, errorMsg, onRefresh }) {
       // 换房弹窗相关状态
       const [showSwitchModal, setShowSwitchModal] = useState(false)
@@ -3534,6 +3535,160 @@ window.__ModuleLoader__.load({
       const [inputRoom, setInputRoom] = useState('')
       const [switchLoading, setSwitchLoading] = useState(false)
       const [switchMsg, setSwitchMsg] = useState('')
+
+      // 在线充值弹窗相关状态
+      const [showRechargeModal, setShowRechargeModal] = useState(false)
+      const [rechargeStep, setRechargeStep] = useState('select') // 'select' | 'paying' | 'success'
+      const [rechargeType, setRechargeType] = useState(1) // 1: 空调动力电, 2: 宿舍照明电
+      const [rechargeAmt, setRechargeAmt] = useState(50)
+      const [isCustomAmt, setIsCustomAmt] = useState(false)
+      const [customAmtStr, setCustomAmtStr] = useState('')
+      const [rechargeLoading, setRechargeLoading] = useState(false)
+      const [rechargeErr, setRechargeErr] = useState('')
+      const [orderInfo, setOrderInfo] = useState(null)
+      const [pollStatusText, setPollStatusText] = useState('')
+      const pollTimerRef = useRef(null)
+      const pollCounterRef = useRef(0)
+
+      // 停止电量侦测轮询
+      const stopPolling = () => {
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current)
+          pollTimerRef.current = null
+        }
+        pollCounterRef.current = 0
+      }
+
+      // 组件卸载时安全清理定时器，杜绝死循环
+      useEffect(() => {
+        return () => stopPolling()
+      }, [])
+
+      // 关闭充值弹窗
+      const handleCloseRechargeModal = () => {
+        stopPolling()
+        setShowRechargeModal(false)
+        setRechargeStep('select')
+        setRechargeErr('')
+        setOrderInfo(null)
+        setPollStatusText('')
+      }
+
+      // 打开充值弹窗
+      const handleOpenRechargeModal = (type = 1) => {
+        setRechargeType(type)
+        setRechargeStep('select')
+        setRechargeAmt(50)
+        setIsCustomAmt(false)
+        setCustomAmtStr('')
+        setRechargeErr('')
+        setOrderInfo(null)
+        setShowRechargeModal(true)
+      }
+
+      // 动态向四川大学官方支付网关提交表单拉起收银台 (新标签页)
+      const submitToOfficialGateway = (payUrl, postData) => {
+        try {
+          const form = document.createElement('form')
+          form.method = 'POST'
+          form.action = payUrl || 'https://pay.scu.edu.cn/paycenter/gateway_web'
+          form.target = '_blank'
+          form.style.display = 'none'
+
+          if (postData && typeof postData === 'object') {
+            for (const [k, v] of Object.entries(postData)) {
+              const input = document.createElement('input')
+              input.type = 'hidden'
+              input.name = k
+              input.value = typeof v === 'object' ? JSON.stringify(v) : String(v)
+              form.appendChild(input)
+            }
+          }
+          document.body.appendChild(form)
+          form.submit()
+          setTimeout(() => {
+            try {
+              document.body.removeChild(form)
+            } catch {}
+          }, 1000)
+        } catch (e) {
+          console.error('拉起川大收银台失败:', e)
+        }
+      }
+
+      // 启动支付入账轻量轮询检测 (最多12次，每次5s，共60s)
+      const startPaymentPolling = (feeType, initialBal) => {
+        stopPolling()
+        pollCounterRef.current = 0
+        setPollStatusText('已在新标签页拉起川大官方聚合支付收银台，正在检测到账...')
+
+        pollTimerRef.current = setInterval(async () => {
+          pollCounterRef.current += 1
+          if (pollCounterRef.current > 12) {
+            stopPolling()
+            setPollStatusText('系统后台通常在 1~5 分钟内入账，您可稍后点击“刷新电费”查看最新度数。')
+            return
+          }
+
+          try {
+            const resp = await fetch(`${SERVICE_URL}/api/electricity/status?refresh=true`)
+            if (resp.ok) {
+              const res = await resp.json()
+              const curBal = (feeType === 1 ? res?.air?.balance : res?.light?.balance) ?? null
+              if (curBal !== null && initialBal !== null && curBal > initialBal) {
+                // 检测到电费已增加，到账成功
+                stopPolling()
+                setRechargeStep('success')
+                if (onRefresh) onRefresh()
+              } else {
+                setPollStatusText(`已在新标签页拉起川大官方收银台，正在检测到账 (${pollCounterRef.current * 5}s)...`)
+              }
+            }
+          } catch {}
+        }, 5000)
+      }
+
+      // 提交电费充值订单
+      const handleCreateRechargeOrder = async (e) => {
+        if (e && e.preventDefault) e.preventDefault()
+        const effectiveAmt = isCustomAmt ? parseFloat(customAmtStr) : rechargeAmt
+        if (isNaN(effectiveAmt) || effectiveAmt < 1 || effectiveAmt > 500) {
+          return setRechargeErr('单次充值金额须在 1 ~ 500 元之间')
+        }
+
+        setRechargeLoading(true)
+        setRechargeErr('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/electricity/recharge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: rechargeType,
+              amount: effectiveAmt
+            })
+          })
+          const d = await resp.json()
+          if (!resp.ok || !d.success) {
+            throw new Error(d.message || d.detail || '创建充值订单失败')
+          }
+
+          setOrderInfo(d)
+          setRechargeStep('paying')
+
+          // 自动在新标签页拉起官方收银台
+          if (d.payUrl && d.postData) {
+            submitToOfficialGateway(d.payUrl, d.postData)
+          }
+
+          // 记录下单前电量并启动轮询
+          const initialBalance = (rechargeType === 1 ? eleData?.air?.balance : eleData?.light?.balance) ?? null
+          startPaymentPolling(rechargeType, initialBalance)
+        } catch (err) {
+          setRechargeErr(err.message || '下单异常')
+        } finally {
+          setRechargeLoading(false)
+        }
+      }
 
       // 打开换房向导并预拉取校区
       const handleOpenSwitchModal = async () => {
@@ -3623,8 +3778,8 @@ window.__ModuleLoader__.load({
         }
       }
 
-      // 渲染电量卡片辅助函数
-      const renderFeeCard = (title, icon, data) => {
+      // 渲染电量卡片辅助函数 (支持卡片内直达快捷购电)
+      const renderFeeCard = (title, icon, data, typeVal) => {
         const balance = data?.balance !== undefined && data?.balance !== null ? data.balance : null
         const price = data?.price || 0.5464
         const estimatedCost = balance !== null ? (balance * price).toFixed(2) : '--'
@@ -3684,8 +3839,22 @@ window.__ModuleLoader__.load({
               color: 'var(--dsw-alias-text-sub, #71717a)',
             }
           },
-            h('span', null, `川大官方基准电价`),
-            h('span', { style: { fontWeight: 500 } }, `${price.toFixed(4)} 元/度`)
+            h('span', null, `川大官方基准单价: ${price.toFixed(4)} 元/度`),
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                fontSize: '11px',
+                padding: '3px 10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer',
+              },
+              onClick: () => handleOpenRechargeModal(typeVal)
+            },
+              h(ZapIcon, { size: 11 }),
+              '在线购电'
+            )
           )
         )
       }
@@ -3813,6 +3982,22 @@ window.__ModuleLoader__.load({
             )
           ),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            // 在线购电主操作按钮
+            h('button', {
+              style: {
+                ...S.btnPrimary,
+                fontSize: '12px',
+                padding: '6px 14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+              },
+              onClick: () => handleOpenRechargeModal(1),
+            },
+              h(ZapIcon, { size: 13 }),
+              '在线购电'
+            ),
             h('button', {
               style: {
                 ...S.btnSecondary,
@@ -3847,7 +4032,7 @@ window.__ModuleLoader__.load({
           )
         ),
 
-        // 双模核心电费卡片栅格
+        // 双模核心电费卡片栅格 (支持直达充值)
         h('div', {
           style: {
             display: 'grid',
@@ -3856,8 +4041,8 @@ window.__ModuleLoader__.load({
             marginBottom: '20px',
           }
         },
-          renderFeeCard('空调动力用电', h(SnowflakeIcon, { size: 17 }), eleData?.air),
-          renderFeeCard('宿舍照明用电', h(ZapIcon, { size: 17 }), eleData?.light)
+          renderFeeCard('空调动力用电', h(SnowflakeIcon, { size: 17 }), eleData?.air, 1),
+          renderFeeCard('宿舍照明用电', h(ZapIcon, { size: 17 }), eleData?.light, 2)
         ),
 
         // 纯白极简温馨提示卡片
@@ -3875,7 +4060,7 @@ window.__ModuleLoader__.load({
         },
           h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 宿舍用电与充值说明'),
           h('div', null, '1. 电费不足 10 度时微服务系统将触发低电量预警，为防止夜间断电，建议在电量低于 10 度前及时充值。'),
-          h('div', null, '2. 充值通道：可微信关注【微川大】服务号 -> 点击【校园一卡通】-> 选择【宿舍购电】，或登录手机端【智慧川大 APP】线上充值。'),
+          h('div', null, '2. 官方收银台充值：点击右上角【在线购电】或卡片内【在线购电】，系统直通四川大学官方支付中心网关，支持微信扫码支付，资金直达学校财务处。'),
           h('div', null, '3. 如需查询其它校区或他人寝室电量，可点击右上角【切换宿舍】选择目标楼栋房间一键查看。')
         ),
 
@@ -3984,6 +4169,313 @@ window.__ModuleLoader__.load({
                   disabled: switchLoading
                 }, switchLoading ? '正在校验并绑定...' : '确认绑定')
               )
+            )
+          )
+        ),
+
+        // 在线购电充值模态弹窗 (纯白极简规范)
+        showRechargeModal && h('div', {
+          style: {
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(3px)',
+          },
+          onClick: handleCloseRechargeModal,
+        },
+          h('div', {
+            style: {
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+              borderRadius: '14px',
+              padding: '24px 28px',
+              width: '100%',
+              maxWidth: '460px',
+              boxShadow: '0 12px 36px rgba(0, 0, 0, 0.12)',
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
+            // 弹窗头部
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' } },
+              h('div', null,
+                h('h3', { style: { margin: 0, fontSize: '17px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '宿舍电费在线购电'),
+                h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+                  `充值寝室: ${eleData?.roomDisplay || '当前宿舍'} · 官方网关直结`
+                )
+              ),
+              h('button', {
+                style: {
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                },
+                onClick: handleCloseRechargeModal,
+              }, h(XIcon, { size: 16 }))
+            ),
+
+            // 错误信息提示
+            rechargeErr && h('div', {
+              style: {
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                marginBottom: '14px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+              }
+            }, rechargeErr),
+
+            // 模式 1: 选择回路与金额
+            rechargeStep === 'select' && h('div', null,
+              // 回路选择
+              h('label', { style: { display: 'block', fontSize: '12px', fontWeight: 500, marginBottom: '8px' } }, '选择充值用电回路'),
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '18px' } },
+                h('button', {
+                  type: 'button',
+                  style: {
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: rechargeType === 1 ? '1.5px solid var(--dsw-alias-text, #18181b)' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                    background: rechargeType === 1 ? 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))' : 'var(--dsw-alias-bg-card, #ffffff)',
+                    color: 'var(--dsw-alias-text, inherit)',
+                    fontWeight: rechargeType === 1 ? 600 : 400,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                  },
+                  onClick: () => setRechargeType(1)
+                }, h(SnowflakeIcon, { size: 15 }), '空调动力电 (回路 1)'),
+                h('button', {
+                  type: 'button',
+                  style: {
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: rechargeType === 2 ? '1.5px solid var(--dsw-alias-text, #18181b)' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                    background: rechargeType === 2 ? 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))' : 'var(--dsw-alias-bg-card, #ffffff)',
+                    color: 'var(--dsw-alias-text, inherit)',
+                    fontWeight: rechargeType === 2 ? 600 : 400,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                  },
+                  onClick: () => setRechargeType(2)
+                }, h(ZapIcon, { size: 15 }), '宿舍照明电 (回路 2)')
+              ),
+
+              // 充值金额快捷选项
+              h('label', { style: { display: 'block', fontSize: '12px', fontWeight: 500, marginBottom: '8px' } }, '选择充值金额'),
+              h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' } },
+                [20, 50, 100, 200].map(amt => {
+                  const isSelected = !isCustomAmt && rechargeAmt === amt
+                  return h('button', {
+                    key: amt,
+                    type: 'button',
+                    style: {
+                      padding: '9px 0',
+                      textAlign: 'center',
+                      borderRadius: '8px',
+                      border: isSelected ? '1.5px solid var(--dsw-alias-text, #18181b)' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                      background: isSelected ? 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))' : 'var(--dsw-alias-bg-card, #ffffff)',
+                      color: 'var(--dsw-alias-text, inherit)',
+                      fontWeight: isSelected ? 600 : 400,
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                    },
+                    onClick: () => {
+                      setIsCustomAmt(false)
+                      setRechargeAmt(amt)
+                    }
+                  }, `¥ ${amt}`)
+                })
+              ),
+
+              // 自定义金额输入
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' } },
+                h('button', {
+                  type: 'button',
+                  style: {
+                    padding: '7px 12px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    border: isCustomAmt ? '1.5px solid var(--dsw-alias-text, #18181b)' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.15))',
+                    background: isCustomAmt ? 'var(--dsw-alias-bg-hover, rgba(125, 125, 125, 0.08))' : 'transparent',
+                    color: 'var(--dsw-alias-text, inherit)',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  },
+                  onClick: () => setIsCustomAmt(true)
+                }, '自定义金额'),
+                isCustomAmt && h('input', {
+                  style: { ...S.input, flex: 1, padding: '6px 10px', fontSize: '13px' },
+                  type: 'number',
+                  min: '1',
+                  max: '500',
+                  step: '1',
+                  placeholder: '输入 1 ~ 500 元',
+                  value: customAmtStr,
+                  onChange: (e) => setCustomAmtStr(e.target.value)
+                })
+              ),
+
+              // 预估购电度数换算卡片
+              h('div', {
+                style: {
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                  marginBottom: '18px',
+                  fontSize: '12px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                }
+              },
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
+                  h('span', null, '预计到账度数:'),
+                  h('strong', { style: { color: 'var(--dsw-alias-text, inherit)', fontSize: '14px' } },
+                    `~ ${((isCustomAmt ? (parseFloat(customAmtStr) || 0) : rechargeAmt) / 0.5464).toFixed(2)} 度`
+                  )
+                ),
+                h('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+                  h('span', null, '官方基准单价:'),
+                  h('span', null, '0.5464 元/度')
+                )
+              ),
+
+              // 官方网关与安全提示
+              h('div', {
+                style: {
+                  fontSize: '11px',
+                  color: 'var(--dsw-alias-text-sub, #71717a)',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }
+              },
+                h(ShieldIcon, { size: 13 }),
+                h('span', null, '直连四川大学官方统一支付中心收银台，钱款直达学校财务处')
+              ),
+
+              // 底部操作按钮
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '10px' } },
+                h('button', {
+                  type: 'button',
+                  style: { ...S.btnSecondary, padding: '8px 16px' },
+                  onClick: handleCloseRechargeModal
+                }, '取消'),
+                h('button', {
+                  type: 'button',
+                  style: { ...S.btnPrimary, padding: '8px 22px' },
+                  disabled: rechargeLoading,
+                  onClick: handleCreateRechargeOrder
+                }, rechargeLoading ? '正在创建官方订单...' : '立即前往收银台支付')
+              )
+            ),
+
+            // 模式 2: 正在支付中
+            rechargeStep === 'paying' && h('div', { style: { textAlign: 'center', padding: '10px 0' } },
+              h('div', {
+                style: {
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px auto',
+                  color: '#10b981',
+                }
+              }, h(ExternalLinkIcon, { size: 24 })),
+              h('h4', { style: { margin: '0 0 6px 0', fontSize: '16px', fontWeight: 600 } }, '官方收银台已拉起'),
+              h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', margin: '0 0 16px 0' } },
+                '请在弹出的新标签页中选择微信支付完成扫码支付'
+              ),
+
+              // 订单明细
+              orderInfo && h('div', {
+                style: {
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  textAlign: 'left',
+                  fontSize: '12px',
+                  marginBottom: '16px',
+                  lineHeight: '1.8',
+                }
+              },
+                h('div', null, `订单编号: ${orderInfo.orderNo || '--'}`),
+                h('div', null, `充值项目: ${orderInfo.feeType || (rechargeType === 1 ? '空调动力电' : '宿舍照明电')}`),
+                h('div', null, `充值金额: ¥ ${orderInfo.amount || rechargeAmt}`),
+                h('div', null, `充值房间: ${orderInfo.roomName || eleData?.roomDisplay || ''}`)
+              ),
+
+              pollStatusText && h('div', {
+                style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginBottom: '18px' }
+              }, pollStatusText),
+
+              h('div', { style: { display: 'flex', justifyContent: 'center', gap: '10px' } },
+                h('button', {
+                  type: 'button',
+                  style: { ...S.btnSecondary, padding: '8px 16px', fontSize: '12px' },
+                  onClick: () => {
+                    if (orderInfo?.payUrl && orderInfo?.postData) {
+                      submitToOfficialGateway(orderInfo.payUrl, orderInfo.postData)
+                    }
+                  }
+                }, '重新打开收银台'),
+                h('button', {
+                  type: 'button',
+                  style: { ...S.btnPrimary, padding: '8px 20px', fontSize: '12px' },
+                  onClick: async () => {
+                    stopPolling()
+                    if (onRefresh) await onRefresh()
+                    setRechargeStep('success')
+                  }
+                }, '我已完成支付，刷新度数')
+              )
+            ),
+
+            // 模式 3: 充值成功
+            rechargeStep === 'success' && h('div', { style: { textAlign: 'center', padding: '20px 0' } },
+              h('div', {
+                style: {
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '50%',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px auto',
+                  color: '#10b981',
+                }
+              }, h(CheckCircleIcon, { size: 28 })),
+              h('h4', { style: { margin: '0 0 6px 0', fontSize: '17px', fontWeight: 600 } }, '充值成功，度数已入账！'),
+              h('p', { style: { fontSize: '13px', color: 'var(--dsw-alias-text-sub, #71717a)', margin: '0 0 20px 0' } },
+                '宿舍电表度数已自动同步更新，祝您用电愉快。'
+              ),
+              h('button', {
+                type: 'button',
+                style: { ...S.btnPrimary, padding: '8px 28px' },
+                onClick: handleCloseRechargeModal
+              }, '完成')
             )
           )
         )
