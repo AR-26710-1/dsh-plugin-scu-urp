@@ -3586,34 +3586,10 @@ window.__ModuleLoader__.load({
         setShowRechargeModal(true)
       }
 
-      // 动态向四川大学官方支付网关提交表单拉起收银台 (新标签页)
-      const submitToOfficialGateway = (payUrl, postData) => {
-        try {
-          const form = document.createElement('form')
-          form.method = 'POST'
-          form.action = payUrl || 'https://pay.scu.edu.cn/paycenter/gateway_web'
-          form.target = '_blank'
-          form.style.display = 'none'
-
-          if (postData && typeof postData === 'object') {
-            for (const [k, v] of Object.entries(postData)) {
-              const input = document.createElement('input')
-              input.type = 'hidden'
-              input.name = k
-              input.value = typeof v === 'object' ? JSON.stringify(v) : String(v)
-              form.appendChild(input)
-            }
-          }
-          document.body.appendChild(form)
-          form.submit()
-          setTimeout(() => {
-            try {
-              document.body.removeChild(form)
-            } catch {}
-          }, 1000)
-        } catch (e) {
-          console.error('拉起川大收银台失败:', e)
-        }
+      // 打开官方支付网关收银台
+      const openOfficialGateway = (gatewayUrl, orderNo) => {
+        const targetUrl = gatewayUrl || `${SERVICE_URL}/api/electricity/pay_gateway?orderNo=${encodeURIComponent(orderNo || '')}`
+        window.open(targetUrl, '_blank')
       }
 
       // 启动支付入账轻量轮询检测 (最多12次，每次5s，共60s)
@@ -3656,6 +3632,17 @@ window.__ModuleLoader__.load({
           return setRechargeErr('单次充值金额须在 1 ~ 500 元之间')
         }
 
+        // 1. 同步预打开新标签页，100% 避免浏览器将弹窗拦截或降级为 GET
+        let payWindow = null
+        try {
+          payWindow = window.open('about:blank', '_blank')
+          if (payWindow) {
+            payWindow.document.write('<div style="font-family:sans-serif;text-align:center;padding:60px 20px;color:#71717a;"><h3>正在连接四川大学官方支付收银台...</h3><p style="font-size:13px;margin-top:8px;">正在安全生成官方防伪订单，请稍候...</p></div>')
+          }
+        } catch (err) {
+          console.warn('预打开新标签页受阻:', err)
+        }
+
         setRechargeLoading(true)
         setRechargeErr('')
         try {
@@ -3669,21 +3656,26 @@ window.__ModuleLoader__.load({
           })
           const d = await resp.json()
           if (!resp.ok || !d.success) {
+            if (payWindow && !payWindow.closed) payWindow.close()
             throw new Error(d.message || d.detail || '创建充值订单失败')
           }
 
           setOrderInfo(d)
           setRechargeStep('paying')
 
-          // 自动在新标签页拉起官方收银台
-          if (d.payUrl && d.postData) {
-            submitToOfficialGateway(d.payUrl, d.postData)
+          // 2. 引导新标签页进入官方支付自提交中转页 (同源渲染、原生提交，100% 携带完整 POST body)
+          const targetUrl = d.gatewayUrl || `${SERVICE_URL}/api/electricity/pay_gateway?orderNo=${encodeURIComponent(d.orderNo)}`
+          if (payWindow && !payWindow.closed) {
+            payWindow.location.href = targetUrl
+          } else {
+            window.open(targetUrl, '_blank')
           }
 
-          // 记录下单前电量并启动轮询
+          // 3. 记录下单前电量并启动轮询
           const initialBalance = (rechargeType === 1 ? eleData?.air?.balance : eleData?.light?.balance) ?? null
           startPaymentPolling(rechargeType, initialBalance)
         } catch (err) {
+          if (payWindow && !payWindow.closed) payWindow.close()
           setRechargeErr(err.message || '下单异常')
         } finally {
           setRechargeLoading(false)
@@ -4435,8 +4427,8 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   style: { ...S.btnSecondary, padding: '8px 16px', fontSize: '12px' },
                   onClick: () => {
-                    if (orderInfo?.payUrl && orderInfo?.postData) {
-                      submitToOfficialGateway(orderInfo.payUrl, orderInfo.postData)
+                    if (orderInfo) {
+                      openOfficialGateway(orderInfo.gatewayUrl, orderInfo.orderNo)
                     }
                   }
                 }, '重新打开收银台'),

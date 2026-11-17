@@ -12,9 +12,11 @@ DeepSeek Harness - 四川大学教务系统 (URP) 与宿舍电费本地适配器
 import asyncio
 import os
 import json
+import html
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, HTTPException, Body, Response, Query
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -495,6 +497,10 @@ class ElectricityRechargeRequest(BaseModel):
     amount: float = 10.0
 
 
+# 宿舍电费待支付订单缓存注册表 (解决跨域弹窗拦截与 Mixed Content 降级参数丢失问题)
+RECHARGE_ORDERS: Dict[str, Dict[str, Any]] = {}
+
+
 @app.post("/api/electricity/recharge")
 async def recharge_electricity_api(req: ElectricityRechargeRequest):
     """
@@ -507,7 +513,151 @@ async def recharge_electricity_api(req: ElectricityRechargeRequest):
     res = ele_client.create_recharge_order(fee_type=req.type, amount=req.amount)
     if not res.get("success"):
         raise HTTPException(status_code=500, detail=res.get("message", "创建电费充值订单失败"))
+    order_no = res.get("orderNo")
+    if order_no:
+        RECHARGE_ORDERS[order_no] = res
+    res["gatewayUrl"] = f"http://127.0.0.1:48080/api/electricity/pay_gateway?orderNo={order_no}"
     return res
+
+
+@app.get("/api/electricity/pay_gateway", response_class=HTMLResponse)
+async def electricity_pay_gateway_api(orderNo: str = Query(..., description="电费充值订单编号")):
+    """
+    提供川大官方收银台自提交中转页面，彻底解决浏览器 Mixed Content 降级、弹窗拦截与跨域参数丢失问题
+    """
+    order = RECHARGE_ORDERS.get(orderNo)
+    if not order:
+        return HTMLResponse(
+            content="""<!DOCTYPE html><html><head><meta charset='utf-8'><title>订单失效</title></head>
+            <body style='font-family:sans-serif;text-align:center;padding:50px;'>
+            <h3 style='color:#ef4444;'>未找到对应的电费充值订单或会话已过期</h3>
+            <p style='color:#71717a;'>请返回教务处插件页面重新发起充值。</p>
+            </body></html>""",
+            status_code=404
+        )
+
+    pay_url = order.get("payUrl", "https://pay.scu.edu.cn/paycenter/gateway_web")
+    post_data = order.get("postData", {})
+    json_val = post_data.get("json", "")
+    sig_val = post_data.get("signature", "")
+    amount = order.get("amount", 0)
+    fee_type = order.get("feeType", "宿舍用电")
+    room_name = order.get("roomName", "")
+
+    # HTML 属性安全转义，保留原始 Unicode 转义序列以匹配川大官方网关签名校验
+    escaped_json = html.escape(json_val, quote=True)
+    escaped_sig = html.escape(sig_val, quote=True)
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>正在连接四川大学官方支付收银台...</title>
+  <style>
+    * {{ box-sizing: border-box; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #fbfbfb;
+      color: #18181b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }}
+    .card {{
+      background: #ffffff;
+      border: 1px solid rgba(125, 125, 125, 0.16);
+      border-radius: 14px;
+      padding: 36px 32px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+      text-align: center;
+    }}
+    .icon-box {{
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px auto;
+      font-size: 24px;
+    }}
+    .title {{ font-size: 18px; font-weight: 600; margin: 0 0 8px 0; }}
+    .subtitle {{ font-size: 13px; color: #71717a; margin: 0 0 20px 0; line-height: 1.5; }}
+    .info-list {{
+      background: rgba(125, 125, 125, 0.04);
+      border: 1px solid rgba(125, 125, 125, 0.08);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      text-align: left;
+      margin-bottom: 24px;
+      line-height: 1.8;
+    }}
+    .btn {{
+      display: inline-block;
+      width: 100%;
+      padding: 12px 20px;
+      background: #18181b;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s ease;
+      text-decoration: none;
+    }}
+    .btn:hover {{ opacity: 0.9; }}
+    .footer-tip {{ font-size: 11px; color: #a1a1aa; margin-top: 14px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-box">⚡</div>
+    <div class="title">正在安全进入四川大学收银台</div>
+    <div class="subtitle">订单已成功创建，系统正在通过官方统一支付网关安全拉起收银台...</div>
+    <div class="info-list">
+      <div><strong>订单编号:</strong> {orderNo}</div>
+      <div><strong>充值项目:</strong> {fee_type}</div>
+      <div><strong>充值房间:</strong> {room_name}</div>
+      <div><strong>支付金额:</strong> <span style="font-size: 16px; font-weight: 700; color: #ec1717;">¥ {amount:.2f} 元</span></div>
+    </div>
+    <form id="officialPayForm" method="POST" action="{pay_url}">
+      <input type="hidden" name="json" value="{escaped_json}">
+      <input type="hidden" name="signature" value="{escaped_sig}">
+      <button type="submit" class="btn" id="submitBtn">立即前往四川大学官方收银台</button>
+    </form>
+    <div class="footer-tip">若浏览器未在 2 秒内自动跳转，请点击上方按钮前往支付</div>
+  </div>
+  <script>
+    // 页面载入时立即自动在当前窗口原生提交，绝不触发弹窗拦截，100% 携带完整 POST body
+    window.addEventListener('load', function() {{
+      setTimeout(function() {{
+        try {{
+          var form = document.getElementById('officialPayForm');
+          var btn = document.getElementById('submitBtn');
+          if (form) {{
+            if (btn) btn.innerText = '正在进入收银台...';
+            form.submit();
+          }}
+        }} catch(e) {{
+          console.error('自动提交失败:', e);
+        }}
+      }}, 50);
+    }});
+  </script>
+</body>
+</html>
+"""
+    return HTMLResponse(content=html_content)
 
 
 # ================== 四川大学微服务 (一卡通与校园网) API ==================
