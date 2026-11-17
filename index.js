@@ -820,4 +820,252 @@ export function apply(ctx, config) {
       }
     },
   }))
+
+  // 12. 注册全校微应用广场与全局搜索工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_app_square',
+    description: '搜索或浏览四川大学微服务平台 9 大分类全量 60+ 微应用（包含校车、体育场馆预约、体测、报修、校历、失物招领、第二课堂等），获取官方直达链接与所属分类。',
+    parameters: {
+      type: 'object',
+      properties: {
+        keyword: {
+          type: 'string',
+          description: '可选：搜索微应用名称或业务关键词（如 "校车", "场馆", "报修", "体测", "请假"）。不传则返回常用精选微应用列表。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `获取微应用广场失败: ${value.error}` }]
+        }
+        const d = value.data
+        const kw = args?.keyword?.trim()
+        const apps = d.apps || d.allApps || []
+        
+        let appListText = ''
+        if (apps.length > 0) {
+          const rows = apps.slice(0, 10).map((a, i) => {
+            return `${i + 1}. **${a.name}** (${a.category}) · [打开微应用 ↗](${a.link})`
+          })
+          appListText = `\n\n**匹配微应用 (共 ${apps.length} 个)**:\n` + rows.join('\n')
+        } else {
+          appListText = '\n\n未匹配到相关微应用，可在微服务大厅浏览全部分类。'
+        }
+
+        return [{
+          type: 'text',
+          text: `**川大微服务平台应用广场**${kw ? ` (搜索: "${kw}")` : ''}:${appListText}\n\n提示: 点击应用链接可免密跳转至川大对应微服务官方页面。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const kw = args.keyword ? encodeURIComponent(args.keyword.trim()) : ''
+        const url = kw ? `${serviceUrl}/api/wfw/apps/search?keyword=${kw}` : `${serviceUrl}/api/wfw/apps/all`
+        const resp = await fetch(url)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 13. 注册校园交通车 / 校车时刻表工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_shuttle_bus',
+    description: '查询四川大学望江校区、江安校区与华西校区之间的官方校车班车运行时刻表、当前时间下一班待发班车与发车倒计时。',
+    parameters: {
+      type: 'object',
+      properties: {
+        route: {
+          type: 'string',
+          description: '可选：指定查询路线，可选值为 "wj_ja" (望江到江安), "ja_wj" (江安到望江), "wj_hx" (望江到华西), "ja_hx" (江安到华西)，不传则返回全线概览与下一班车。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询校车时刻表失败: ${value.error}` }]
+        }
+        const d = value.data
+        const nextTip = d.nextBus 
+          ? `• **下一班待发校车**: **${d.nextBus}** (距发车还有 **${d.countdownMinutes} 分钟**)\n`
+          : '• **今日班次**: **今日计划班车已全部发车完毕**\n'
+
+        let routeDetails = ''
+        if (d.routes && d.routes.length > 0) {
+          const rows = d.routes.map(r => {
+            const timetableStr = Array.isArray(r.timetable) ? r.timetable.slice(0, 8).join(', ') + ' ...' : r.timetable
+            return `• **${r.name}**: ${r.station}\n  班次: ${timetableStr}`
+          })
+          routeDetails = '\n\n**各校区乘车点与主要班次**:\n' + rows.join('\n')
+        }
+
+        return [{
+          type: 'text',
+          text: `**川大校园交通车 (校车) 时刻看板**:\n• **当前运行模式**: **${d.dayTypeText || '工作日班次'}** (当前时间: ${d.currentTime})\n${nextTip}• **乘车费用**: 4 元 / 5 元 (学生可直接刷校园一卡通)${routeDetails}\n\n提示: 高峰期学校会根据排队人数增派加班车，请提前 5-10 分钟到达乘车点候车。`,
+        }]
+      },
+    },
+    async execute() {
+      try {
+        const resp = await fetch(`${serviceUrl}/api/wfw/bus/schedule`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 14. 注册校园卡失物招领自查工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_lost_cards',
+    description: '查询四川大学全校一卡通失物招领最新记录，自动排查本人校园卡是否已被拾获登记，或按学号检索招领信息。',
+    parameters: {
+      type: 'object',
+      properties: {
+        student_id: {
+          type: 'string',
+          description: '可选：指定检索的学号或卡号，若不传则自动排查当前登录学生的校园卡。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询校园卡失物招领失败: ${value.error}` }]
+        }
+        const d = value.data
+        const isSafeText = d.isSafe 
+          ? '✅ **安全**：您的校园卡当前未在全校失物招领名单中。'
+          : `⚠️ **注意**：检测到您的校园卡已被拾获！请尽快核实领取。`
+
+        let recordsText = ''
+        if (d.records && d.records.length > 0) {
+          const rows = d.records.slice(0, 5).map((r, i) => {
+            return `${i + 1}. 卡号 **${r.maskedCardno}** · ${r.date} · 捡拾地: ${r.addr}`
+          })
+          recordsText = '\n\n**全校最新捡拾登记 (前 5 条)**:\n' + rows.join('\n')
+        } else {
+          recordsText = '\n\n全校近期暂无未认领的一卡通登记记录。'
+        }
+
+        return [{
+          type: 'text',
+          text: `**川大校园卡失物招领与安全排查**:\n• **自查状态**: ${isSafeText}\n• **全校登记件数**: **${d.totalCount || 0} 件**${recordsText}\n\n认领网点: 江安青春广场一卡通大厅 / 望江基础教学楼一卡通窗口。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const sidParam = args.student_id ? `?student_id=${encodeURIComponent(args.student_id.trim())}` : ''
+        const resp = await fetch(`${serviceUrl}/api/wfw/card/lost_found${sidParam}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 15. 注册图书馆读者证与借阅状态工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_library_info',
+    description: '查询四川大学图书馆读者证状态、读者证号、当前在借图书册数、最大可借额度与欠费情况。',
+    parameters: {
+      type: 'object',
+      properties: {
+        refresh: {
+          type: 'boolean',
+          description: '可选：是否穿透缓存强制从微服务平台拉取最新读者数据。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+        additionalProperties: true,
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询图书馆状态失败: ${value.error}` }]
+        }
+        const d = value.data
+        return [{
+          type: 'text',
+          text: `**川大图书馆读者证状态**:\n• **读者证号**: \`${d.readerNo || '--'}\` (${d.readerType || '本科生'})\n• **证件状态**: **${d.status || '正常'}**\n• **当前借阅**: **${d.currentBorrowed || 0} / ${d.maxBorrowable || 30} 册** (已用额度: ${d.borrowPercentage || 0}%)\n• **欠费金额**: **¥ ${d.arrears !== undefined ? d.arrears.toFixed(2) : '0.00'}**\n• **累计借阅**: **${d.totalBorrowed || 0} 册** (注册日期: ${d.registerDate || '--'})\n\n快速入口: [馆藏图书检索 ↗](${d.searchUrl || 'https://wfw.scu.edu.cn/site/library/collection'}) · [我的借阅历史 ↗](${d.historyUrl || 'https://wfw.scu.edu.cn/site/library/history'})`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const refreshParam = args.refresh ? '?refresh=true' : ''
+        const resp = await fetch(`${serviceUrl}/api/wfw/library/status${refreshParam}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
+      }
+    },
+  }))
 }

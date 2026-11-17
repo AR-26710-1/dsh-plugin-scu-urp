@@ -3437,67 +3437,107 @@ window.__ModuleLoader__.load({
         apiEndpoint: '/api/wfw/network/status'
       },
       {
+        id: 'bus',
+        name: '校园交通车时刻',
+        category: 'public',
+        categoryLabel: '综合便民',
+        icon: TruckIcon,
+        status: 'online',
+        statusText: '实时在线',
+        desc: '望江-江安-华西三校际班车时刻表、当前下一班发车倒计时与官方时刻表原图',
+        features: [
+          '校车动态班次：区分工作日与节假日班次，自动匹配当前时间最近发车班次',
+          '发车倒计时：提供距离下一班校车发车的精准剩余分钟数计算与即时提醒',
+          '乘车点全览：望江北门/基教发车点、江安青春广场/一食堂发车点与华西发车点',
+          '官方通告图片：一键查看后勤保障部官方发布的交通车时刻高清原图'
+        ],
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
+        url: 'https://wfw.scu.edu.cn/wap/material?id=557',
+        apiEndpoint: '/api/wfw/bus/schedule'
+      },
+      {
+        id: 'lostfound',
+        name: '校园卡失物招领',
+        category: 'public',
+        categoryLabel: '综合便民',
+        icon: SearchIcon,
+        status: 'online',
+        statusText: '实时在线',
+        desc: '全校一卡通失物招领官方数据拉取、本人卡片安全排查与自定义学号检索',
+        features: [
+          '学号智能排查：自动比对本人学号是否已被全校拾得登记，出具安全体检报告',
+          '全校失物流水：实时展示望江、江安、华西各食堂、球场捡拾登记的卡号与地点',
+          '学号快速自查：支持输入任意学号查询其是否已被拾获及存放的保安值班室',
+          '认领网点指引：提供青春广场一卡通大厅与基教大厅失物招领窗口指引'
+        ],
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
+        url: 'https://wfw.scu.edu.cn/site/found/index?tabIdx=1',
+        apiEndpoint: '/api/wfw/card/lost_found'
+      },
+      {
+        id: 'library',
+        name: '我的图书馆',
+        category: 'life',
+        categoryLabel: '教学科研',
+        icon: LibraryIcon,
+        status: 'online',
+        statusText: '实时在线',
+        desc: '读者证服务状态、当前在借册数、借阅上限、累计借阅、借阅欠费与馆藏直通',
+        features: [
+          '读者证状态体检：实时显示读者证号、证件正常状态与欠费金额统计',
+          '借阅额度看板：实时跟踪已借图书册数与最大可借上限（30 册）',
+          '馆藏图书直达：一键直通四川大学图书馆馆藏检索与我的借阅历史',
+          '借阅规则指引：借期 30 天、续借政策与超期滞纳金防范提示'
+        ],
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
+        url: 'https://wfw.scu.edu.cn/site/library/mine',
+        apiEndpoint: '/api/wfw/library/status'
+      },
+      {
+        id: 'apps',
+        name: '微应用服务广场',
+        category: 'public',
+        categoryLabel: '全校聚合',
+        icon: GridIcon,
+        status: 'online',
+        statusText: '全校 62+',
+        desc: '汇聚四川大学微服务平台 9 大分类全量 62+ 微应用全景浏览与全局即时搜索',
+        features: [
+          '9 大板块聚合：常用功能、日常管理、校园生活、校园卡、校园网、教学科研等',
+          '毫秒级全局检索：支持按微应用名称与功能即输即搜，快速定位目标服务',
+          '官方免密直达：点击任意微应用自动携带统一身份凭证免密跳转对应系统',
+          '轻量即用导航：涵盖体育场馆预约、后勤报修、校历公告、第二课堂全景'
+        ],
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
+        url: 'https://wfw.scu.edu.cn/site/applicationSquare/index?sid=0',
+        apiEndpoint: '/api/wfw/apps/all'
+      },
+      {
         id: 'sports',
         name: '体育场馆预约',
         category: 'life',
         categoryLabel: '校园生活',
         icon: ActivityIcon,
-        status: 'planned',
-        statusText: '规划中',
-        desc: '望江、江安、华西校区室内外羽毛球馆、网球场、游泳馆实时场次余量与预约',
+        status: 'online',
+        statusText: '快捷直达',
+        desc: '望江、江安、华西校区室内外羽毛球馆、网球场、游泳馆实时场次预约平台',
         features: [
           '三校区场馆总览：覆盖江安二号运动场、望江体育中心、华西东区羽毛球场等',
-          '场次余量透视：按时段查看当天与未来 3 天的空余场地数量',
-          '在线预约锁单：调用场馆预约中枢 API 快速选场锁单',
-          '入场凭证核验：生成场馆核销动态二维码，管理个人履约记录'
+          '官方场馆预约：直接直通场馆中心官方预约平台快速选场与个人履约管理'
         ],
-        badgeColor: '#71717a',
-        badgeBg: 'rgba(125, 125, 125, 0.08)',
-        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
         url: 'http://cgzx.scu.edu.cn/venue/',
-        apiEndpoint: '/mashupapp/wap/real/venue-booking'
-      },
-      {
-        id: 'bus',
-        name: '校车时刻与校历',
-        category: 'public',
-        categoryLabel: '综合便民',
-        icon: TruckIcon,
-        status: 'planned',
-        statusText: '规划中',
-        desc: '望江-江安校际往返班车时刻表、发车倒计时与四川大学官方学期校历日程',
-        features: [
-          '校车动态班次：区分工作日与节假日班次，自动匹配当前时间最近发车班次',
-          '发车倒计时：提供距离下一班校车发车的精准剩余分钟数计算',
-          '乘车乘车点导航：望江行政楼/北门发车点与江安二号运动场/青春广场发车点定位',
-          '官方校历检索：本学期教学周进度、校庆日、寒暑假及国家法定调休一览'
-        ],
-        badgeColor: '#71717a',
-        badgeBg: 'rgba(125, 125, 125, 0.08)',
-        badgeBorder: 'rgba(125, 125, 125, 0.2)',
-        url: 'https://wfw.scu.edu.cn/wap/material?id=557',
-        apiEndpoint: '/site/polymerization/calendar-bus'
-      },
-      {
-        id: 'lostfound',
-        name: '校园失物招领',
-        category: 'public',
-        categoryLabel: '综合便民',
-        icon: SearchIcon,
-        status: 'planned',
-        statusText: '规划中',
-        desc: '全校遗失物品线上登记、拾得物特征检索与校园一卡通拾获精准匹配认领',
-        features: [
-          '失物登记与检索：按校区、物品类型（证件、电子设备、钥匙衣物）快速发布与检索',
-          '一卡通专属匹配：捡到校园卡输入卡号，系统通过学工学号中枢精准通知物主',
-          '官方认领点导航：保卫处巡逻队值班室、教学楼物业前台存放点电话与地址',
-          '招领互助广场：师生即时留言与认领进度状态跟踪'
-        ],
-        badgeColor: '#71717a',
-        badgeBg: 'rgba(125, 125, 125, 0.08)',
-        badgeBorder: 'rgba(125, 125, 125, 0.2)',
-        url: 'https://wfw.scu.edu.cn/site/applicationSquare/index?sid=21',
-        apiEndpoint: '/site/polymerization/lost-found'
+        apiEndpoint: 'http://cgzx.scu.edu.cn/venue/'
       },
       {
         id: 'repairs',
@@ -3505,20 +3545,18 @@ window.__ModuleLoader__.load({
         category: 'public',
         categoryLabel: '综合便民',
         icon: WrenchIcon,
-        status: 'planned',
-        statusText: '规划中',
-        desc: '宿舍水电门窗故障、公共教学设施损坏极速线上报障、师傅进度跟踪与评价',
+        status: 'online',
+        statusText: '快捷直达',
+        desc: '宿舍水电门窗故障、公共教学设施损坏极速线上报障与维修进度查询平台',
         features: [
-          '一键报障提单：预设宿舍照明跳闸、水龙头渗漏、空调漏氟、门锁损坏等常见故障',
-          '维修师傅调度：实时查看接单维修师傅姓名、联系电话与预估上门时段',
-          '工单进度全链路：从派单、接单、上门维修到完工验收状态实时推流',
-          '服务闭环评价：维修质量满意度打分，支持拍照上传复核'
+          '一键报修提单：预设宿舍照明跳闸、水龙头渗漏、空调漏水、门锁损坏等常见报障',
+          '官方后勤报修：直通智慧后勤微信移动端与工单全链路跟踪系统'
         ],
-        badgeColor: '#71717a',
-        badgeBg: 'rgba(125, 125, 125, 0.08)',
-        badgeBorder: 'rgba(125, 125, 125, 0.2)',
+        badgeColor: '#10b981',
+        badgeBg: 'rgba(16, 185, 129, 0.08)',
+        badgeBorder: 'rgba(16, 185, 129, 0.25)',
         url: 'https://zhhq.scu.edu.cn/loginapp',
-        apiEndpoint: '/mashupapp/wap/real/logistics-repair'
+        apiEndpoint: 'https://zhhq.scu.edu.cn/loginapp'
       }
     ]
 
@@ -5197,11 +5235,1345 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // ================== 微服务子页面：校园交通车 / 校车时刻表 (纯白极简风格) ==================
+    function BusDetailView({ onRequireLogin, onBack }) {
+      const [busData, setBusData] = useState(null)
+      const [loading, setLoading] = useState(true)
+      const [refreshing, setRefreshing] = useState(false)
+      const [errorMsg, setErrorMsg] = useState('')
+      const [activeRouteId, setActiveRouteId] = useState('ja_wj')
+      const [showImgModal, setShowImgModal] = useState(false)
+      const [selectedImgUrl, setSelectedImgUrl] = useState('')
+
+      const fetchSchedule = useCallback(async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true)
+        else setLoading(true)
+        setErrorMsg('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/bus/schedule`)
+          if (resp.status === 401) return onRequireLogin()
+          const d = await resp.json()
+          if (!resp.ok) throw new Error(d.detail || '获取时刻表失败')
+          setBusData(d)
+        } catch (e) {
+          setErrorMsg(e.message || '网络连接异常')
+        } finally {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }, [onRequireLogin])
+
+      useEffect(() => {
+        fetchSchedule(false)
+      }, [fetchSchedule])
+
+      const curRoute = busData?.routes?.find(r => r.id === activeRouteId) || busData?.routes?.[0]
+      const timetable = curRoute?.timetable || []
+      const curTime = busData?.currentTime || ''
+
+      return h('div', null,
+        // 顶部导航行
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onBack,
+            },
+              h(ArrowLeftIcon, { size: 14 }),
+              '返回微服务大厅'
+            ),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园交通车运行时刻'),
+                h('span', {
+                  style: {
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    fontWeight: 500,
+                  }
+                }, `● ${busData?.dayTypeText || '工作日班次'}`)
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                '望江 ⇄ 江安 ⇄ 华西三大校际穿梭校车 · 后勤保障部官方时刻'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: () => fetchSchedule(true),
+              disabled: refreshing || loading,
+            },
+              h(RefreshIcon, { size: 13, style: { animation: refreshing ? 'spin 1s linear infinite' : 'none' } }),
+              refreshing ? '正在刷新...' : '刷新时刻'
+            )
+          )
+        ),
+
+        // 异常提示
+        errorMsg && h('div', {
+          style: {
+            padding: '10px 14px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#ef4444',
+            fontSize: '12px',
+          }
+        }, errorMsg),
+
+        // 纯白极简 下一班发车高能提醒大卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '22px 24px',
+            borderRadius: '12px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '16px' } },
+            h('div', {
+              style: {
+                width: '46px',
+                height: '46px',
+                borderRadius: '10px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                color: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }
+            }, h(TruckIcon, { size: 24 })),
+            h('div', null,
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                `当前时间: ${curTime || '--:--'} · ${busData?.dayTypeText || '正常班次'}`
+              ),
+              h('div', { style: { fontSize: '24px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+                busData?.nextBus ? `下一班校车: ${busData.nextBus}` : (loading ? '正在计算班次...' : '今日计划班次已全部发完')
+              ),
+              h('div', { style: { fontSize: '12px', color: '#10b981', marginTop: '2px', fontWeight: 500 } },
+                busData?.countdownMinutes !== null && busData?.countdownMinutes !== undefined
+                  ? `预计距发车还有约 ${busData.countdownMinutes} 分钟，请提前前往乘车点候车`
+                  : '夜间停运期间请搭乘公共交通或网约车'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', gap: '10px' } },
+            h('button', {
+              type: 'button',
+              style: { ...S.btnSecondary, padding: '7px 14px', fontSize: '12px', borderRadius: '8px' },
+              onClick: () => {
+                setSelectedImgUrl('https://imgwfw.scu.edu.cn/image/29/ef9048ef8a77ad8544b40f7317d4a4ec.png')
+                setShowImgModal(true)
+              }
+            }, '查看官方时刻表原图 ↗')
+          )
+        ),
+
+        // 路线切换 Segment Tabs
+        h('div', {
+          style: {
+            display: 'flex',
+            gap: '8px',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+          }
+        },
+          (busData?.routes || []).map(r => {
+            const isSel = activeRouteId === r.id
+            return h('button', {
+              key: r.id,
+              type: 'button',
+              style: {
+                padding: '7px 16px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: isSel ? 600 : 400,
+                border: isSel ? '1px solid var(--dsw-alias-text, #000000)' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+                background: isSel ? 'var(--dsw-alias-text, #000000)' : 'var(--dsw-alias-bg-card, #ffffff)',
+                color: isSel ? 'var(--dsw-alias-bg, #ffffff)' : 'var(--dsw-alias-text, inherit)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              },
+              onClick: () => setActiveRouteId(r.id),
+            }, r.name)
+          })
+        ),
+
+        // 线路发车地点与乘车须知信息条
+        curRoute && h('div', {
+          style: {
+            padding: '12px 18px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+            marginBottom: '18px',
+            fontSize: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }
+        },
+          h('div', null,
+            h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }, '📍 发车站点: '),
+            h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } }, curRoute.station)
+          ),
+          h('div', null,
+            h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }, '💳 票价标准: '),
+            h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } }, curRoute.price)
+          )
+        ),
+
+        // 班次时刻时间轴排布卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '20px 24px',
+            borderRadius: '12px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            marginBottom: '20px',
+          }
+        },
+          h('div', {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+            }
+          },
+            h('div', { style: { fontWeight: 600, fontSize: '14px', color: 'var(--dsw-alias-text, inherit)' } },
+              `全日发车班次列表 (${timetable.length} 班次)`
+            ),
+            h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+              '高亮绿色边框为即将发车班次'
+            )
+          ),
+
+          // 班次卡片网格
+          h('div', {
+            style: {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+              gap: '10px',
+            }
+          },
+            timetable.map((timeStr, idx) => {
+              const isPast = curTime && timeStr < curTime
+              const isNext = timeStr === busData?.nextBus
+              return h('div', {
+                key: idx,
+                style: {
+                  padding: '10px 8px',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  background: isNext
+                    ? 'rgba(16, 185, 129, 0.08)'
+                    : isPast
+                    ? 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))'
+                    : 'var(--dsw-alias-bg-card, #ffffff)',
+                  border: isNext
+                    ? '1.5px solid #10b981'
+                    : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                  color: isPast ? 'var(--dsw-alias-text-sub, #a1a1aa)' : 'var(--dsw-alias-text, inherit)',
+                  transition: 'all 0.15s ease',
+                }
+              },
+                h('div', {
+                  style: {
+                    fontSize: '16px',
+                    fontWeight: isNext ? 700 : (isPast ? 400 : 600),
+                    color: isNext ? '#10b981' : 'inherit',
+                  }
+                }, timeStr),
+                h('div', { style: { fontSize: '10px', marginTop: '2px', color: isNext ? '#10b981' : 'var(--dsw-alias-text-sub, #71717a)' } },
+                  isNext ? '● 下一班' : (isPast ? '已发车' : `第 ${idx + 1} 班`)
+                )
+              )
+            })
+          )
+        ),
+
+        // 纯白极简 乘车提示卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            fontSize: '12px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            lineHeight: 1.6,
+          }
+        },
+          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 校园班车乘车温馨提示'),
+          h('div', null, '1. 乘车刷卡：请佩戴口罩，持本人校园一卡通在车载刷卡机贴卡或使用微信/支付宝乘车码结算；学生优惠票价 4 元/人次。'),
+          h('div', null, '2. 早晚高峰加班：早晨 07:30~08:30 及下午 17:00~18:00 高峰期，后勤将视现场排队候车人数滚动加开班次，坐满即走。'),
+          h('div', null, '3. 校车调度咨询：如遇大雾、交通拥堵等特殊情况，请致电后勤保障部交通运输服务中心咨询电话：028-85401111。')
+        ),
+
+        // 官方图片预览弹窗
+        showImgModal && h('div', {
+          style: {
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          },
+          onClick: () => setShowImgModal(false)
+        },
+          h('div', {
+            style: {
+              background: '#ffffff',
+              borderRadius: '12px',
+              maxWidth: '800px',
+              maxHeight: '90vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            },
+            onClick: e => e.stopPropagation()
+          },
+            h('div', { style: { padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee' } },
+              h('span', { style: { fontWeight: 600, fontSize: '14px' } }, '四川大学校园交通车官方时刻表原图'),
+              h('button', { style: { border: 'none', background: 'transparent', cursor: 'pointer' }, onClick: () => setShowImgModal(false) }, h(XIcon, { size: 16 }))
+            ),
+            h('div', { style: { overflowY: 'auto', padding: '16px', textAlign: 'center' } },
+              h('img', { src: selectedImgUrl, style: { maxWidth: '100%', height: 'auto', borderRadius: '8px' }, alt: '时刻表原图' })
+            )
+          )
+        )
+      )
+    }
+
+    // ================== 微服务子页面：校园卡失物招领中心 (纯白极简风格) ==================
+    function CardLostDetailView({ onRequireLogin, onBack }) {
+      const [lostData, setLostData] = useState(null)
+      const [loading, setLoading] = useState(true)
+      const [refreshing, setRefreshing] = useState(false)
+      const [errorMsg, setErrorMsg] = useState('')
+      const [searchQuery, setSearchQuery] = useState('')
+      const [searchResult, setSearchResult] = useState(null)
+
+      const fetchLostCards = useCallback(async (isRefresh = false, queryId = '') => {
+        if (isRefresh) setRefreshing(true)
+        else setLoading(true)
+        setErrorMsg('')
+        try {
+          const p = queryId ? `?student_id=${encodeURIComponent(queryId)}` : ''
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/card/lost_found${p}`)
+          if (resp.status === 401) return onRequireLogin()
+          const d = await resp.json()
+          if (!resp.ok) throw new Error(d.detail || '拉取失物招领失败')
+          setLostData(d)
+        } catch (e) {
+          setErrorMsg(e.message || '网络连接异常')
+        } finally {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }, [onRequireLogin])
+
+      useEffect(() => {
+        fetchLostCards(false)
+      }, [fetchLostCards])
+
+      const handleDoSearch = () => {
+        const q = searchQuery.trim()
+        if (!q) {
+          setSearchResult(null)
+          return
+        }
+        const records = lostData?.records || []
+        const matched = records.find(r => r.cardno === q)
+        if (matched) {
+          setSearchResult({ found: true, record: matched })
+        } else {
+          setSearchResult({ found: false, query: q })
+        }
+      }
+
+      return h('div', null,
+        // 顶部导航行
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onBack,
+            },
+              h(ArrowLeftIcon, { size: 14 }),
+              '返回微服务大厅'
+            ),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '校园一卡通官方失物招领'),
+                h('span', {
+                  style: {
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    fontWeight: 500,
+                  }
+                }, '● 实时同步')
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                '全校各食堂与保安室拾得校园卡即时登记 · 本人一键安全排查'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: () => fetchLostCards(true),
+              disabled: refreshing || loading,
+            },
+              h(RefreshIcon, { size: 13, style: { animation: refreshing ? 'spin 1s linear infinite' : 'none' } }),
+              refreshing ? '正在刷新...' : '刷新招领'
+            )
+          )
+        ),
+
+        // 本人卡片安全排查结果状态大横幅 (纯白极简规范)
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '20px 24px',
+            borderRadius: '12px',
+            background: lostData?.isSafe === false ? 'rgba(239, 68, 68, 0.05)' : 'var(--dsw-alias-bg-card, #ffffff)',
+            border: lostData?.isSafe === false ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '14px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '14px' } },
+            h('div', {
+              style: {
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: lostData?.isSafe === false ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.08)',
+                color: lostData?.isSafe === false ? '#ef4444' : '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }
+            }, h(lostData?.isSafe === false ? ShieldIcon : CheckCircleIcon, { size: 22 })),
+            h('div', null,
+              h('div', { style: { fontSize: '15px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } },
+                lostData?.isSafe === false ? '⚠️ 检测到您的校园卡已被拾得登记！' : '✅ 本人校园卡状态安全'
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                lostData?.tip || '自动比对学号 2024141470117'
+              )
+            )
+          ),
+          h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+            `全校在录件数: `,
+            h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } }, `${lostData?.totalCount || 0} 件`)
+          )
+        ),
+
+        // 学号自定义搜索栏 (纯白极简)
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            flexWrap: 'wrap',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' } },
+            h(SearchIcon, { size: 16 }),
+            h('input', {
+              type: 'text',
+              placeholder: '输入指定同学的学号进行失物招领匹配排查...',
+              value: searchQuery,
+              onChange: e => setSearchQuery(e.target.value),
+              onKeyDown: e => { if (e.key === 'Enter') handleDoSearch() },
+              style: {
+                ...S.input,
+                border: 'none',
+                background: 'transparent',
+                padding: '4px 0',
+                width: '100%',
+                fontSize: '13px',
+                outline: 'none',
+              }
+            })
+          ),
+          h('button', {
+            type: 'button',
+            style: { ...S.btnPrimary, padding: '6px 16px', fontSize: '12px', borderRadius: '6px' },
+            onClick: handleDoSearch,
+          }, '检索学号')
+        ),
+
+        // 检索结果展示 (若有)
+        searchResult && h('div', {
+          style: {
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '18px',
+            background: searchResult.found ? 'rgba(16, 185, 129, 0.08)' : 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.05))',
+            border: `1px solid ${searchResult.found ? 'rgba(16, 185, 129, 0.2)' : 'var(--dsw-alias-border, rgba(125, 125, 125, 0.1))'}`,
+            fontSize: '12px',
+          }
+        },
+          searchResult.found ? (
+            h('div', null,
+              h('div', { style: { fontWeight: 600, color: '#10b981', marginBottom: '4px' } },
+                `🎉 匹配成功！学号 ${searchResult.record.cardno} 已被登记拾得：`
+              ),
+              h('div', null, `捡拾地点/存放位置: ${searchResult.record.addr}`),
+              h('div', { style: { color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                `登记日期: ${searchResult.record.date}`
+              )
+            )
+          ) : (
+            h('div', { style: { color: 'var(--dsw-alias-text-sub, #71717a)' } },
+              `未在失物招领列表中检索到学号 ${searchResult.query} 的卡片登记记录。`
+            )
+          )
+        ),
+
+        // 全校最新失物招领记录列表
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '20px 24px',
+            borderRadius: '12px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            marginBottom: '20px',
+          }
+        },
+          h('div', {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+            }
+          },
+            h('div', { style: { fontWeight: 600, fontSize: '14px', color: 'var(--dsw-alias-text, inherit)' } },
+              '全校近期拾获一卡通登记记录'
+            ),
+            h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+              '卡号中间已作脱敏保护'
+            )
+          ),
+
+          loading && !lostData?.records?.length ? (
+            h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+              '正在加载全校失物招领数据...'
+            )
+          ) : (!lostData?.records || lostData.records.length === 0) ? (
+            h('div', { style: { textAlign: 'center', padding: '30px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+              '近期暂无新拾获的一卡通招领记录'
+            )
+          ) : (
+            h('div', {
+              style: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+              }
+            },
+              lostData.records.map((it, idx) => h('div', {
+                key: it.id || idx,
+                style: {
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+                  border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                }
+              },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                  h('div', {
+                    style: {
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '6px',
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      color: '#3b82f6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }
+                  }, h(CreditCardIcon, { size: 14 })),
+                  h('div', null,
+                    h('div', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } },
+                      `卡号: ${it.maskedCardno}`
+                    ),
+                    h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                      `📍 拾获存放位置: ${it.addr}`
+                    )
+                  )
+                ),
+                h('div', { style: { textAlign: 'right' } },
+                  h('span', {
+                    style: {
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                    }
+                  }, it.date)
+                )
+              ))
+            )
+          )
+        ),
+
+        // 线下认领服务大厅网点卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            fontSize: '12px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            lineHeight: 1.6,
+          }
+        },
+          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 校园卡失物认领指引'),
+          h('div', null, '1. 携带有效证件：如确认为本人遗失校园卡，请携带学生证或身份证等有效证明材料前往指定存放点认领。'),
+          h('div', null, '2. 常见认领窗口：江安校区青春广场一卡通大厅失物招领处、望江校区基础教学楼一卡通服务大厅、华西校区西区活动中心。'),
+          h('div', null, '3. 拾获上交：若拾得他人一卡通，可就近交至各食堂前台、教学楼值班保安室或一卡通服务大厅。')
+        )
+      )
+    }
+
+    // ================== 微服务子页面：我的图书馆借阅看板 (纯白极简风格) ==================
+    function LibraryDetailView({ onRequireLogin, onBack }) {
+      const [libData, setLibData] = useState(null)
+      const [loading, setLoading] = useState(true)
+      const [refreshing, setRefreshing] = useState(false)
+      const [errorMsg, setErrorMsg] = useState('')
+
+      const fetchLibrary = useCallback(async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true)
+        else setLoading(true)
+        setErrorMsg('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/library/status${isRefresh ? '?refresh=true' : ''}`)
+          if (resp.status === 401) return onRequireLogin()
+          const d = await resp.json()
+          if (!resp.ok) throw new Error(d.detail || '获取图书馆信息失败')
+          setLibData(d)
+        } catch (e) {
+          setErrorMsg(e.message || '网络连接异常')
+        } finally {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }, [onRequireLogin])
+
+      useEffect(() => {
+        fetchLibrary(false)
+      }, [fetchLibrary])
+
+      return h('div', null,
+        // 顶部导航行
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onBack,
+            },
+              h(ArrowLeftIcon, { size: 14 }),
+              '返回微服务大厅'
+            ),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '我的图书馆'),
+                h('span', {
+                  style: {
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    fontWeight: 500,
+                  }
+                }, `● 读者证 ${libData?.status || '正常'}`)
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                '四川大学图书馆读者档案 · 在借图书与借阅限额实时透视'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: () => fetchLibrary(true),
+              disabled: refreshing || loading,
+            },
+              h(RefreshIcon, { size: 13, style: { animation: refreshing ? 'spin 1s linear infinite' : 'none' } }),
+              refreshing ? '正在刷新...' : '刷新状态'
+            )
+          )
+        ),
+
+        // 异常提示
+        errorMsg && h('div', {
+          style: {
+            padding: '10px 14px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#ef4444',
+            fontSize: '12px',
+          }
+        }, errorMsg),
+
+        // 4 大纯白极简核心指标栅格卡片
+        h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '14px',
+            marginBottom: '20px',
+          }
+        },
+          // 指标 1：读者证状态
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '读者证状态'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(CheckCircleIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: '#10b981' } },
+              libData?.status || (loading ? '...' : '正常')
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              `读者证号: ${libData?.readerNo || '--'}`
+            )
+          ),
+
+          // 指标 2：当前在借图书
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '当前在借册数'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(BookOpenIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              `${libData?.currentBorrowed !== undefined ? libData.currentBorrowed : 0} 册`
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              `最大可借上限: ${libData?.maxBorrowable || 30} 册`
+            )
+          ),
+
+          // 指标 3：借阅欠费
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '逾期欠费金额'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(CreditCardIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              `¥ ${libData?.arrears !== undefined ? libData.arrears.toFixed(2) : '0.00'}`
+            ),
+            h('div', { style: { fontSize: '11px', color: '#10b981', marginTop: '4px' } },
+              '无图书超期与滞纳金'
+            )
+          ),
+
+          // 指标 4：累计借阅图书
+          h('div', {
+            style: {
+              ...S.card,
+              padding: '18px 20px',
+              borderRadius: '12px',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+              h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', fontWeight: 500 } }, '累计借阅总数'),
+              h('div', {
+                style: {
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(AwardIcon, { size: 14 }))
+            ),
+            h('div', { style: { fontSize: '26px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } },
+              `${libData?.totalBorrowed !== undefined ? libData.totalBorrowed : 0} 册`
+            ),
+            h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '4px' } },
+              `注册日期: ${libData?.registerDate || '--'}`
+            )
+          )
+        ),
+
+        // 快捷业务入口条 (馆藏图书检索 / 我的借阅历史)
+        h('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '14px',
+            marginBottom: '20px',
+          }
+        },
+          h('a', {
+            href: libData?.searchUrl || 'https://wfw.scu.edu.cn/site/library/collection',
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            style: {
+              ...S.card,
+              padding: '16px 20px',
+              borderRadius: '10px',
+              textDecoration: 'none',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              transition: 'border 0.15s ease',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+              h('div', {
+                style: {
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  color: '#3b82f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(SearchIcon, { size: 16 })),
+              h('div', null,
+                h('div', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '馆藏图书检索'),
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                  '全校文理馆、工学馆、医学馆、江安馆藏书查询'
+                )
+              )
+            ),
+            h(ExternalLinkIcon, { size: 14, style: { color: 'var(--dsw-alias-text-sub, #71717a)' } })
+          ),
+
+          h('a', {
+            href: libData?.historyUrl || 'https://wfw.scu.edu.cn/site/library/history',
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            style: {
+              ...S.card,
+              padding: '16px 20px',
+              borderRadius: '10px',
+              textDecoration: 'none',
+              background: 'var(--dsw-alias-bg-card, #ffffff)',
+              border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              transition: 'border 0.15s ease',
+            }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+              h('div', {
+                style: {
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, h(ListIcon, { size: 16 })),
+              h('div', null,
+                h('div', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--dsw-alias-text, inherit)' } }, '我的借阅历史'),
+                h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                  '个人借书记录归档与历史书单回顾'
+                )
+              )
+            ),
+            h(ExternalLinkIcon, { size: 14, style: { color: 'var(--dsw-alias-text-sub, #71717a)' } })
+          )
+        ),
+
+        // 纯白极简 借阅规则说明卡片
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '16px 20px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.03))',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+            fontSize: '12px',
+            color: 'var(--dsw-alias-text-sub, #71717a)',
+            lineHeight: 1.6,
+          }
+        },
+          h('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-text, inherit)', marginBottom: '4px' } }, '💡 四川大学图书馆借阅政策说明'),
+          h('div', null, '1. 借书权限额度：全日制本科生可同时借阅中文、外文图书上限为 30 册，每册借期通常为 30 天。'),
+          h('div', null, '2. 续借政策说明：在图书无其他读者预约的情况下，可登录“我的图书馆”在线续借 1 次，续借期从操作之日起顺延。'),
+          h('div', null, '3. 超期与遗失：超期归还将暂停借书权限并按规定计收逾期违约金；如遇图书破损或遗失，请尽快前往各校区总服务台办理赔偿补书手续。')
+        )
+      )
+    }
+
+    // ================== 微服务子页面：全校微应用服务广场与全局搜索 (纯白极简风格) ==================
+    function AppSquareDetailView({ onRequireLogin, onBack }) {
+      const [squareData, setSquareData] = useState(null)
+      const [loading, setLoading] = useState(true)
+      const [refreshing, setRefreshing] = useState(false)
+      const [errorMsg, setErrorMsg] = useState('')
+      const [searchKw, setSearchKw] = useState('')
+      const [activeCategory, setActiveCategory] = useState('all')
+
+      const fetchSquare = useCallback(async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true)
+        else setLoading(true)
+        setErrorMsg('')
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/apps/all${isRefresh ? '?refresh=true' : ''}`)
+          if (resp.status === 401) return onRequireLogin()
+          const d = await resp.json()
+          if (!resp.ok) throw new Error(d.detail || '拉取微应用广场失败')
+          setSquareData(d)
+        } catch (e) {
+          setErrorMsg(e.message || '网络连接异常')
+        } finally {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }, [onRequireLogin])
+
+      useEffect(() => {
+        fetchSquare(false)
+      }, [fetchSquare])
+
+      const allApps = squareData?.allApps || []
+      const kw = searchKw.trim().toLowerCase()
+      const filteredApps = allApps.filter(a => {
+        const matchCat = activeCategory === 'all' || a.category === activeCategory
+        const matchKw = !kw || a.name.toLowerCase().includes(kw) || a.category.toLowerCase().includes(kw)
+        return matchCat && matchKw
+      })
+
+      const categories = [
+        { key: 'all', label: `全部应用 (${allApps.length})` },
+        ...(squareData?.categories || []).map(c => ({ key: c.name, label: `${c.name} (${c.count})` }))
+      ]
+
+      return h('div', null,
+        // 顶部导航行
+        h('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: onBack,
+            },
+              h(ArrowLeftIcon, { size: 14 }),
+              '返回微服务大厅'
+            ),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                h('span', { style: { fontSize: '18px', fontWeight: 700, color: 'var(--dsw-alias-text, inherit)' } }, '全校微应用服务广场'),
+                h('span', {
+                  style: {
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    fontWeight: 500,
+                  }
+                }, `共 ${allApps.length} 个应用`)
+              ),
+              h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                '聚合四川大学 9 大业务板块全量微服务 · 点击任意应用即可免密直达'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            h('button', {
+              style: {
+                ...S.btnSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                borderRadius: '8px',
+              },
+              onClick: () => fetchSquare(true),
+              disabled: refreshing || loading,
+            },
+              h(RefreshIcon, { size: 13, style: { animation: refreshing ? 'spin 1s linear infinite' : 'none' } }),
+              refreshing ? '正在刷新...' : '刷新应用'
+            )
+          )
+        ),
+
+        // 即时全局搜索栏 (纯白极简规范)
+        h('div', {
+          style: {
+            ...S.card,
+            padding: '12px 18px',
+            borderRadius: '10px',
+            background: 'var(--dsw-alias-bg-card, #ffffff)',
+            border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }
+        },
+          h(SearchIcon, { size: 16, style: { color: 'var(--dsw-alias-text-sub, #71717a)' } }),
+          h('input', {
+            type: 'text',
+            placeholder: '输入应用名称或关键词实时过滤 (如: 校车, 场馆, 报修, 课表, 体测, 请假)...',
+            value: searchKw,
+            onChange: e => setSearchKw(e.target.value),
+            style: {
+              ...S.input,
+              border: 'none',
+              background: 'transparent',
+              padding: '4px 0',
+              width: '100%',
+              fontSize: '13px',
+              outline: 'none',
+            }
+          }),
+          searchKw && h('button', {
+            type: 'button',
+            style: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--dsw-alias-text-sub, #71717a)', padding: '2px' },
+            onClick: () => setSearchKw('')
+          }, h(XIcon, { size: 14 }))
+        ),
+
+        // 分类标签胶囊筛选栏
+        h('div', {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '18px',
+            overflowX: 'auto',
+            paddingBottom: '4px',
+          }
+        },
+          categories.map(cat => {
+            const isSel = activeCategory === cat.key
+            return h('button', {
+              key: cat.key,
+              type: 'button',
+              style: {
+                padding: '5px 12px',
+                borderRadius: '16px',
+                fontSize: '12px',
+                fontWeight: isSel ? 600 : 400,
+                border: isSel ? '1px solid var(--dsw-alias-text, #000000)' : '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                background: isSel ? 'var(--dsw-alias-text, #000000)' : 'var(--dsw-alias-bg-card, #ffffff)',
+                color: isSel ? 'var(--dsw-alias-bg, #ffffff)' : 'var(--dsw-alias-text-sub, #71717a)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+              },
+              onClick: () => setActiveCategory(cat.key),
+            }, cat.label)
+          })
+        ),
+
+        // 62+ 微应用响应式卡片网格
+        loading && !allApps.length ? (
+          h('div', { style: { textAlign: 'center', padding: '40px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+            '正在拉取四川大学全校微应用广场...'
+          )
+        ) : filteredApps.length === 0 ? (
+          h('div', { style: { textAlign: 'center', padding: '40px 0', color: 'var(--dsw-alias-text-sub, #71717a)', fontSize: '13px' } },
+            `未找到与 "${searchKw}" 匹配的微应用，请尝试其他关键词`
+          )
+        ) : (
+          h('div', {
+            style: {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+              gap: '12px',
+              marginBottom: '24px',
+            }
+          },
+            filteredApps.map((app, idx) => h('a', {
+              key: app.id || idx,
+              href: app.link || 'https://wfw.scu.edu.cn',
+              target: '_blank',
+              rel: 'noopener noreferrer',
+              style: {
+                ...S.card,
+                padding: '14px 16px',
+                borderRadius: '10px',
+                background: 'var(--dsw-alias-bg-card, #ffffff)',
+                border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.12))',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                transition: 'all 0.15s ease',
+              }
+            },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' } },
+                h('div', {
+                  style: {
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.08))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                  }
+                },
+                  app.icon ? h('img', { src: app.icon, style: { width: '22px', height: '22px', objectFit: 'contain' }, alt: '' }) : h(GridIcon, { size: 14 })
+                ),
+                h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+                  h('div', {
+                    style: {
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: 'var(--dsw-alias-text, inherit)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }
+                  }, app.name),
+                  h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)', marginTop: '2px' } },
+                    app.category
+                  )
+                )
+              ),
+              h(ExternalLinkIcon, { size: 12, style: { color: 'var(--dsw-alias-text-sub, #71717a)', flexShrink: 0, marginLeft: '6px' } })
+            ))
+          )
+        )
+      )
+    }
+
     // ================== 子页面 7：四川大学校园微服务大厅 (纯白极简卡片架构) ==================
     const ELE_CACHE_EXPIRE_MS = 60 * 60 * 1000 // 1 小时自动缓存有效周期
 
     function ServicesView({ onRequireLogin }) {
-      const [subView, setSubView] = useState('hub') // 'hub' | 'electricity' | 'card' | 'network'
+      const [subView, setSubView] = useState('hub') // 'hub' | 'electricity' | 'card' | 'network' | 'bus' | 'lostfound' | 'library' | 'apps'
       const [activeCategory, setActiveCategory] = useState('all') // 'all' | 'life' | 'network' | 'public'
       const [activeModalApp, setActiveModalApp] = useState(null)
       const [hoveredCardId, setHoveredCardId] = useState(null)
@@ -5338,6 +6710,66 @@ window.__ModuleLoader__.load({
         }
       }, [onRequireLogin])
 
+      // 4. 校车运行时刻数据与缓存
+      const cachedBus = SCU_CACHE.get('wfw_bus')
+      const [busData, setBusData] = useState(cachedBus?.data || null)
+      const fetchBus = useCallback(async () => {
+        const cache = SCU_CACHE.get('wfw_bus')
+        const now = Date.now()
+        if (cache?.data && (now - (cache.timestamp || 0) < ELE_CACHE_EXPIRE_MS)) {
+          setBusData(cache.data)
+          return
+        }
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/bus/schedule`)
+          if (resp.ok) {
+            const d = await resp.json()
+            setBusData(d)
+            SCU_CACHE.set('wfw_bus', d)
+          }
+        } catch (_) {}
+      }, [])
+
+      // 5. 校园卡失物招领数据与缓存
+      const cachedLost = SCU_CACHE.get('wfw_lost')
+      const [lostData, setLostData] = useState(cachedLost?.data || null)
+      const fetchLost = useCallback(async () => {
+        const cache = SCU_CACHE.get('wfw_lost')
+        const now = Date.now()
+        if (cache?.data && (now - (cache.timestamp || 0) < ELE_CACHE_EXPIRE_MS)) {
+          setLostData(cache.data)
+          return
+        }
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/card/lost_found`)
+          if (resp.ok) {
+            const d = await resp.json()
+            setLostData(d)
+            SCU_CACHE.set('wfw_lost', d)
+          }
+        } catch (_) {}
+      }, [])
+
+      // 6. 图书馆读者证数据与缓存
+      const cachedLib = SCU_CACHE.get('wfw_lib')
+      const [libData, setLibData] = useState(cachedLib?.data || null)
+      const fetchLib = useCallback(async () => {
+        const cache = SCU_CACHE.get('wfw_lib')
+        const now = Date.now()
+        if (cache?.data && (now - (cache.timestamp || 0) < ELE_CACHE_EXPIRE_MS)) {
+          setLibData(cache.data)
+          return
+        }
+        try {
+          const resp = await fetch(`${SERVICE_URL}/api/wfw/library/status`)
+          if (resp.ok) {
+            const d = await resp.json()
+            setLibData(d)
+            SCU_CACHE.set('wfw_lib', d)
+          }
+        } catch (_) {}
+      }, [])
+
       // 远程下线终端设备操作
       const handleOfflineDevice = useCallback(async (deviceId, ip) => {
         const resp = await fetch(`${SERVICE_URL}/api/wfw/network/offline`, {
@@ -5353,23 +6785,29 @@ window.__ModuleLoader__.load({
         await fetchNetwork(true)
       }, [fetchNetwork])
 
-      // 挂载时检查：仅在无缓存或已超 1 小时时静默拉取三大在线微服务
+      // 挂载时检查：仅在无缓存或已超 1 小时时静默拉取微服务数据
       useEffect(() => {
         fetchElectricity(false)
         fetchCard(false)
         fetchNetwork(false)
+        fetchBus()
+        fetchLost()
+        fetchLib()
 
         // 定时检测：每 10 分钟检测一次，若自然过去超过 1 小时则自动静默刷新一次
         const timer = setInterval(() => {
           fetchElectricity(false)
           fetchCard(false)
           fetchNetwork(false)
+          fetchBus()
+          fetchLost()
+          fetchLib()
         }, 10 * 60 * 1000)
 
         return () => clearInterval(timer)
-      }, [fetchElectricity, fetchCard, fetchNetwork])
+      }, [fetchElectricity, fetchCard, fetchNetwork, fetchBus, fetchLost, fetchLib])
 
-      // 若当前进入子页面（电费详情 / 一卡通详情 / 校园网详情）
+      // 若当前进入子页面（电费详情 / 一卡通详情 / 校园网详情 / 校车时刻 / 失物招领 / 图书馆 / 微应用广场）
       if (subView === 'electricity') {
         return h(ElectricityDetailView, {
           onRequireLogin,
@@ -5407,6 +6845,30 @@ window.__ModuleLoader__.load({
           onOfflineDevice: handleOfflineDevice,
         })
       }
+      if (subView === 'bus') {
+        return h(BusDetailView, {
+          onRequireLogin,
+          onBack: () => setSubView('hub'),
+        })
+      }
+      if (subView === 'lostfound') {
+        return h(CardLostDetailView, {
+          onRequireLogin,
+          onBack: () => setSubView('hub'),
+        })
+      }
+      if (subView === 'library') {
+        return h(LibraryDetailView, {
+          onRequireLogin,
+          onBack: () => setSubView('hub'),
+        })
+      }
+      if (subView === 'apps') {
+        return h(AppSquareDetailView, {
+          onRequireLogin,
+          onBack: () => setSubView('hub'),
+        })
+      }
 
       // 过滤分类应用
       const filteredServices = MICRO_SERVICES_CATALOG.filter(item => {
@@ -5416,10 +6878,10 @@ window.__ModuleLoader__.load({
 
       // 分类筛选列表
       const categories = [
-        { key: 'all', label: '全部服务 (7)' },
-        { key: 'life', label: '校园生活 (3)' },
+        { key: 'all', label: '全部服务 (9)' },
+        { key: 'life', label: '校园生活 (4)' },
         { key: 'network', label: '网络信息化 (1)' },
-        { key: 'public', label: '综合便民 (3)' },
+        { key: 'public', label: '综合便民 (4)' },
       ]
 
       return h('div', null,
@@ -5529,10 +6991,16 @@ window.__ModuleLoader__.load({
             const IconComp = srv.icon
 
             // 底部操作文案
-            let bottomActionText = '查看功能规划与规范'
+            let bottomActionText = '查看微服务详情'
             if (isEle) bottomActionText = '进入详细看板与换房'
             else if (isCard) bottomActionText = '查看卡片流水与充值'
             else if (isNet) bottomActionText = '管理在线终端与网络'
+            else if (srv.id === 'bus') bottomActionText = '查看校车时刻与下一班'
+            else if (srv.id === 'lostfound') bottomActionText = '排查本人卡片与招领'
+            else if (srv.id === 'library') bottomActionText = '查看读者证与借阅额度'
+            else if (srv.id === 'apps') bottomActionText = '浏览 62+ 全校微应用'
+            else if (srv.id === 'sports') bottomActionText = '直达场馆预约平台'
+            else if (srv.id === 'repairs') bottomActionText = '直达后勤微报修'
 
             return h('div', {
               key: srv.id,
@@ -5564,6 +7032,16 @@ window.__ModuleLoader__.load({
                   setSubView('card')
                 } else if (isNet) {
                   setSubView('network')
+                } else if (srv.id === 'bus') {
+                  setSubView('bus')
+                } else if (srv.id === 'lostfound') {
+                  setSubView('lostfound')
+                } else if (srv.id === 'library') {
+                  setSubView('library')
+                } else if (srv.id === 'apps') {
+                  setSubView('apps')
+                } else if (srv.url) {
+                  window.open(srv.url, '_blank')
                 } else {
                   setActiveModalApp(srv)
                 }
@@ -5767,7 +7245,228 @@ window.__ModuleLoader__.load({
                   )
                 ),
 
-                // 4. 其它规划中微服务亮点微标签
+                // 4. 校车运行时刻专属微缩概览指标
+                srv.id === 'bus' && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(TruckIcon, { size: 12 }),
+                      busData?.routes?.[0]?.nextBus ? `下一班: ${busData.routes[0].nextBus.time}` : '望江 ⇄ 江安 ⇄ 华西'
+                    ),
+                    h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, `● ${busData?.dayTypeText || '工作日'}`)
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, `最近发车: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        busData?.routes?.[0]?.nextBus ? (busData.routes[0].nextBus.diffMinutes > 0 ? `约 ${busData.routes[0].nextBus.diffMinutes} 分钟后` : '即将发车') : '按时刻表发车'
+                      )
+                    ),
+                    h('span', null, `运行区间: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } }, '07:15 - 22:30')
+                    )
+                  ),
+                  h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, '后勤保障部官方时刻表'),
+                    h('span', null, '点进查看原图与多路线')
+                  )
+                ),
+
+                // 5. 校园卡失物招领专属微缩概览指标
+                srv.id === 'lostfound' && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(SearchIcon, { size: 12 }),
+                      '本人学号安全体检'
+                    ),
+                    h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, '● 状态正常')
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, `本人卡片: `,
+                      h('strong', { style: { color: '#10b981' } },
+                        lostData?.myStatus?.isFound ? '⚠️ 被人拾获' : '未见丢失登记'
+                      )
+                    ),
+                    h('span', null, `全校公示: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        lostData?.totalCount !== undefined ? `${lostData.totalCount} 张待认领` : '实时同步中...'
+                      )
+                    )
+                  ),
+                  h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, '服务大厅: 青春广场 / 基教'),
+                    h('span', null, '支持任意学号快速自查')
+                  )
+                ),
+
+                // 6. 图书馆专属微缩概览指标
+                srv.id === 'library' && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(LibraryIcon, { size: 12 }),
+                      libData?.readerId ? `读者证: ${libData.readerId}` : '四川大学图书馆'
+                    ),
+                    h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, `● ${libData?.status || '证件正常'}`)
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, `在借图书: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        libData?.borrowCount !== undefined ? `${libData.borrowCount} / ${libData.maxBorrow || 30} 册` : '0 / 30 册'
+                      )
+                    ),
+                    h('span', null, `借阅欠费: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } },
+                        libData?.arrears !== undefined ? `¥ ${libData.arrears.toFixed(2)}` : '¥ 0.00'
+                      )
+                    )
+                  ),
+                  h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, '本科生可借 30 册 / 30 天'),
+                    h('span', null, '馆藏检索与借阅直达')
+                  )
+                ),
+
+                // 7. 微应用服务广场专属微缩概览指标
+                srv.id === 'apps' && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(GridIcon, { size: 12 }),
+                      '四川大学官方微服务平台'
+                    ),
+                    h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, '● 全量聚合')
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, `收录应用: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } }, '62+ 全校服务')
+                    ),
+                    h('span', null, `覆盖板块: `,
+                      h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } }, '9 大核心分类')
+                    )
+                  ),
+                  h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, '支持毫秒级全局即输即搜'),
+                    h('span', null, '免密跳转官方各大子系统')
+                  )
+                ),
+
+                // 8. 快捷直达微服务概览（体育场馆、后勤报修）
+                (srv.id === 'sports' || srv.id === 'repairs') && h('div', {
+                  style: {
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--dsw-alias-bg-sub, rgba(125, 125, 125, 0.04))',
+                    border: '1px solid var(--dsw-alias-border, rgba(125, 125, 125, 0.08))',
+                    marginBottom: '14px',
+                    fontSize: '12px',
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+                    h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 } },
+                      h(srv.icon, { size: 12 }),
+                      srv.id === 'sports' ? '三校区场馆中心' : '智慧后勤微服务'
+                    ),
+                    h('span', { style: { fontSize: '10px', color: '#10b981', fontWeight: 500 } }, '● 官方直连')
+                  ),
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--dsw-alias-text-sub, #71717a)' } },
+                    h('span', null, srv.id === 'sports' ? '支持羽毛球/网球/游泳馆' : '支持水电门窗空调极速报修'),
+                    h('span', null, h('strong', { style: { color: 'var(--dsw-alias-text, inherit)' } }, '一键直达'))
+                  ),
+                  h('div', {
+                    style: {
+                      fontSize: '10px',
+                      color: 'var(--dsw-alias-text-sub, #71717a)',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px dashed var(--dsw-alias-border, rgba(125, 125, 125, 0.1))',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  },
+                    h('span', null, '统一身份认证免密进入'),
+                    h('span', null, '在新窗口安全打开')
+                  )
+                ),
+
+                // 9. 其它微服务亮点微标签 (兜底)
                 !isOnline && h('div', {
                   style: {
                     display: 'flex',

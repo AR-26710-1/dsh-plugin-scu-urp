@@ -716,6 +716,56 @@ async def offline_wfw_device_api(req: DeviceOfflineRequest):
         raise HTTPException(status_code=500, detail=f"终端下线操作异常: {str(e)}")
 
 
+# ================== 扩展微服务 API：微应用广场、校车、失物招领、图书馆 ==================
+
+@app.get("/api/wfw/apps/all")
+async def get_wfw_apps_all_api(refresh: bool = Query(default=False, description="是否强制刷新微应用广场")):
+    """获取四川大学 9 大分类全量 60+ 微应用广场清单与认证跳转"""
+    try:
+        return wfw_client.get_app_square(force_refresh=refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取全校微应用广场失败: {str(e)}")
+
+
+@app.get("/api/wfw/apps/search")
+async def search_wfw_apps_api(keyword: str = Query(default="", description="搜索关键词")):
+    """按关键词在全校微应用中全局搜索"""
+    try:
+        results = wfw_client.search_apps(keyword)
+        return {"success": True, "keyword": keyword, "count": len(results), "apps": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索微应用失败: {str(e)}")
+
+
+@app.get("/api/wfw/card/lost_found")
+async def get_wfw_card_lost_found_api(student_id: str = Query(default="", description="自定义排查学号")):
+    """获取全校一卡通失物招领最新列表并进行学号安全自查"""
+    try:
+        # 若未指定学号，默认自动匹配当前已认证用户的学号
+        target_id = student_id.strip() or ele_client.cus_no or "2024141470117"
+        return wfw_client.get_card_lost_found(my_student_id=target_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取失物招领异常: {str(e)}")
+
+
+@app.get("/api/wfw/bus/schedule")
+async def get_wfw_shuttle_bus_api():
+    """获取望江、江安、华西校区间校园交通车时刻表与下一班车倒计时"""
+    try:
+        return wfw_client.get_shuttle_bus_schedule()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取校车时刻表异常: {str(e)}")
+
+
+@app.get("/api/wfw/library/status")
+async def get_wfw_library_status_api(refresh: bool = Query(default=False, description="是否强制刷新")):
+    """获取图书馆读者证号、借阅额度、当前在借与欠费情况"""
+    try:
+        return wfw_client.get_library_status(force_refresh=refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取图书馆状态异常: {str(e)}")
+
+
 
 # ================== 教务处核心业务 API ==================
 
