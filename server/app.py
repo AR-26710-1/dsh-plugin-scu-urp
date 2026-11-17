@@ -27,6 +27,8 @@ from ele_client import ele_client
 from wfw_client import wfw_client
 from auth_hub import auth_hub
 from calendar_exporter import generate_ics
+from ele_history import record_snapshot, get_electricity_trend
+from card_bookkeeping import analyze_card_records, save_card_note
 
 cred_store = CredentialStore()
 client = SCUUrpClient()
@@ -425,7 +427,7 @@ def ensure_electricity_authenticated(force_refresh: bool = False):
 
 @app.get("/api/electricity/status")
 async def get_electricity_status_api():
-    """获取当前宿舍的空调电费与照明电费数据 (自动利用统一认证凭据免二次登录)"""
+    """获取当前宿舍的空调电费与照明电费数据 (自动利用统一认证凭据免二次登录并打点持久化)"""
     ensure_electricity_authenticated()
     data = ele_client.query_electricity()
     if not data.get("success"):
@@ -437,7 +439,26 @@ async def get_electricity_status_api():
             pass
     if not data.get("success"):
         raise HTTPException(status_code=500, detail=data.get("message") or "获取电费信息失败")
+    
+    # 自动持久化历史抄表打点
+    try:
+        air_b = data.get("air", {}).get("balance") if data.get("air") else None
+        light_b = data.get("light", {}).get("balance") if data.get("light") else None
+        record_snapshot(data.get("roomDisplay", ""), air_b, light_b, 0.5464)
+    except Exception as e:
+        print(f"[EleHistory] 自动记录快照异常: {e}")
+
     return data
+
+
+@app.get("/api/electricity/history")
+async def get_electricity_history_api(days: int = Query(default=14, description="查询近N天耗电历史")):
+    """获取宿舍电费历史抄表快照、每日耗电量变化与趋势分析数据"""
+    try:
+        trend = get_electricity_trend(days=max(3, min(90, days)))
+        return trend
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取电费历史分析异常: {str(e)}")
 
 
 @app.get("/api/electricity/campuses")
@@ -682,6 +703,45 @@ async def get_wfw_card_status_api(refresh: bool = Query(default=False, descripti
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"拉取一卡通微服务异常: {str(e)}")
+
+
+class CardNoteRequest(BaseModel):
+    recordId: str
+    note: str
+    tag: Optional[str] = ""
+
+
+@app.get("/api/wfw/card/bookkeeping")
+async def get_card_bookkeeping_api(refresh: bool = Query(default=False, description="是否强制刷新一卡通流水")):
+    """获取校园一卡通消费记账统计、分类占比、近14天每日趋势与自定义备注"""
+    try:
+        card_res = wfw_client.get_card_status(force_refresh=refresh)
+        if not card_res.get("success"):
+            card_res = wfw_client.get_card_status(force_refresh=True)
+        if not card_res.get("success"):
+            raise HTTPException(status_code=500, detail=card_res.get("message", "获取校园卡流水失败"))
+        
+        records = card_res.get("records", [])
+        analysis = analyze_card_records(records)
+        analysis["balance"] = card_res.get("balance", "0.00")
+        analysis["cardStatus"] = card_res.get("cardStatus", "正常")
+        return analysis
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"一卡通记账分析异常: {str(e)}")
+
+
+@app.post("/api/wfw/card/note")
+async def update_card_note_api(payload: CardNoteRequest):
+    """保存或更新单笔交易流水自定义记账备注与标签"""
+    if not payload.recordId:
+        raise HTTPException(status_code=400, detail="交易流水 ID 不能为空")
+    try:
+        ok = save_card_note(payload.recordId, payload.note, payload.tag or "")
+        return {"success": ok, "message": "记账备注已保存" if ok else "保存失败"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新记账备注异常: {str(e)}")
 
 
 @app.get("/api/wfw/network/status")

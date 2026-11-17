@@ -544,6 +544,68 @@ export function apply(ctx, config) {
     },
   }))
 
+  // 7.15 注册宿舍电费历史抄表与用电走势查询工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_electricity_history',
+    description: '查询四川大学宿舍电费的历史抄表快照数据、每日耗电量变化、日均耗电度数、剩余电量预计可用天数与耗电峰值日分析。',
+    parameters: {
+      type: 'object',
+      properties: {
+        days: {
+          type: 'integer',
+          description: '可选：分析近 N 天的用电走势，默认 14 天，可选范围 3 ~ 90 天。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `查询宿舍电费历史走势失败: ${value.error}` }]
+        }
+        const d = value.data
+        const s = d.summary || {}
+        const days = d.days || 14
+        const peakText = s.peakDay ? `• **耗电峰值日**: ${s.peakDay.date} (单日耗电 **${s.peakDay.usedDegrees} 度** · 约 ¥ ${s.peakDay.cost})\n` : ''
+        
+        let dailyText = ''
+        if (d.dailyUsage && d.dailyUsage.length > 0) {
+          const recentDays = d.dailyUsage.slice(-5)
+          const rows = recentDays.map(item => `  - ${item.date}: 消耗 **${item.usedDegrees} 度** (约 ¥ ${item.cost})`)
+          dailyText = `\n\n**近几天单日耗电明细**:\n` + rows.join('\n')
+        }
+
+        return [{
+          type: 'text',
+          text: `**川大宿舍电费耗电走势与历史分析 (近 ${days} 天)**:\n• **当前剩余总电量**: **${s.currentTotalDegrees || 0} 度** (空调 ${s.currentAirDegrees || 0} 度 + 照明 ${s.currentLightDegrees || 0} 度)\n• **区间日均消耗**: **${s.avgDailyUsage || 0} 度/天** (区间累计消耗 ${s.totalPeriodUsage || 0} 度)\n• **预计可用天数**: 约 **${s.estimatedDaysLeft || '--'} 天** (以当前日均耗电推算)\n${peakText}• **基准电价**: 0.5464 元/度${dailyText}\n\n提示: 可在插件左侧看板【宿舍电费】中查看更详尽的纯白极简折线图与双模历史抄表流水。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const days = args.days || 14
+        const resp = await fetch(`${serviceUrl}/api/electricity/history?days=${days}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地电费后端: ${e.message}` }
+      }
+    },
+  }))
+
   // 7.2 注册宿舍电费在线购电下单工具 (Cordis Tools)
   ctx.effect(() => ctx.tools.register({
     name: 'scu_create_electricity_recharge',
@@ -680,6 +742,69 @@ export function apply(ctx, config) {
       try {
         const refreshParam = args.refresh ? '?refresh=true' : ''
         const resp = await fetch(`${serviceUrl}/api/wfw/card/status${refreshParam}`)
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          return { success: false, error: err.detail || `HTTP ${resp.status}` }
+        }
+        const data = await resp.json()
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
+      }
+    },
+  }))
+
+  // 8.1 注册校园一卡通记账统计与智能消费分析工具 (Cordis Tools)
+  ctx.effect(() => ctx.tools.register({
+    name: 'scu_get_card_bookkeeping',
+    description: '查询四川大学校园一卡通记账统计分析，包括今日、本周、本月的支出汇总、日均花费、食堂餐饮等分类占比、消费最高单笔档口与近 14 天花费走势。',
+    parameters: {
+      type: 'object',
+      properties: {
+        refresh: {
+          type: 'boolean',
+          description: '可选：是否强制刷新并重新计算一卡通记账账单。',
+        },
+      },
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          data: { type: 'object' },
+          error: { type: 'string' },
+        },
+        required: ['success'],
+      },
+      render(args, value) {
+        if (!value.success) {
+          return [{ type: 'text', text: `获取一卡通记账统计失败: ${value.error}` }]
+        }
+        const d = value.data
+        const s = d.summary || {}
+        
+        let catText = ''
+        if (d.categories && d.categories.length > 0) {
+          const rows = d.categories.filter(c => c.amount > 0).map(c => `  - **${c.name}**: **¥ ${c.amount.toFixed(2)}** (占比 ${c.percentage}% · ${c.count} 笔)`)
+          if (rows.length > 0) {
+            catText = `\n\n**各场景支出分类统计**:\n` + rows.join('\n')
+          }
+        }
+
+        const maxExp = s.maxExpense ? `\n• **单笔最高消费**: **¥ ${s.maxExpense.amount}** (${s.maxExpense.merchant} · ${s.maxExpense.datetime || s.maxExpense.date})` : ''
+
+        return [{
+          type: 'text',
+          text: `**川大校园一卡通智能记账与消费大盘**:\n• **物理卡当前余额**: **¥ ${d.balance || '0.00'}**\n• **今日支出**: **¥ ${s.todaySpent !== undefined ? s.todaySpent.toFixed(2) : '--'}**\n• **本周累计支出**: **¥ ${s.weekSpent !== undefined ? s.weekSpent.toFixed(2) : '--'}** (周一至今)\n• **本月累计支出**: **¥ ${s.monthSpent !== undefined ? s.monthSpent.toFixed(2) : '--'}** (当月1日至今)\n• **区间日均花费**: 约 **¥ ${s.avgDailySpent !== undefined ? s.avgDailySpent.toFixed(2) : '--'} / 天**\n• **累计充值金额**: **¥ ${s.totalRecharge !== undefined ? s.totalRecharge.toFixed(2) : '0.00'}**${maxExp}${catText}\n\n提示: 可在插件左侧看板【校园一卡通】中查看分类占比环、近14天每日走势柱状折线图并为每笔交易流水添加自定义备注。`,
+        }]
+      },
+    },
+    async execute(args = {}) {
+      try {
+        const refreshParam = args.refresh ? '?refresh=true' : ''
+        const resp = await fetch(`${serviceUrl}/api/wfw/card/bookkeeping${refreshParam}`)
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}))
           return { success: false, error: err.detail || `HTTP ${resp.status}` }
