@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-export const inject = ['tools']
+// 注意：不要在顶层声明强依赖 export const inject = ['tools']，否则在没有 tools 服务的 profile/渲染上下文中，
+// Cordis 框架会判定依赖未满足而直接跳过激活本插件，导致 apply() 内的后台服务无法自动拉起。
+// 正确做法是在 apply() 内部使用 ctx.inject(['tools'], (ctx) => { ... }) 进行可选注入。
 
 export const Config = {
   type: 'object',
@@ -137,8 +139,9 @@ export function apply(ctx, config) {
     })
   }
 
-  // 1. 注册课表查询工具
-  ctx.effect(() => ctx.tools.register({
+  // 1. 当宿主环境激活 tools 服务时注册学业查询工具，缺省时不阻塞后台服务自启动
+  ctx.inject(['tools'], (ctx) => {
+    ctx.effect(() => ctx.tools.register({
     name: 'scu_get_schedule',
     description: '查询四川大学当前学期的课表数据，包含星期、上课节次、教学楼/教室位置、授课教师及学分信息。',
     parameters: {
@@ -1238,6 +1241,7 @@ export function apply(ctx, config) {
       } catch (e) {
         return { success: false, error: `无法连接到本地微服务后端: ${e.message}` }
       }
-    },
+    }
   }))
+  })
 }

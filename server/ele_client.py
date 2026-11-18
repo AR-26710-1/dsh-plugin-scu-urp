@@ -65,7 +65,7 @@ class SCUElectricityClient:
     def query_room_info(self, fee_type: int = 1) -> Optional[Dict[str, Any]]:
         """
         查询指定类型的电费详情
-        fee_type: 1 为空调电费, 2 为照明电费
+        fee_type: 1 为宿舍照明电(日常用电), 2 为空调动力电
         """
         self._ensure_user_info()
         if not self.cus_no:
@@ -89,7 +89,8 @@ class SCUElectricityClient:
 
     def query_electricity(self) -> Dict[str, Any]:
         """
-        聚合查询当前宿舍的【空调电费】与【照明电费】
+        聚合查询当前宿舍的【宿舍照明电】与【空调动力电】
+        修正：川大官方接口中 type=1 为照明电，type=2 为空调动力电
         """
         self._ensure_user_info()
         if not self.cus_no:
@@ -102,8 +103,9 @@ class SCUElectricityClient:
                 "light": None
             }
 
-        air_data = self.query_room_info(fee_type=1)
-        light_data = self.query_room_info(fee_type=2)
+        # 准确映射：1 为宿舍照明日常电，2 为空调动力电
+        light_data = self.query_room_info(fee_type=1)
+        air_data = self.query_room_info(fee_type=2)
 
         if not air_data and not light_data:
             return {
@@ -206,7 +208,7 @@ class SCUElectricityClient:
     def create_recharge_order(self, fee_type: int = 1, amount: float = 10.0) -> Dict[str, Any]:
         """
         创建宿舍电费充值订单并请求四川大学统一支付网关
-        fee_type: 1 为空调用电, 2 为照明用电
+        fee_type: 1 为宿舍照明用电, 2 为空调动力用电
         amount: 充值金额 (1 ~ 500 元)
         """
         self._ensure_user_info()
@@ -256,7 +258,7 @@ class SCUElectricityClient:
                 "success": True,
                 "orderNo": order_info.get("orderno", ""),
                 "amount": amt,
-                "feeType": "空调动力电" if fee_type == 1 else "宿舍照明电",
+                "feeType": "宿舍照明电" if fee_type == 1 else "空调动力电",
                 "type": fee_type,
                 "roomName": order_info.get("feename", ""),
                 "userName": order_info.get("name", self.cus_name),

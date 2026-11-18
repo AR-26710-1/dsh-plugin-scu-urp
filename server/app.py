@@ -521,7 +521,7 @@ async def verify_room_api(payload: dict = Body(...)):
 
 
 class ElectricityRechargeRequest(BaseModel):
-    type: int = 1  # 1 为空调动力电费, 2 为宿舍照明电费
+    type: int = 1  # 1 为宿舍照明电费, 2 为空调动力电费
     amount: float = 10.0
 
 
@@ -533,7 +533,7 @@ RECHARGE_ORDERS: Dict[str, Dict[str, Any]] = {}
 async def recharge_electricity_api(req: ElectricityRechargeRequest):
     """
     创建宿舍电费在线充值订单并获取四川大学官方统一支付网关凭证与收银台表单
-    支持空调动力电 (type=1) 与宿舍照明电 (type=2)，金额 1~500 元
+    支持宿舍照明电 (type=1) 与空调动力电 (type=2)，金额 1~500 元
     """
     ensure_electricity_authenticated()
     if req.amount < 1 or req.amount > 500:
@@ -1421,4 +1421,4 @@ async def cancel_grab_scheduled_api():
 
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="127.0.0.1", port=48080, reload=False)
+    uvicorn.run(app, host="127.0.0.1", port=48080)

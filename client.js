@@ -3904,7 +3904,7 @@ window.__ModuleLoader__.load({
       // 在线充值弹窗相关状态
       const [showRechargeModal, setShowRechargeModal] = useState(false)
       const [rechargeStep, setRechargeStep] = useState('select') // 'select' | 'paying' | 'success'
-      const [rechargeType, setRechargeType] = useState(1) // 1: 空调动力电, 2: 宿舍照明电
+      const [rechargeType, setRechargeType] = useState(1) // 1: 宿舍照明电, 2: 空调动力电
       const [rechargeAmt, setRechargeAmt] = useState(50)
       const [isCustomAmt, setIsCustomAmt] = useState(false)
       const [customAmtStr, setCustomAmtStr] = useState('')
@@ -4000,7 +4000,7 @@ window.__ModuleLoader__.load({
             const resp = await fetch(`${SERVICE_URL}/api/electricity/status?refresh=true`)
             if (resp.ok) {
               const res = await resp.json()
-              const curBal = (feeType === 1 ? res?.air?.balance : res?.light?.balance) ?? null
+              const curBal = (feeType === 1 ? res?.light?.balance : res?.air?.balance) ?? null
               if (curBal !== null && initialBal !== null && curBal > initialBal) {
                 // 检测到电费已增加，到账成功
                 stopPolling()
@@ -4062,7 +4062,7 @@ window.__ModuleLoader__.load({
           }
 
           // 3. 记录下单前电量并启动轮询
-          const initialBalance = (rechargeType === 1 ? eleData?.air?.balance : eleData?.light?.balance) ?? null
+          const initialBalance = (rechargeType === 1 ? eleData?.light?.balance : eleData?.air?.balance) ?? null
           startPaymentPolling(rechargeType, initialBalance)
         } catch (err) {
           if (payWindow && !payWindow.closed) payWindow.close()
@@ -4423,8 +4423,8 @@ window.__ModuleLoader__.load({
             marginBottom: '20px',
           }
         },
-          renderFeeCard('空调动力用电', h(SnowflakeIcon, { size: 17 }), eleData?.air, 1),
-          renderFeeCard('宿舍照明用电', h(ZapIcon, { size: 17 }), eleData?.light, 2)
+          renderFeeCard('宿舍照明用电', h(ZapIcon, { size: 17 }), eleData?.light, 1),
+          renderFeeCard('空调动力用电', h(SnowflakeIcon, { size: 17 }), eleData?.air, 2)
         ),
 
         // 用电历史与耗电走势分析 (纯白极简 SVG 折线图架构)
@@ -5004,7 +5004,7 @@ window.__ModuleLoader__.load({
                     fontSize: '13px',
                   },
                   onClick: () => setRechargeType(1)
-                }, h(SnowflakeIcon, { size: 15 }), '空调动力电 (回路 1)'),
+                }, h(ZapIcon, { size: 15 }), '宿舍照明电 (回路 1)'),
                 h('button', {
                   type: 'button',
                   style: {
@@ -5022,7 +5022,7 @@ window.__ModuleLoader__.load({
                     fontSize: '13px',
                   },
                   onClick: () => setRechargeType(2)
-                }, h(ZapIcon, { size: 15 }), '宿舍照明电 (回路 2)')
+                }, h(SnowflakeIcon, { size: 15 }), '空调动力电 (回路 2)')
               ),
 
               // 充值金额快捷选项
@@ -5169,7 +5169,7 @@ window.__ModuleLoader__.load({
                 }
               },
                 h('div', null, `订单编号: ${orderInfo.orderNo || '--'}`),
-                h('div', null, `充值项目: ${orderInfo.feeType || (rechargeType === 1 ? '空调动力电' : '宿舍照明电')}`),
+                h('div', null, `充值项目: ${orderInfo.feeType || (rechargeType === 1 ? '宿舍照明电' : '空调动力电')}`),
                 h('div', null, `充值金额: ¥ ${orderInfo.amount || rechargeAmt}`),
                 h('div', null, `充值房间: ${orderInfo.roomName || eleData?.roomDisplay || ''}`)
               ),
