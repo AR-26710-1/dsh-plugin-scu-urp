@@ -10493,25 +10493,37 @@ window.__ModuleLoader__.load({
       const [isLoggedIn, setIsLoggedIn] = useState(false)
       const [hasCreds, setHasCreds] = useState(false)
       const [studentName, setStudentName] = useState('')
+      const [isStartingService, setIsStartingService] = useState(false)
 
-      const checkStatus = useCallback(async () => {
+      const checkStatus = useCallback(async (retryCount = 0) => {
         try {
-          const resp = await fetch(`${SERVICE_URL}/api/status`)
+          const resp = await fetch(`${SERVICE_URL}/api/status`, { signal: AbortSignal.timeout(1500) })
           if (resp.ok) {
             const d = await resp.json()
             setIsLoggedIn(d.isLoggedIn)
             setHasCreds(d.hasCredentials)
             setStudentName(d.studentName || d.username || '')
+            setIsStartingService(false)
+            setStatusChecked(true)
             if (!d.hasCredentials && !d.isLoggedIn) {
               setActiveTab('settings')
             }
+            return
           }
         } catch (_) {}
-        setStatusChecked(true)
+
+        // 后端可能正在被 DSH 宿主环境静默唤醒中，启动渐进重试
+        if (retryCount < 8) {
+          setIsStartingService(true)
+          setTimeout(() => checkStatus(retryCount + 1), 800)
+        } else {
+          setIsStartingService(false)
+          setStatusChecked(true)
+        }
       }, [])
 
       useEffect(() => {
-        checkStatus()
+        checkStatus(0)
       }, [checkStatus])
 
       // Keyboard-first 极客快捷键: 数字键 1~8 秒切 8 大 Tab
@@ -10559,9 +10571,17 @@ window.__ModuleLoader__.load({
             ),
             h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
               h('div', { style: { display: 'flex', alignItems: 'center', fontSize: '13px' } },
-                h('span', { style: S.statusDot(isLoggedIn) }),
+                h('span', {
+                  style: {
+                    ...S.statusDot(isLoggedIn),
+                    background: isStartingService ? '#f59e0b' : (isLoggedIn ? '#10b981' : '#71717a'),
+                    boxShadow: isStartingService ? '0 0 8px rgba(245, 158, 11, 0.4)' : (isLoggedIn ? '0 0 8px rgba(16, 185, 129, 0.3)' : 'none'),
+                  }
+                }),
                 h('span', { style: { color: 'var(--dsw-alias-text-sub, #71717a)' } },
-                  isLoggedIn ? `${studentName || '已连接'}` : '未连接教务处'
+                  isStartingService
+                    ? '正在自动唤醒后台服务...'
+                    : (isLoggedIn ? `${studentName || '已连接'}` : '未连接教务处')
                 )
               ),
               isLoggedIn && h('button', {

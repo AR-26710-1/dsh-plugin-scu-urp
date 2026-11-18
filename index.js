@@ -34,63 +34,106 @@ export function apply(ctx, config) {
   const serviceUrl = config?.serviceUrl || 'http://127.0.0.1:48080'
   const autoStart = config?.autoStartServer !== false
 
-  // 0. 自动托管：如果后台服务未运行，则静默自动拉起 Python 后端进程
+  // 0. 自动托管：如果后台服务未运行，则静默自动拉起 Python 后端独立守护进程
   if (autoStart) {
-    let serverProcess = null
+    let daemonSpawned = false
 
-    ctx.effect(() => {
-      async function ensureBackendRunning() {
-        try {
-          const res = await fetch(`${serviceUrl}/api/status`, { signal: AbortSignal.timeout(1000) })
-          if (res.ok) return // 已经在线，无需重复启动
-        } catch (_) {}
+    async function isServiceAlive() {
+      try {
+        const res = await fetch(`${serviceUrl}/api/status`, { signal: AbortSignal.timeout(1000) })
+        return res.ok
+      } catch (_) {
+        return false
+      }
+    }
 
-        const serverScript = path.resolve(__dirname, 'server', 'app.py')
-        try {
-          // 优先定位已安装依赖的 Python 3.12 绝对路径，避免被系统的其它 Python (如 msys/mingw) 干扰
-          const localAppData = process.env.LOCALAPPDATA || path.resolve(process.env.USERPROFILE || 'C:\\Users\\30315', 'AppData', 'Local')
-          const defaultPy312 = path.resolve(localAppData, 'Programs', 'Python', 'Python312', 'python.exe')
-          
-          let pyBin = 'py'
-          let pyArgs = ['-3.12', serverScript]
+    async function ensureBackendRunning() {
+      if (await isServiceAlive()) {
+        return // 已经在线，无需重复启动
+      }
 
-          if (process.platform === 'win32') {
+      if (daemonSpawned) return
+      daemonSpawned = true
+
+      const serverScript = path.resolve(__dirname, 'server', 'app.py')
+      const logDir = path.resolve(__dirname, 'server', 'data')
+      try {
+        if (!fs.existsSync(logDir)) {
+          fs.mkdirSync(logDir, { recursive: true })
+        }
+      } catch (_) {}
+      const logFile = path.resolve(logDir, 'daemon.log')
+
+      try {
+        // 精准定位已安装依赖的 Python 3.12 绝对路径，杜绝被 MSYS2 / MinGW 等无依赖的 Python 干扰
+        const localAppData = process.env.LOCALAPPDATA || (process.env.USERPROFILE ? path.resolve(process.env.USERPROFILE, 'AppData', 'Local') : 'C:\\Users\\30315\\AppData\\Local')
+        const pyCandidates = [
+          path.resolve(localAppData, 'Programs', 'Python', 'Python312', 'python.exe'),
+          'C:\\Users\\30315\\AppData\\Local\\Programs\\Python\\Python312\\python.exe',
+          path.resolve(localAppData, 'Programs', 'Python', 'Python311', 'python.exe'),
+        ]
+
+        let pyBin = 'py'
+        let pyArgs = ['-3.12', serverScript]
+
+        if (process.platform === 'win32') {
+          for (const cand of pyCandidates) {
             try {
-              if (fs.existsSync(defaultPy312)) {
-                pyBin = defaultPy312
+              if (fs.existsSync(cand)) {
+                pyBin = cand
                 pyArgs = [serverScript]
+                break
               }
             } catch (_) {}
-          } else {
-            pyBin = 'python3'
-            pyArgs = [serverScript]
           }
-
-          serverProcess = spawn(pyBin, pyArgs, {
-            cwd: path.resolve(__dirname, 'server'),
-            detached: false,
-            stdio: 'ignore',
-            windowsHide: true,
-          })
-          serverProcess.on('error', (err) => {
-            console.warn('[SCU-URP] 自动启动 Python 后端服务失败:', err.message)
-          })
-        } catch (e) {
-          console.warn('[SCU-URP] 启动子进程异常:', e.message)
+        } else {
+          pyBin = 'python3'
+          pyArgs = [serverScript]
         }
-      }
 
+        // 以脱钩独立守护进程模式拉起，重定向输出到 daemon.log
+        const outFd = fs.openSync(logFile, 'a')
+        const child = spawn(pyBin, pyArgs, {
+          cwd: path.resolve(__dirname, 'server'),
+          detached: true,
+          stdio: ['ignore', outFd, outFd],
+          windowsHide: true,
+          env: {
+            ...process.env,
+            PYTHONIOENCODING: 'utf-8',
+            PYTHONUNBUFFERED: '1',
+          },
+        })
+
+        child.unref()
+        fs.closeSync(outFd)
+
+        // 持续轮询最多 10 秒直至就绪
+        let retries = 0
+        const timer = setInterval(async () => {
+          retries++
+          if (await isServiceAlive()) {
+            clearInterval(timer)
+            console.log(`[SCU-URP] Python 后端服务已成功在后台启动 (PID: ${child.pid}, ${serviceUrl})`)
+          } else if (retries >= 20) {
+            clearInterval(timer)
+            daemonSpawned = false // 允许后续再次尝试拉起
+          }
+        }, 500)
+
+        child.on('error', (err) => {
+          daemonSpawned = false
+          console.warn('[SCU-URP] 自动启动 Python 后端服务失败:', err.message)
+        })
+      } catch (e) {
+        daemonSpawned = false
+        console.warn('[SCU-URP] 启动子进程异常:', e.message)
+      }
+    }
+
+    ctx.effect(() => {
       ensureBackendRunning()
-
-      // 插件卸载/退出时自动回收子进程
-      return () => {
-        if (serverProcess) {
-          try {
-            serverProcess.kill()
-          } catch (_) {}
-          serverProcess = null
-        }
-      }
+      // 保持长效守护，不随 effect 频繁重建而 kill 正常运行的后端
     })
   }
 

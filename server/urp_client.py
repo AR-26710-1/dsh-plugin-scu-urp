@@ -62,21 +62,44 @@ class SCUUrpClient:
     def _md5_hex(s: str) -> str:
         return hashlib.md5(s.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _sm3_hex(s: str) -> str:
+        """国密 SM3 哈希计算（支持 Python 3.12 原生 hashlib.new('sm3')）"""
+        try:
+            return hashlib.new("sm3", s.encode("utf-8")).hexdigest().lower()
+        except Exception:
+            # 极少数环境下不支持时安全回退 md5
+            return hashlib.md5(s.encode("utf-8")).hexdigest()
+
     @classmethod
     def _hex_md5(cls, string: str, ver: str = "") -> str:
-        """还原教务处前端 /js/md5/md5.min.js 的 hex_md5 加盐算法"""
+        """
+        还原教务处前端 /js/md5/md5.min.js 的 hex_md5 加盐算法:
+        string = md5_Utf8Encode(string + (ver ? "{" + (ver === "v6" ? "Urp602019" : ver) + "}" : ""));
+        """
         if ver:
             salt = "Urp602019" if ver == "v6" else ver
             string = f"{string}{{{salt}}}"
         return cls._md5_hex(string)
 
     @classmethod
-    def encrypt_password(cls, password: str, token_value: str = "") -> str:
+    def encrypt_password(cls, password: str, token_value: str = "", encode_type: str = "md5") -> str:
         """
         四川大学综合教务系统官方前端真实加密逻辑 (源自 /js/login/login.js encodePass)
-        pass = hex_md5(hex_md5(pwd, 'v6'), token) + '*' + hex_md5(hex_md5(pwd, ''), token)
+        - 若 loginEncodeType === "sm3":
+            pass = hex_md5(SM3Encode(pwd), token) + '*' + hex_md5(hex_md5(pwd, ''), token)
+            其中 SM3Encode(msg) = sm3(msg + "{Urp602023}")
+        - 默认 loginEncodeType === "md5":
+            pass = hex_md5(hex_md5(pwd, 'v6'), token) + '*' + hex_md5(hex_md5(pwd, ''), token)
+            其中 hex_md5(pwd, 'v6') = md5(pwd + "{Urp602019}")
+            外层 hex_md5(..., token) = md5(... + "{" + token + "}")
         """
-        p1 = cls._hex_md5(cls._hex_md5(password, "v6"), token_value)
+        if encode_type == "sm3":
+            sm3_pass = cls._sm3_hex(f"{password}{{Urp602023}}")
+            p1 = cls._hex_md5(sm3_pass, token_value)
+        else:
+            p1 = cls._hex_md5(cls._hex_md5(password, "v6"), token_value)
+
         p2 = cls._hex_md5(cls._hex_md5(password, ""), token_value)
         return f"{p1}*{p2}"
 
@@ -118,8 +141,14 @@ class SCUUrpClient:
                 login_page_resp = self.session.get(f"{self.BASE_URL}/login", headers=self.headers, timeout=12)
                 html = login_page_resp.text
 
-                token_match = re.search(r"name=['\"]tokenValue['\"][^>]*value=['\"]([^'\"]+)['\"]", html)
+                # 提取动态 tokenValue 与加密类型 loginEncodeType
+                token_match = re.search(r'(?:id|name)=[\'"]tokenValue[\'"][^>]*value=[\'"]([^\'"]+)[\'"]', html, re.IGNORECASE) or \
+                              re.search(r'value=[\'"]([^\'"]+)[\'"][^>]*(?:id|name)=[\'"]tokenValue[\'"]', html, re.IGNORECASE)
                 token_value = token_match.group(1) if token_match else ""
+
+                encode_match = re.search(r'(?:id|name)=[\'"]loginEncodeType[\'"][^>]*value=[\'"]([^\'"]+)[\'"]', html, re.IGNORECASE) or \
+                               re.search(r'value=[\'"]([^\'"]+)[\'"][^>]*(?:id|name)=[\'"]loginEncodeType[\'"]', html, re.IGNORECASE)
+                encode_type = encode_match.group(1).lower() if encode_match else "md5"
 
                 hidden_inputs = {}
                 for m in re.finditer(r'<input[^>]+type=[\'"]hidden[\'"][^>]*>', html, re.IGNORECASE):
@@ -167,8 +196,8 @@ class SCUUrpClient:
                 if not captcha_code:
                     continue
 
-                # 3. 构造请求载荷与头部
-                encrypted_pwd = self.encrypt_password(self.password, token_value)
+                # 3. 构造请求载荷与头部（动态 tokenValue 双重 MD5 / SM3 拼接 * 加密）
+                encrypted_pwd = self.encrypt_password(self.password, token_value, encode_type)
                 payload = {
                     "j_username": self.username,
                     "j_password": encrypted_pwd,
