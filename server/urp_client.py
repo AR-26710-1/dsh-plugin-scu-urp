@@ -556,13 +556,70 @@ class SCUUrpClient:
 
         return day, start_sec, cont_sec, room
 
+    @staticmethod
+    def parse_school_calendar_text(page_html: str) -> Dict[str, Any]:
+        """
+        从教务处页面中提取并解析官方当前学年、学期、教学周次与星期信息
+        匹配目标: <span class="span_bbzx">2026-2027 秋  第12周   星期三</span>
+        并基于提取时刻的日期反推第一教学周周一的公历日期，支持系统后续自演进计算教学周
+        """
+        if not page_html:
+            return {}
+
+        m_span = re.search(r'<span[^>]*class=["\']span_bbzx["\'][^>]*>(.*?)</span>', page_html, re.S)
+        raw_text = m_span.group(1).strip() if m_span else ""
+        if not raw_text:
+            m_alt = re.search(r'(\d{4}\s*[-–—~至]\s*\d{4}[^<>\r\n]+第\s*\d+\s*周[^<>\r\n]*)', page_html)
+            raw_text = m_alt.group(1).strip() if m_alt else ""
+
+        if not raw_text:
+            return {}
+
+        clean_text = re.sub(r'\s+', ' ', raw_text)
+
+        year_m = re.search(r'(\d{4}\s*[-–—~至]\s*\d{4})', clean_text)
+        academic_year = year_m.group(1).replace(' ', '') if year_m else ''
+
+        term_m = re.search(r'([春秋夏])(?:季|学期)?', clean_text)
+        term = term_m.group(1) if term_m else ''
+
+        week_m = re.search(r'第\s*(\d+)\s*周', clean_text)
+        week_num = int(week_m.group(1)) if week_m else 0
+
+        day_m = re.search(r'(?:星期|周)([一二三四五六日天])', clean_text)
+        day_char = day_m.group(1) if day_m else ''
+        day_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7}
+        day_num = day_map.get(day_char, 0)
+        day_name = f"星期{day_char}" if day_char else ''
+
+        today = datetime.date.today()
+        first_monday_str = ''
+        if week_num > 0:
+            offset_to_this_monday = (day_num - 1) if (1 <= day_num <= 7) else (today.isoweekday() - 1)
+            this_week_monday = today - datetime.timedelta(days=offset_to_this_monday)
+            first_monday = this_week_monday - datetime.timedelta(weeks=(week_num - 1))
+            first_monday_str = first_monday.strftime('%Y-%m-%d')
+
+        return {
+            "rawText": clean_text,
+            "academicYear": academic_year,
+            "term": term,
+            "semesterName": f"{academic_year} {term}季学期" if (academic_year and term) else clean_text,
+            "currentWeek": week_num,
+            "dayOfWeek": day_num,
+            "dayName": day_name,
+            "firstMondayDate": first_monday_str,
+            "fetchedDate": today.strftime('%Y-%m-%d'),
+        }
+
     def get_schedule(self) -> Dict[str, Any]:
         """
         获取并整理个人课表数据
         深度支持《形势与政策》、创新创业、实验实践等阶段性集中授课课程的完整识别与时间地点补全
         """
-        # 1. 提取当前学年编号
+        # 1. 提取当前学年编号与教务处当前教学周/学期信息
         page = self.request("GET", "/student/personalSenate/giveLessonInfo/thisSemesterSchedule/weekLySchedule").text
+        calendar_info = self.parse_school_calendar_text(page)
         sem_match = re.search(r'soliderboxval[^>]*value="([^"]+)"', page)
         if not sem_match:
             raise RuntimeError("未能从教务系统页面中提取当前学期编号")
@@ -737,6 +794,16 @@ class SCUUrpClient:
 
         return {
             "semesterId": semester_id,
+            "calendar": calendar_info,
+            "semesterName": calendar_info.get("semesterName", f"{semester_id}学期"),
+            "academicYear": calendar_info.get("academicYear", ""),
+            "term": calendar_info.get("term", ""),
+            "currentWeek": calendar_info.get("currentWeek", 1),
+            "dayOfWeek": calendar_info.get("dayOfWeek", 0),
+            "dayName": calendar_info.get("dayName", ""),
+            "firstMondayDate": calendar_info.get("firstMondayDate", ""),
+            "schoolCalendarText": calendar_info.get("rawText", ""),
+            "calendarFetchedDate": calendar_info.get("fetchedDate", ""),
             "totalCourses": len(formatted_courses),
             "courses": formatted_courses,
         }

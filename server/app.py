@@ -876,9 +876,10 @@ async def export_schedule_ics(
     ensure_authenticated()
     try:
         schedule_data = client.get_schedule()
+        actual_start_date = startDate or schedule_data.get("firstMondayDate") or "2026-08-31"
         ics_text, count = generate_ics(
             schedule_data,
-            start_monday_str=startDate,
+            start_monday_str=actual_start_date,
             alarm_minutes=alarmMinutes,
             calendar_name=f"川大课表 ({client.student_name or client.username})",
         )
