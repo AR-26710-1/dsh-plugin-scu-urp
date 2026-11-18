@@ -10,8 +10,11 @@ import os
 import json
 import datetime
 from typing import Dict, Any, List, Optional
-
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+try:
+    from path_utils import get_data_dir
+    DATA_DIR = get_data_dir()
+except Exception:
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 NOTES_FILE = os.path.join(DATA_DIR, "card_notes.json")
 
 

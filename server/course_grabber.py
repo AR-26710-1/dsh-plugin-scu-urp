@@ -1140,5 +1140,9 @@ class CourseGrabberManager:
 
 
 # 全局单例管理器
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+try:
+    from path_utils import get_data_dir
+    DATA_DIR = get_data_dir()
+except Exception:
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 grabber_manager = CourseGrabberManager(DATA_DIR)

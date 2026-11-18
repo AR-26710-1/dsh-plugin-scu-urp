@@ -67,36 +67,48 @@ export function apply(ctx, config) {
       const logFile = path.resolve(logDir, 'daemon.log')
 
       try {
-        // 精准定位已安装依赖的 Python 3.12 绝对路径，杜绝被 MSYS2 / MinGW 等无依赖的 Python 干扰
-        const localAppData = process.env.LOCALAPPDATA || (process.env.USERPROFILE ? path.resolve(process.env.USERPROFILE, 'AppData', 'Local') : 'C:\\Users\\30315\\AppData\\Local')
-        const pyCandidates = [
-          path.resolve(localAppData, 'Programs', 'Python', 'Python312', 'python.exe'),
-          'C:\\Users\\30315\\AppData\\Local\\Programs\\Python\\Python312\\python.exe',
-          path.resolve(localAppData, 'Programs', 'Python', 'Python311', 'python.exe'),
-        ]
+        const standaloneExe = path.resolve(__dirname, 'bin', 'scu-urp-service.exe')
+        let pyBin = ''
+        let pyArgs = []
+        let spawnCwd = path.resolve(__dirname, 'server')
 
-        let pyBin = 'py'
-        let pyArgs = ['-3.12', serverScript]
-
-        if (process.platform === 'win32') {
-          for (const cand of pyCandidates) {
-            try {
-              if (fs.existsSync(cand)) {
-                pyBin = cand
-                pyArgs = [serverScript]
-                break
-              }
-            } catch (_) {}
-          }
+        if (fs.existsSync(standaloneExe)) {
+          // 优先使用免安装独立单文件程序 (面向 DSH 市场用户，0 外部环境依赖)
+          pyBin = standaloneExe
+          pyArgs = []
+          console.log(`[SCU-URP] 探测到打包好的独立免安装服务二进制: ${standaloneExe}`)
         } else {
-          pyBin = 'python3'
-          pyArgs = [serverScript]
+          // 开发模式回退：精准定位已安装依赖的 Python 3.12 绝对路径
+          const localAppData = process.env.LOCALAPPDATA || (process.env.USERPROFILE ? path.resolve(process.env.USERPROFILE, 'AppData', 'Local') : 'C:\\Users\\30315\\AppData\\Local')
+          const pyCandidates = [
+            path.resolve(localAppData, 'Programs', 'Python', 'Python312', 'python.exe'),
+            'C:\\Users\\30315\\AppData\\Local\\Programs\\Python\\Python312\\python.exe',
+            path.resolve(localAppData, 'Programs', 'Python', 'Python311', 'python.exe'),
+          ]
+
+          pyBin = 'py'
+          pyArgs = ['-3.12', serverScript]
+
+          if (process.platform === 'win32') {
+            for (const cand of pyCandidates) {
+              try {
+                if (fs.existsSync(cand)) {
+                  pyBin = cand
+                  pyArgs = [serverScript]
+                  break
+                }
+              } catch (_) {}
+            }
+          } else {
+            pyBin = 'python3'
+            pyArgs = [serverScript]
+          }
         }
 
         // 以脱钩独立守护进程模式拉起，重定向输出到 daemon.log
         const outFd = fs.openSync(logFile, 'a')
         const child = spawn(pyBin, pyArgs, {
-          cwd: path.resolve(__dirname, 'server'),
+          cwd: spawnCwd,
           detached: true,
           stdio: ['ignore', outFd, outFd],
           windowsHide: true,

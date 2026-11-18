@@ -991,7 +991,11 @@ async def get_free_classrooms_api(
 
 
 # ================== 课程随堂备忘与作业待办 API ==================
-TODOS_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "todos.json")
+try:
+    from path_utils import get_data_dir
+    TODOS_FILE = os.path.join(get_data_dir(), "todos.json")
+except Exception:
+    TODOS_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "todos.json")
 
 def _load_todos() -> List[Dict[str, Any]]:
     try:

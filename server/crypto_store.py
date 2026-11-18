@@ -10,8 +10,11 @@ import platform
 from pathlib import Path
 from typing import Optional, Dict, Any
 from cryptography.fernet import Fernet
-
-CRED_FILE_PATH = Path(__file__).resolve().parent / ".credentials.json"
+try:
+    from path_utils import get_credentials_path
+    CRED_FILE_PATH = get_credentials_path()
+except Exception:
+    CRED_FILE_PATH = Path(__file__).resolve().parent / ".credentials.json"
 
 def _get_machine_key() -> bytes:
     """生成基于机器特征的对称加密密钥"""
