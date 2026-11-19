@@ -9,9 +9,9 @@
 本项目是专为 **DeepSeek Harness (DSH)** 深度打造的四川大学综合教务系统（URP）全功能集成插件，具备两大核心能力：
 
 1. **左侧全局面板与主工作区看板 (Client UI)**：
-   - 遵循 DSH 官方 `dsh-plugin-guide.md` 标准，挂载至左侧全局面板列表（`sidebar.panellist`），采用**四川大学官方精美矢量校徽**作为主图标，点击后在主工作区（`main` 插槽）以沉浸式宽屏面板展现。
+   - 遵循 DSH 官方 `dsh-plugin-guide.md` 标准，挂载至左侧全局面板列表（`sidebar.panellist`），采用**原创黑白极简学术学位帽矢量图标**作为主图标，点击后在主工作区（`main` 插槽）以沉浸式宽屏面板展现。
    - 包含六大核心模块：**课表与随堂待办**、**成绩绩点与保研分析**、**培养方案全景大纲与均分测算模拟器**、**考试安排倒计时**、**多校区空闲教室与考研自习室**、**账号凭据与全自动保活设置**。
-   - 视觉规范：极简莫兰迪色系、单色镂空简笔画 SVG 图标（Feather 规范）、四川大学官方矢量校徽，无大红大绿杂色，深度自适应 DSH 亮暗主题。
+   - 视觉规范：极简莫兰迪色系、单色镂空简笔画 SVG 图标（Feather 规范）、原创黑白极简学术学位帽矢量图标，无大红大绿杂色，深度自适应 DSH 亮暗主题。
 2. **对话式 Agent 智能工具链 (Cordis Tools)**：
    - 向宿主大模型安全注册 5 大核心学业工具（查课表、查成绩、查考场、查自习室、查培养方案与学业进展）。学生在任意主对话窗口中输入自然语言，AI 助手即可调用本地工具精准感知并给出专业学业建议。
 
@@ -23,7 +23,7 @@
 flowchart TD
     subgraph DSH["DeepSeek Harness (宿主环境)"]
         subgraph FrontEnd["前端主界面 (client.js)"]
-            SidebarBtn["左侧边栏全局入口 (ScuIcon 四川大学官方校徽)"]
+            SidebarBtn["左侧边栏全局入口 (ScuIcon 原创黑白简笔学术学位帽)"]
             MainView["主工作区容器 (ScuMainView)"]
             TabBar["顶部主导航栏 (课表/成绩/培养方案/考试/自习室/设置)"]
             
@@ -100,8 +100,8 @@ flowchart TD
 | 模块类别 | 文件名与绝对链接 | 语言/规范 | 核心职责说明 |
 | :--- | :--- | :---: | :--- |
 | **插件主控** | [index.js](file:///d:/antigravaty/scu教务处/index.js) | JavaScript | 遵循 Cordis 规范：托管启动本地 Python 服务，向 LLM 注册 5 大自然语言工具 |
-| **前端看板** | [client.js](file:///d:/antigravaty/scu教务处/client.js) | JavaScript (React) | 单文件纯前端架构：内置四川大学官方矢量校徽 `ScuIcon`、六大视图、SWR 极速秒开、What-If 均分模拟测算 |
-| **官方图标** | [icon.svg](file:///d:/antigravaty/scu教务处/icon.svg) | SVG 矢量 | 四川大学官方精美矢量校徽（单色设计，自适应深浅色，170×170） |
+| **前端看板** | [client.js](file:///d:/antigravaty/scu教务处/client.js) | JavaScript (React) | 单文件纯前端架构：内置原创黑白极简学术学位帽矢量图标 `ScuIcon`、六大视图、SWR 极速秒开、What-If 均分模拟测算 |
+| **官方图标** | [icon.svg](file:///d:/antigravaty/scu教务处/icon.svg) | SVG 矢量 | 原创黑白极简学术学位帽矢量图标（单色设计，自适应深浅色，170×170） |
 | **后端网关** | [server/app.py](file:///d:/antigravaty/scu教务处/server/app.py) | Python (FastAPI) | 本地 HTTP 网关（48080 端口）、CORS 中间件、多模态认证路由、10 分钟双系统保活聚合 |
 | **认证中枢** | [server/auth_hub.py](file:///d:/antigravaty/scu教务处/server/auth_hub.py) | Python | 四川大学竹云 IDaaS 统一身份认证中枢：国密 SM2 自动过验证码登录、动态扫码、URP 与电费双向会话无缝派发 |
 | **电费客户端** | [server/ele_client.py](file:///d:/antigravaty/scu教务处/server/ele_client.py) | Python | 四川大学宿舍电费 API 客户端：空调/照明双电量聚合、校区/楼栋/单元/房间层级字典与换房绑定 |
@@ -268,6 +268,6 @@ flowchart TD
 
 | 分支名 | 当前状态 | 定位与说明 |
 | :--- | :---: | :--- |
-| **`feature/new-ele-plan`** | **当前所在分支** | 新方案开发专属分支。基于电费系统制作之前的纯净节点建立，完全剔除了旧版电费系统的实验代码与网络依赖，保留了四川大学官方精美矢量校徽优化，工作区保持绝对纯净。 |
+| **`feature/new-ele-plan`** | **当前所在分支** | 新方案开发专属分支。基于电费系统制作之前的纯净节点建立，完全剔除了旧版电费系统的实验代码与网络依赖，保留了原创黑白极简学术学位帽矢量图标优化，工作区保持绝对纯净。 |
 | **`master`** | 主线分支 | 停留在基准节点 `468ab64`（*docs: 完整更新项目架构设计、已完成模块清单与后续演化规划*）。 |
 | **`archive/ele-system-v1`** | 封存归档分支 | 永久封存了基于 Edge 外部唤起与 OAuth 凭据同步的第一版电费系统实现、所有抓包分析脚本与端到端 CUA 自动化测试脚本（提交节点 `1293eff`），日后若需参考可随时检出。 |
