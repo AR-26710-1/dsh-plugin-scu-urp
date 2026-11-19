@@ -9,8 +9,38 @@ DeepSeek Harness - 四川大学教务系统 (URP) 与宿舍电费本地适配器
 - 保留教务系统原生独立密码登录作为向后兼容通道
 - 10 分钟自动静默保活与全天候透明重连
 """
-import asyncio
+import sys
 import os
+import subprocess
+
+# 智能环境自愈：若当前 Python 解释器缺少依赖（如命中 MSYS2 等未配置环境），自动重定向至标准 Python 3.12 解释器
+def _ensure_correct_python():
+    try:
+        import uvicorn
+        import fastapi
+        return
+    except ImportError:
+        pass
+
+    candidates = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python312\python.exe"),
+        r"C:\Users\30315\AppData\Local\Programs\Python\Python312\python.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python311\python.exe"),
+    ]
+    for cand in candidates:
+        if os.path.exists(cand) and os.path.normcase(cand) != os.path.normcase(sys.executable):
+            res = subprocess.call([cand] + sys.argv)
+            sys.exit(res)
+
+    try:
+        res = subprocess.call(["py", "-3.12"] + sys.argv)
+        sys.exit(res)
+    except Exception:
+        pass
+
+_ensure_correct_python()
+
+import asyncio
 import json
 import html
 from contextlib import asynccontextmanager
