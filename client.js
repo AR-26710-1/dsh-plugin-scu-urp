@@ -11840,29 +11840,7 @@ window.__ModuleLoader__.load({
                   (activeTab === 'services' || activeTab === 'electricity') && h(ServicesView, { onRequireLogin: () => setActiveTab('settings') }),
                   activeTab === 'grab' && h(CourseGrabView, { onRequireLogin: () => setActiveTab('settings') })
                 )
-          ),
-
-          // AI 原生协同创作专属底栏标注
-          h('div', {
-            style: {
-              marginTop: '42px',
-              paddingTop: '16px',
-              borderTop: '1px solid var(--dsw-alias-border, rgba(0, 0, 0, 0.06))',
-              textAlign: 'center',
-              fontSize: '11px',
-              color: 'var(--dsw-alias-text-sub, #71717a)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }
-          }, [
-            h('span', null, '🤖 AI 原生协同创作插件'),
-            h('span', { style: { opacity: 0.4 } }, '·'),
-            h('span', null, 'Co-created with DeepSeek AI Agent'),
-            h('span', { style: { opacity: 0.4 } }, '·'),
-            h('span', null, 'v1.0.0')
-          ])
+          )
         )
       )
     }

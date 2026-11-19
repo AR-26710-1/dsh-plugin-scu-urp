@@ -2,7 +2,7 @@
   "name": "dsh-plugin-scu-urp",
   "version": "1.0.0",
   "type": "module",
-  "description": "[AI原生协同创作] DeepSeek Harness 四川大学教务系统 (URP) 与微服务助手：免密自动登录、高颜值课表、手机日历同步、培养方案大纲与保研GPA测算、考试与空闲教室、一卡通流水与宿舍电费监控",
+  "description": "DeepSeek Harness 四川大学教务系统 (URP) 与微服务助手：免密自动登录、高颜值课表、手机日历同步、培养方案大纲与保研GPA测算、考试与空闲教室、一卡通流水与宿舍电费监控",
   "keywords": [
     "deepseek-harness",
     "dsh-plugin",
@@ -12,7 +12,7 @@
     "cordis",
     "education"
   ],
-  "author": "AR-26710-1 (Co-created with DeepSeek AI Agent)",
+  "author": "AR-26710-1 (Created with Antigravity + Gemini 3.8 Flash)",
   "repository": {
     "type": "git",
     "url": "https://github.com/AR-26710-1/dsh-plugin-scu-urp.git"

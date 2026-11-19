@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "SCU URP & Microservices Assistant (AI-Crafted)",
-    "description": "[AI-Crafted] DeepSeek Harness assistant plugin for Sichuan University: unified SSO auto-login, timetable schedule, RFC 5545 calendar export, study plan outline & graduate GPA simulator, course todos, exams countdown, free classrooms, and campus microservices hub (dormitory electricity & campus card records)."
+    "title": "SCU URP & Microservices Assistant",
+    "description": "DeepSeek Harness assistant plugin for Sichuan University: unified SSO auto-login, timetable schedule, RFC 5545 calendar export, study plan outline & graduate GPA simulator, course todos, exams countdown, free classrooms, and campus microservices hub (dormitory electricity & campus card records)."
   }
 }
