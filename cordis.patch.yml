@@ -1,6 +1,6 @@
 - insert:
     - id: scu-urp
-      name: '@local/scu-urp'
+      name: 'dsh-plugin-scu-urp'
       config:
         serviceUrl: 'http://127.0.0.1:48080'
         autoStartServer: true

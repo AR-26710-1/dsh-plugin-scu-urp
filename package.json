@@ -1,9 +1,26 @@
 {
-  "name": "@local/scu-urp",
+  "name": "dsh-plugin-scu-urp",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
-  "description": "DeepSeek Harness 四川大学教务系统 (URP) 插件：左侧边栏自动登录与课表、成绩、考试安排快速可视化查询",
+  "description": "[AI原生协同创作] DeepSeek Harness 四川大学教务系统 (URP) 与微服务助手：免密自动登录、高颜值课表、手机日历同步、培养方案大纲与保研GPA测算、考试与空闲教室、一卡通流水与宿舍电费监控",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "ai-crafted",
+    "ai-generated",
+    "scu-urp",
+    "cordis",
+    "education"
+  ],
+  "author": "AR-26710-1 (Co-created with DeepSeek AI Agent)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AR-26710-1/dsh-plugin-scu-urp.git"
+  },
+  "homepage": "https://github.com/AR-26710-1/dsh-plugin-scu-urp#readme",
+  "bugs": {
+    "url": "https://github.com/AR-26710-1/dsh-plugin-scu-urp/issues"
+  },
   "icon": "./icon.svg",
   "exports": {
     ".": "./index.js",
@@ -17,8 +34,12 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
-    "server",
-    "bin"
+    "marketplace.json",
+    "server/*.py",
+    "server/requirements.txt",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md"
   ],
   "dsh": {
     "bundle": {

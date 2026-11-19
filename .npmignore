@@ -1,0 +1,9 @@
+.git/
+.gitignore
+.npmignore
+bin/
+server/__pycache__/
+server/.credentials.json
+server/data/
+*.log
+start.bat

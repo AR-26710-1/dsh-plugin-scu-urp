@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/deepseek-ai/dsh-plugins/main/schema.json",
+  "id": "dsh-plugin-scu-urp",
+  "name": "四川大学教务与微服务助手 (AI 原生创作)",
+  "displayName": "川大教务与微服务助手",
+  "version": "1.0.0",
+  "description": "[AI 原生协同创作] 四川大学教务系统 (URP) 与微服务助手：竹云统一认证免密自动登录、高颜值课表、手机日历同步、培养方案大纲与保研 GPA 测算、随堂作业备忘、考试倒计时与自习室查询、宿舍电费与一卡通流水大厅。",
+  "author": {
+    "name": "AR-26710-1",
+    "notes": "Co-created with DeepSeek AI Agent"
+  },
+  "aiCoCreated": true,
+  "aiDeclaration": "本插件系人类开发者与 DeepSeek AI Agent 深度结对协同创作（AI-Crafted），包含全栈逆向、国密算法、SWR 前端与独立免安装架构。",
+  "category": "Education & Utilities",
+  "icon": "icon.svg",
+  "repository": "https://github.com/AR-26710-1/dsh-plugin-scu-urp",
+  "license": "MIT",
+  "releaseAssets": {
+    "standaloneWindows": "bin/scu-urp-service.exe",
+    "bundlePackage": "dsh-plugin-scu-urp-1.0.0.tgz"
+  },
+  "tags": [
+    "scu",
+    "education",
+    "urp",
+    "ai-crafted",
+    "dsh-plugin",
+    "cordis"
+  ]
+}

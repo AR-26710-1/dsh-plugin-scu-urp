@@ -48,3 +48,5 @@ Thumbs.db
 
 # Local user data
 data/
+
+*.tgz

@@ -2,7 +2,10 @@
 
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek_Harness-Plugin-blue.svg)](https://github.com/deepseek-ai)
 [![Cordis](https://img.shields.io/badge/Cordis-Compatible-green.svg)](https://cordis.moe)
+[![AI-Crafted](https://img.shields.io/badge/Crafted_with-DeepSeek_AI_Agent-8A2BE2.svg)](https://github.com/AR-26710-1/dsh-plugin-scu-urp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> 💡 **AI 原生创作声明**：本项目由人类开发者与 **DeepSeek AI Agent** 结对协同深度创作（Co-created with AI），全方位覆盖底层协议逆向、国密算法实现、全栈自愈容灾、SWR 高性能前端架构与独立免安装程序构建。
 
 基于 **DeepSeek Harness (DSH)** 官方插件体系与四川大学综合教务系统（URP）逆向协议打造。为川大学生提供**左侧二级抽屉可视化看板**与**对话 Agent 双模联动**的高颜值智慧教务体验。
 
@@ -155,6 +158,18 @@ py -3.12 server/app.py
 - 构建脚本：`server/build_binary.py`
 - 产物路径：`bin/scu-urp-service.exe`
 - 运行机制：插件启动时将优先静默调用 `bin/scu-urp-service.exe`，实现 0 配置开箱即用。
+
+---
+
+## 🤖 AI 原生协同创作声明 (AI Co-Creation Statement)
+本项目（`dsh-plugin-scu-urp`）属于 **AI 原生结对协同创作（AI-Crafted Application）**：
+- **协同作者**：人类开发者（AR-26710-1）× DeepSeek AI Agent 深度结对编程开发；
+- **全栈技术链覆盖**：
+  1. **协议逆向与国密安全**：深入川大竹云 IDaaS 统一身份认证与 URP 教务系统底层通信，实现动态国密 SM2/SM3 加密与离线验证码神经推理；
+  2. **高性能前端交互**：单文件构建具备 Stale-While-Revalidate（SWR）毫秒级首屏秒开的高颜值 React 抽屉面板；
+  3. **复杂学业算法模型**：首创针对培养方案的 What-If 动态均分/保研绩点测算引擎，支持双轨实时反馈；
+  4. **工程化独立交付与环境自愈**：利用 PyInstaller 将庞大 Python 运行时与 3 大 ONNX 识别模型整合成 154MB 免安装独立二进制服务，并设计了 Python 解释器环境自愈启动链；
+  5. **原创版权合规**：自主设计原创黑白简笔学术学位帽矢量图，遵循严格的 SPDX 开源规范。
 
 ---
 
