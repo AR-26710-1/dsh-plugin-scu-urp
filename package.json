@@ -34,6 +34,7 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
+    "icon.png",
     "marketplace.json",
     "server/*.py",
     "server/requirements.txt",
